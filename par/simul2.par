@@ -1,0 +1,112 @@
+!Experiment parameters
+!Staggering kind
+HC
+!Kind of interpolation
+wach
+!Kind of vector reconstruction
+rbfetrp
+!Kind of higher order reconstruction method (used in hybrid scheme - put "0" if not to be used)
+0
+!Reconstruction method for divergence estimates (use 0 for no reconstruction - usual)
+0
+!Interpolation/Reconstruction from/to cell centroids (1-yes, 0-no)
+0
+!Discretizations to cell centroids (1-yes, 0-no)
+0
+!Alignment index threshold (add "val" for value or "per" for percentage of non aligned cells)
+0.01 val
+!RBF shape parameter and flag for variable shape ( ex:1.0 1 (adjustable) or 0 (fixed))
+2 0
+!Scalar/vector field used
+8
+!plots
+0
+
+
+
+!--------Comments---------------------------------------------------------------
+
+!++++++++++ Kind of interpolations +++++++++++++++++++
+    !*** var%pos=0 (For values given on triangle vertices - Stag=HA) ***
+    ! none     = Just get triangle
+    ! neartrv  = Nearest node  (default)
+    ! lintrv   = Linear TR - values on tr vertices - default
+    ! linhxb   = Linear TR - values on Voronoi cell centroids
+    ! lsqhx    = Quadratic Least Squares 
+    ! hermtrv  = Cubic (R.Renka C1 Hermite)
+    ! rbftr    = RadialBaisisFunction TR (3pts)
+    ! rbfetr   = RadialBaisisFunction ETR(11,12pts)
+    ! rbfhx    = RadialBaisisFunction HX (6,7pts)
+    ! natlap   = Natural Coordinate with Laplace
+    ! natsib   = Natural Coordinate with Sibson
+    ! natfar   = Natural Coordinate with Farin
+    ! lmshep   = Local Modified Shepard Method
+    ! qdshep   = Quadratic Shepard Method
+    
+    !*** var%pos=1 (For values given on triangle circumcenters - Stag=TA) ***
+    ! none     = Just get triangle
+    ! neartrc  = Nearest triangle
+    ! wach     = Wachspress interpolation - default
+    
+    !*** var%pos=2 (For values given on triangle edge midpoints - Stag=TC) ***
+    ! none     = Just get triangle
+    ! p1nc     = P1 Non corforming element - default
+    
+    !*** var%pos=3 (For values given on voronoi edge midpoints - Stag=HC) ***
+    ! none     = Just get triangle
+    ! wach     = Modified Wachspress interpolation (linear) - default
+    ! lmshep   = Local Modified Shepard Method
+    ! p1nc     = P1 Non corforming element - may do extrapolation
+    
+    !*** var%pos=4 (For values given on Voronoi centroids) ***
+    ! neartrv  = Nearest node  (default)
+    
+    !*** var%pos=5 (For values given on triangle centroids) ***
+    ! neartrc  = Nearest triangle  (default)
+    
+    !Use "none" to set no interpolation. Used only to calculate basic computational cost
+     
+!Vector reconstructions
+    ! % none   = Just find the nearest node
+    !    nonetr  - Reconstruct to triangle circumcenters
+    !    nonehx  - Reconstruct to triangle vertices     
+    ! % rbf    = Radial Basis Function
+    !     rbfhx  - rbf for 6 point Voronoi cell
+    !     rbftr  - rbf for 3 point triangle
+    !     rbfhxpc- rbfhx with constant polynomial
+    ! % per    = Perot (2000) recosntruction
+    !     perhx  - Perot for Hexagons
+    !     pertr  - Perot for Triangles
+    ! % lsq    = Least Square Fit
+    !     lsqhxe - 12 point hexagon stencil
+    !     lsqtrc - 9 point triangle based stencil
+    ! % rt0    = Raviart Thomas 0th order element reconstruction
+    ! % wht    = Whitney Edge element reconstruction
+    ! % kls    = Klausen reconstruction with Wachspress coords
+
+
+!List of Stags for interpolation - considers scalar on vector positions
+!	HA  - Scalars and vectors on triangle vertices, hexagon centers
+!	HC  - Scalars on triangle vertices, hexagon centers and vectors hexagon edge midpoints
+!	TA  - Scalars and vectors on triangle circumcenter, hexagon vertices
+!	TC  - Scalars on triangle vertices, hexagon centers and vectors triangle edge midpoints
+
+!List of Functions (for scalar interpolation and laplacian tests)
+!	  1-Cosine bell
+!	  2-Gaussian
+!   3-Non-smooth- Slotted cylinder
+!   4-Smooth Trigonometric
+!   5-Exponential
+!   6-Linear in R3
+!   7-Constant=1
+!   8- Trigonom oscilation (beta of HR95)
+    
+!List of Vector Fields for vector interpolation and divergence tests
+!	  1-Test case 1 - non div 
+!	  2-Test case 2 - non div 
+!   3-Test case 3 - div
+!   4- Constant parallel field
+!   5- Rotation field around z-axis
+!   6- Trigonometric Divergent Field (Tomita)
+!	  7- Rotation field not aligned with equator
+!	  8- Rossby-Haurwitz 

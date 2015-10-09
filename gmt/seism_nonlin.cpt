@@ -1,0 +1,21 @@
+#       $Id: GMT_seis.cpt 9545 2011-07-27 19:31:54Z pwessel $
+#
+# Colormap using in seismic tomographic images
+# Designed by Suzan van der Lee
+# Edited by P. Peixoto with white and non linear Nov 2013
+# COLOR_MODEL = RGB
+-1.43	0	0	0	-1.00	80	0	0
+-1.00	80	0	0	-.677	205	0	0
+-.677	205	0	0	-.455	255	15	0
+-.455	255	15	0	-.333	255	100	0
+-.333	255	100	0	-.111	255	255	0
+-.111	255	255	0	.111	255	255	0
+.111	255	255	0	.333	150	255	30
+.333	150	255	30	.555	0	240	20
+.555	0	240	20	.777	0	170	255
+.777	0	170	255	1.00	0	20	255
+1.00	0	20	255	1.43	255	255	255
+
+
+
+

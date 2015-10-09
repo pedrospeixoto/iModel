@@ -1,0 +1,13 @@
+!Multigrid parameters
+!Finer grid
+6
+!Relaxation parameter ( 0<w<1)
+0.8
+!Number of V/W cycles
+15
+!Number relaxations before and after the vcycle
+1
+2
+
+
+

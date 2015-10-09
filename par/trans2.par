@@ -1,0 +1,40 @@
+!Parameters for the transport deformation test model
+!Case for velocity field (1-ndiv, 2-ndiv, 3-div, 4-divrot, 5-Rot, 6-RossHarw, 7-RotVarSpeed)
+4
+!Initial condition (scalar field- 1-cosbel, 2-gauss, 3-cylinder, 4-one gauss) 
+2
+!Ritchie Trajectory calculation - 1=Ritchie, 0=Semi-Analytic or exact
+1
+!Number of time steps (ex 64) and 1-adjust by 2^(glevel-5) or 0-no adjust 
+2048 0
+!Staggering (HC, HA)
+HC
+!Monotinicity (0-No, 1-yes)
+0
+!Mass fixer - conservative (0-No, 1-yes)
+0
+!Interpolation kind (scalar field) - ex: hermtrv
+hermtrv
+!Kind of vector reconstruction - ex: perhx
+lsqtrc
+!Kind of vector interpolation - ex: lintrv
+lintrv
+!Kind of higher order reconstruction method (used in hybrid scheme - put "0" if not to be used)
+0
+!Interpolation/Reconstruction from/to cell centroids (1-yes, 0-no)
+0
+!Reconstruction method for divergence estimates (use 0 for no reconstruction - usual)
+0
+!Discretizations to cell centroids (1-yes, 0-no)
+0
+!Alignment index threshold (add "val" for value or "per" for percentage of non aligned cells)
+0.01 val
+!RBF shape parameter (only if RBF method - ex:1.0)
+1
+!Number of plots on animation. ex:64
+2
+
+
+!!!! See simul.par for details of the interpolation/reconstruction methods that can be used
+! Use "exact" if you want to use exact vector field interpolation on trajectory calculation
+! Use "exact" if you want to use exact scalar field interpolation for rotation test
