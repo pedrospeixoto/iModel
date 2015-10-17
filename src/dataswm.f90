@@ -121,8 +121,8 @@ module dataswm
   real(r8):: tmass, inimass
 
   !Total energy
-  real(r8):: Tenergy, Kenergy, Penergy
-  real(r8):: Tenergy0, Kenergy0, Penergy0
+  real(r8):: Tenergy, Kenergy, Penergy, Availenergy
+  real(r8):: Tenergy0, Kenergy0, Penergy0, Availenergy0
 
   !Reference Maximum values - used for normalization
   real(r8):: maxvel !Velocities

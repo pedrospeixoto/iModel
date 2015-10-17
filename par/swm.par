@@ -1,10 +1,10 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-21 0
+5 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-6 6
+15 15
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-150 0 0
+100 0 0
 !Scalar/vector location (HC or HTC)
 HC
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set)
@@ -16,7 +16,7 @@ bary
 !Gradient discrete method
 trsk
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors
-4 10 0
+0 10 0
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32 and 33
@@ -24,7 +24,7 @@ trsk
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
 0.0
 !Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter
-apvm 0.5
+none 0.5
 
 
 !--------------------------HELP----------------------------------!
