@@ -26,7 +26,7 @@ doc/*.bib \
 doc/*.pdf "
 
 others="Makefile \
-readme.txt \
+README.* \
 matlab/*.m "
 
 files="$sourcefiles $parfiles $scripts $gmtscripts $refs $docs $others"

@@ -3125,21 +3125,23 @@ contains
     do i=1, mesh%nv
        Penergy=Penergy+mesh%hx(i)%areag*grav*h%f(i)*(h%f(i)*0.5+bt%f(i))
     end do
-    !print*, "Potential:",Penergy
+<<<<<<< HEAD
+	!rint*, "Potential:",Penergy
 
-    UnavailPenergy=0.
-    !Calculate mean height
-    mean_height=sumf_areas(hbt)
+	UnavailPenergy=0.
+	!Calculate mean height
+	mean_height=sumf_areas(hbt)
     !print*, mean_height, maxval(h%f(1:mesh%nv)), mean_height_bt, maxval(bt%f(1:mesh%nv))
     do i=1, mesh%nv
-       mean_height_bt=mean_height-bt%f(i)
+    	mean_height_bt=mean_height-bt%f(i)
 
-       !Unavailable energy
+    	!Unavailable energy
        UnavailPenergy=UnavailPenergy+mesh%hx(i)%areag*grav*mean_height_bt*(mean_height_bt*0.5+bt%f(i))
     end do
-    !print*, "Unavailable:", UnavailPenergy
-
-    !print*, "Potential:",Penergy
+	!print*, "Unavailable:", UnavailPenergy
+=======
+    !rint*, "Potential:",Penergy
+>>>>>>> c2b823fc8a1884ab96197571d3c4e54369a173d4
 
     UnavailPenergy=0.
     !Calculate mean height
@@ -3165,11 +3167,13 @@ contains
     end if
 
     Tenergy=Penergy+Kenergy
+<<<<<<< HEAD
+	Availenergy=Tenergy-UnavailPenergy
+	!print*, "Available:", Availenergy
+=======
     Availenergy=Tenergy-UnavailPenergy
     !print*, "Available:", Availenergy
-
-    Availenergy=Tenergy-UnavailPenergy
-    !print*, "Available:", Availenergy
+>>>>>>> c2b823fc8a1884ab96197571d3c4e54369a173d4
 
     return
   end subroutine calc_energies
@@ -3530,8 +3534,13 @@ contains
     !File for errors
     filename=trim(datadir)//trim(swmname)//"_mass_energy_"//trim(mesh%name)//".txt"
     buffer="        n        mvdist  tcase       k       nt        dt(s)       "//&
+<<<<<<< HEAD
     "          cfl                 time(dys)             mass               Penergy    "//&
+    "          Kenergy            Tenergy            Availenergy           RMSdiv"
+=======
+         "          cfl                 time(dys)             mass               Penergy    "//&
          "          Kenergy            Tenergy            Availenergy           RMSdiv"
+>>>>>>> c2b823fc8a1884ab96197571d3c4e54369a173d4
 
     inquire(file=filename, opened=iopen)
     if(iopen)then
@@ -3544,10 +3553,17 @@ contains
     end if
 
     if(k==0 .or. mod(k,nprints*40)==0 )then
+<<<<<<< HEAD
+        buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
+         "    time(dys) "//&
+         "     mass "//&
+         "        Penergy          Kenergy       Tenergy        Availenergy       RMSdiv"
+=======
        buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
             "    time(dys) "//&
             "     mass "//&
             "        Penergy          Kenergy       Tenergy        Availenergy       RMSdiv"
+>>>>>>> c2b823fc8a1884ab96197571d3c4e54369a173d4
        write(*, '(a)') trim(buffer)
     end if
 
