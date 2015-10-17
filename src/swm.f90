@@ -195,20 +195,20 @@ contains
           maxdiv=maxval(abs(divu%f))
           max_gradke=0.0_r8
     	  do l=1, mesh%ne
-         	!print*, l
-	         !Calculate gradient of Ke on edges
-	         if(useStagHC)then
-	            signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
-	                 mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
-	            gradke_tmp=signcor*(Kin_energy%f(mesh%edhx(l)%sh(2))-Kin_energy%f(mesh%edhx(l)%sh(1)))
-	         elseif(useStagHTC)then
-	          ! Obs: the tangent of a triangle edge (which is used as normal
-	          !   of the voronoi cell edges) is always defined such
-	          !   that it point from its vertex 1 to its vertex 2
-	          !   Therefore, the gradient needs no correction term (n_ei)
-	            gradke_tmp=(Kin_energy%f(mesh%ed(l)%v(2))-Kin_energy%f(mesh%ed(l)%v(1)))
-	          end if
-	          max_gradke=max(max_gradke, abs(gradke_tmp/mesh%ed(l)%leng/erad))
+          !print*, l
+          !Calculate gradient of Ke on edges
+             if(useStagHC)then
+                signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
+                     mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
+                gradke_tmp=signcor*(Kin_energy%f(mesh%edhx(l)%sh(2))-Kin_energy%f(mesh%edhx(l)%sh(1)))
+             elseif(useStagHTC)then
+                ! Obs: the tangent of a triangle edge (which is used as normal
+                !   of the voronoi cell edges) is always defined such
+                !   that it point from its vertex 1 to its vertex 2
+                !   Therefore, the gradient needs no correction term (n_ei)
+                gradke_tmp=(Kin_energy%f(mesh%ed(l)%v(2))-Kin_energy%f(mesh%ed(l)%v(1)))
+             end if
+             max_gradke=max(max_gradke, abs(gradke_tmp/mesh%ed(l)%leng/erad))
        	  end do
 
           call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
@@ -216,9 +216,9 @@ contains
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke)
 
-		  if(errormaxrel_h > 10)then
-		     !Plot fields
-		     print*, "Stopping due to large errors", errormaxrel_h
+          if(errormaxrel_h > 10)then
+             !Plot fields
+             print*, "Stopping due to large errors", errormaxrel_h
              call plotfields(ntime, time)
              exit
           end if
@@ -1768,30 +1768,30 @@ contains
           stop
        end if
 
-     ! For tc33, h is contant, u is rotation and the f=0
+       ! For tc33, h is contant, u is rotation and the f=0
        if(testcase==33)then
           fcte=0.
           fsphere=2
-		  !u0=200
+          !u0=200
           h_ct=((u0**2)/2._r8)*gravi
           eta_ct=(2.*u0/erad)
        else
-       	h_ct=(erad*omega*u0+(u0**2)/2._r8)*gravi
-       	eta_ct=(2.*u0/erad+2.*omega)
+          h_ct=(erad*omega*u0+(u0**2)/2._r8)*gravi
+          eta_ct=(2.*u0/erad+2.*omega)
        end if
 
        grad_ct=u0*eta_ct
-	   print*, "Test case parameters"
+       print*, "Test case parameters"
 
-	   print*, "u0", u0
-	   print*, "h_ct", h_ct
+       print*, "u0", u0
+       print*, "h_ct", h_ct
 
 
        do i=1, mesh%nv
           !print*, i
           h%f(i)=hollgw
           !if(testcase==32)then !Only put bottom topograpy in tc32 - geostrophic balanced flow
-             bt%f(i)=h0-h_ct*dsin(mesh%v(i)%lat)**2
+          bt%f(i)=h0-h_ct*dsin(mesh%v(i)%lat)**2
           !elseif(testcase==33)then
           !   bt%f(i)=h0-((u0**2)/2._r8)*gravi*dsin(mesh%v(i)%lat)**2
           !end if
@@ -3125,35 +3125,34 @@ contains
     do i=1, mesh%nv
        Penergy=Penergy+mesh%hx(i)%areag*grav*h%f(i)*(h%f(i)*0.5+bt%f(i))
     end do
-	!rint*, "Potential:",Penergy
+    !rint*, "Potential:",Penergy
 
-	UnavailPenergy=0.
-	!Calculate mean height
-	mean_height=sumf_areas(hbt)
+    UnavailPenergy=0.
+    !Calculate mean height
+    mean_height=sumf_areas(hbt)
     !print*, mean_height, maxval(h%f(1:mesh%nv)), mean_height_bt, maxval(bt%f(1:mesh%nv))
     do i=1, mesh%nv
-    	mean_height_bt=mean_height-bt%f(i)
+       mean_height_bt=mean_height-bt%f(i)
 
-    	!Unavailable energy
+       !Unavailable energy
        UnavailPenergy=UnavailPenergy+mesh%hx(i)%areag*grav*mean_height_bt*(mean_height_bt*0.5+bt%f(i))
     end do
-	!print*, "Unavailable:", UnavailPenergy
+    !print*, "Unavailable:", UnavailPenergy
 
     Kenergy=0.
-    !if(useReconmtdPerhx)then
-    ! do i=1, mesh%nv
-    !   Kenergy=Kenergy+Kin_energy%f(i)*mesh%hx(i)%areag
-    ! end do
-    !else
-
-    do l=1, mesh%ne
-       Kenergy=Kenergy+0.5*mesh%ed(l)%leng*mesh%edhx(l)%leng*h_ed%f(l)*u%f(l)**2
-    end do
-    !end if
+    if(useReconmtdPerhx)then
+       do i=1, mesh%nv
+          Kenergy=Kenergy+Kin_energy%f(i)*mesh%hx(i)%areag
+       end do
+    else       
+       do l=1, mesh%ne
+          Kenergy=Kenergy+0.5*mesh%ed(l)%leng*mesh%edhx(l)%leng*h_ed%f(l)*u%f(l)**2
+       end do
+    end if
 
     Tenergy=Penergy+Kenergy
-	Availenergy=Tenergy-UnavailPenergy
-	!print*, "Available:", Availenergy
+    Availenergy=Tenergy-UnavailPenergy
+    !print*, "Available:", Availenergy
 
     return
   end subroutine calc_energies
@@ -3514,8 +3513,8 @@ contains
     !File for errors
     filename=trim(datadir)//trim(swmname)//"_mass_energy_"//trim(mesh%name)//".txt"
     buffer="        n        mvdist  tcase       k       nt        dt(s)       "//&
-    "          cfl                 time(dys)             mass               Penergy    "//&
-    "          Kenergy            Tenergy            Availenergy           RMSdiv"
+         "          cfl                 time(dys)             mass               Penergy    "//&
+         "          Kenergy            Tenergy            Availenergy           RMSdiv"
 
     inquire(file=filename, opened=iopen)
     if(iopen)then
@@ -3528,10 +3527,10 @@ contains
     end if
 
     if(k==0 .or. mod(k,nprints*40)==0 )then
-        buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
-         "    time(dys) "//&
-         "     mass "//&
-         "        Penergy          Kenergy       Tenergy        Availenergy       RMSdiv"
+       buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
+            "    time(dys) "//&
+            "     mass "//&
+            "        Penergy          Kenergy       Tenergy        Availenergy       RMSdiv"
        write(*, '(a)') trim(buffer)
     end if
 
