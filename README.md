@@ -8,7 +8,7 @@ pedrosp@ime.usp.br
 
 iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid based geophysical fluid models. Fully Fortran written, with outputs using GMT/Matlab. It contains:
 
- -Grid generator and grid tools, including grid optimization
+- Grid generator and grid tools, including grid optimization
 - Interpolation and vector reconstruction pack
 - Multigrid solver
 - Transport model (Semi-Lagrangian)
