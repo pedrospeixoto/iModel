@@ -149,12 +149,12 @@ contains
     inimass=sumf_areas(h)
 
     !Calculate energies
-    call calc_energies(Penergy0, Kenergy0, Tenergy0)
+    call calc_energies(Penergy0, Kenergy0, Tenergy0, Availenergy0)
 
     call write_evol_error(0, 0._r8, inimass, errormax_h, error2_h, errormax_u, error2_u,  errormax, error2, &
-         Penergy0, Kenergy0, Tenergy0, 0.0_r8, 0.0_r8, 0.0_r8)
+         Penergy0, Kenergy0, Tenergy0, Availenergy0, 0.0_r8, 0.0_r8, 0.0_r8)
 
-    call write_evol(0, 0._r8, inimass, Penergy0, Kenergy0, Tenergy0, 0._r8)
+    call write_evol(0, 0._r8, inimass, Penergy0, Kenergy0, Tenergy0, Availenergy0, 0._r8)
 
     !Time loop
     do k=1, ntime
@@ -185,7 +185,7 @@ contains
           Tmass=sumf_areas(h)
 
           !Calculate erngies
-          call calc_energies(Penergy, Kenergy, Tenergy)
+          call calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
 
           !Calculate Errors and output them
           call error_calc(h, h_exact, h_error, errormaxrel_h, error2_h, errormax_h)
@@ -214,7 +214,7 @@ contains
           call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
                errormaxrel_u, error2_u,  errormaxrel, error2, &
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
-               RMSdiv, maxdiv, max_gradke)
+               (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke)
 
 		  if(errormaxrel_h > 10)then
 		     !Plot fields
@@ -233,12 +233,12 @@ contains
           Tmass=sumf_areas(h)
 
           !Calculate erngies
-          call calc_energies(Penergy, Kenergy, Tenergy)
+          call calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
           RMSdiv=dsqrt(sumfsq_areas(divu))
 
-          call write_evol(k, time, (Tmass-inimass)/inimass, &
+          call write_evol(k, time, Tmass, &
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
-               RMSdiv)
+               (Availenergy-Availenergy0)/Availenergy0, RMSdiv)
 
        end if
 
@@ -597,7 +597,7 @@ contains
     print*, "Sum of k.Rot(Grad(h)):", crossrule
     print*
 
-    call calc_energies(Penergy0, Kenergy0, Tenergy0)
+    call calc_energies(Penergy0, Kenergy0, Tenergy0, Availenergy0)
     print*, "4) Coriolis spurious energy budget - normalized fields "
     coriolis_engy=0.
     do l=1, mesh%ne
@@ -3106,20 +3106,38 @@ contains
   end subroutine ode_rk4
 
 
-  subroutine calc_energies(Penergy, Kenergy, Tenergy)
+  subroutine calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
     !Calculate Kinetic, Potential and Total energies
 
     integer(i4):: i
     integer(i4):: l
     real(r8):: Tenergy
     real(r8):: Kenergy
+    real(r8):: Kenergy_new
     real(r8):: Penergy
+    real(r8):: Availenergy
+    real(r8):: UnavailPenergy
+    real(r8):: mean_height
+    real(r8):: mean_height_bt
 
     !Calculate energies
     Penergy=0.
     do i=1, mesh%nv
        Penergy=Penergy+mesh%hx(i)%areag*grav*h%f(i)*(h%f(i)*0.5+bt%f(i))
     end do
+	!rint*, "Potential:",Penergy
+
+	UnavailPenergy=0.
+	!Calculate mean height
+	mean_height=sumf_areas(hbt)
+    !print*, mean_height, maxval(h%f(1:mesh%nv)), mean_height_bt, maxval(bt%f(1:mesh%nv))
+    do i=1, mesh%nv
+    	mean_height_bt=mean_height-bt%f(i)
+
+    	!Unavailable energy
+       UnavailPenergy=UnavailPenergy+mesh%hx(i)%areag*grav*mean_height_bt*(mean_height_bt*0.5+bt%f(i))
+    end do
+	!print*, "Unavailable:", UnavailPenergy
 
     Kenergy=0.
     !if(useReconmtdPerhx)then
@@ -3134,6 +3152,8 @@ contains
     !end if
 
     Tenergy=Penergy+Kenergy
+	Availenergy=Tenergy-UnavailPenergy
+	!print*, "Available:", Availenergy
 
     return
   end subroutine calc_energies
@@ -3324,7 +3344,6 @@ contains
     real(r8):: Kenergy
     real(r8):: Penergy
 
-
     !Char buffer
     character (len=512):: buffer
 
@@ -3373,7 +3392,7 @@ contains
   subroutine write_evol_error(k, time, tmass, errormax_h, error2_h, &
        errormax_u, error2_u, &
        errormax_pv, error2_pv,&
-       Penergy, Kenergy, Tenergy, &
+       Penergy, Kenergy, Tenergy, Availenergy, &
        RMSdiv, maxdiv, max_gradke)
     !----------------------------------------------------------
     !  write errors to specific file for this specific model set up
@@ -3398,6 +3417,7 @@ contains
     real(r8):: Tenergy
     real(r8):: Kenergy
     real(r8):: Penergy
+    real(r8):: Availenergy
     real(r8):: RMSdiv, maxdiv, max_gradke
     integer(i4):: k
     !Time
@@ -3413,7 +3433,8 @@ contains
          "        errormax_h       error2_h               errormax_u     "//&
          "   error2_u               errormax_pv       error2_pv            "//&
          " mass              Penergy      "//&
-         "     Kenergy             Tenergy            RMSdiv              maxdiv    "//&
+         "     Kenergy             Tenergy          Availenergy      "//&
+         "     RMSdiv              maxdiv    "//&
          "     max_gradke              SWMparameters"
 
     inquire(file=filename, opened=iopen)
@@ -3432,7 +3453,7 @@ contains
        buffer="     n    mvdist  tcase     k     nt   dt(s) "//&
             "       cfl   time(dys) errormax_h   error2_h  "//&
             "   errormax_u  error2_u    mass       "//&
-            " Penergy           Kenergy     Tenergy   errormax_pv   error2_pv RMSdiv  maxdiv  max_gradke"
+            " Penergy           Kenergy     Tenergy    Availenergy  errormax_pv   error2_pv  RMSdiv  maxdiv  max_gradke"
        write(*, '(a)') trim(buffer)
     end if
 
@@ -3440,17 +3461,17 @@ contains
 
     !if( k==1 .or. k==ntime  .or. mod(k,nprints)==0 )then
     !Write errors to file
-    write(iunit, '(i12, 1f12.4, i4, 2i10, 16e20.10 , a100)') &
+    write(iunit, '(i12, 1f12.4, i4, 2i10, 17e20.10 , a100)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, errormax_pv, error2_pv, tmass, &
-         Penergy, Kenergy, Tenergy , RMSdiv, maxdiv, max_gradke, &
+         Penergy, Kenergy, Tenergy , Availenergy, RMSdiv, maxdiv, max_gradke, &
          trim(adjustl(trim(swmname)))//"_"//trim(adjustl(trim(mesh%name)))
-    write(*, '(i8, 1f8.3, i4, 2i8, 3f8.3, 13e12.4)') &
+    write(*, '(i8, 1f8.3, i4, 2i8, 3f8.3, 14e12.4)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, tmass, &
-         Penergy, Kenergy, Tenergy, errormax_pv, error2_pv, RMSdiv, maxdiv, max_gradke
+         Penergy, Kenergy, Tenergy, Availenergy, errormax_pv, error2_pv, RMSdiv, maxdiv, max_gradke
     !if(k==0)then
     !Buffer for write_evol output - neat output this way
     !buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
@@ -3464,7 +3485,7 @@ contains
 
   end subroutine write_evol_error
 
-  subroutine write_evol(k, time, tmass, Penergy, Kenergy, Tenergy, RMSdiv)
+  subroutine write_evol(k, time, tmass, Penergy, Kenergy, Tenergy, Availenergy, RMSdiv)
     !----------------------------------------------------------
     !  write info to specific file for this specific model set up
     !    at defined time steps
@@ -3481,6 +3502,7 @@ contains
     real(r8):: Tenergy
     real(r8):: Kenergy
     real(r8):: Penergy
+    real(r8):: Availenergy
     real(r8):: RMSdiv
     integer(i4):: k
     !Time
@@ -3491,10 +3513,9 @@ contains
 
     !File for errors
     filename=trim(datadir)//trim(swmname)//"_mass_energy_"//trim(mesh%name)//".txt"
-    buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
-         "    time(dys) "//&
-         "     mass "//&
-         "        Penergy          Kenergy       Tenergy        RMSdiv"
+    buffer="        n        mvdist  tcase       k       nt        dt(s)       "//&
+    "          cfl                 time(dys)             mass               Penergy    "//&
+    "          Kenergy            Tenergy            Availenergy           RMSdiv"
 
     inquire(file=filename, opened=iopen)
     if(iopen)then
@@ -3507,20 +3528,24 @@ contains
     end if
 
     if(k==0 .or. mod(k,nprints*40)==0 )then
+        buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
+         "    time(dys) "//&
+         "     mass "//&
+         "        Penergy          Kenergy       Tenergy        Availenergy       RMSdiv"
        write(*, '(a)') trim(buffer)
     end if
 
     !if( k==1 .or. k==ntime  .or. mod(k,nprints)==0 )then
     !Write errors to file
-    write(iunit, '(i12, 1f12.4, i4, 2i10, 8e20.10)') & !, a60, a60)') &
+    write(iunit, '(i12, 1f12.4, i4, 2i10, 9e28.16)') & !, a60, a60)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, cfl, time*sec2day, tmass, &
-         Penergy, Kenergy, Tenergy, RMSdiv !, &
+         Penergy, Kenergy, Tenergy, Availenergy, RMSdiv !, &
     !trim(adjustl(trim(swmname))), trim(adjustl(trim(mesh%name)))
-    write(*, '(i12, 1f8.3, i4, 2i10, 2f10.4, 5e16.6)') &
+    write(*, '(i12, 1f8.3, i4, 2i10, 2f10.4, 6e16.6)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, time*sec2day, tmass, &
-         Penergy, Kenergy, Tenergy, RMSdiv
+         Penergy, Kenergy, Tenergy, Availenergy, RMSdiv
     !end if
     !print*
 
