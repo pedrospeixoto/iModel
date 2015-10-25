@@ -224,7 +224,7 @@ contains
           end if
 
           if(k==ntime)then
-             call write_errors(time, errormaxrel_h, error2_h, errormaxrel_u, error2_u, tmass-inimass, &
+             call write_errors(time, errormaxrel_h, error2_h, errormaxrel_u, error2_u, (Tmass-inimass)/inimass, &
                   (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0)
           end if
 
@@ -236,7 +236,7 @@ contains
           call calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
           RMSdiv=dsqrt(sumfsq_areas(divu))
 
-          call write_evol(k, time, Tmass, &
+          call write_evol(k, time, (Tmass-inimass)/inimass, &
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv)
 
@@ -3016,7 +3016,7 @@ contains
     end if
 
     if(testcase<=1)then
-       momeq(l)=0.
+       		momeq(1:mesh%ne)=0.
     end if
 
     return

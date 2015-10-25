@@ -1,10 +1,10 @@
-!Shallow water model parameters file
-!Test case (see Williamson 1994) / Test local truncation (only possible in some test cases)
-2 0
+!Shallow water model parameters file - see below for details
+!Test case / Test local truncation 0/1 (only possible in some test cases)
+1 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-15 200
+12 12
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-100 0 0
+50 0 0
 !Scalar/vector location (HC or HTC)
 HTC
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set)
@@ -16,21 +16,22 @@ trsk
 !Gradient discrete method
 trsk
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors
-1 10 0
-!Diffusion coef - Leave zero for no diffusion
+2 10 0
+!Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32 and 33
 0
-!Reference threshold for hybrid method (set hyb on coriolis method - zero to obtain pure trsk)
-0.01
-!Potential vorticity correction (none, apvm, clust) / CLUST parameter b
-none 0
+!Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
+0.0
+!Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter
+none 0.5
 
 
 !--------------------------HELP----------------------------------!
 !Options
 !
 !Test Cases implemented
+1: Solid body rotation
 2 : Steady State Will92
 5 : Flow over mountain Will92
 6 : Rossby-Haurwitz Will92 
@@ -40,27 +41,34 @@ none 0
 22 : Galewski et al Barotropically unstable jet without perturbation
 32 : Hollingsworth instability with tc2
 33 : Hollingsworth instability with constant h and non rotating frame  
+42 : Rotated Steady state localised test on f-sphere
+51 : Flow over mountain Will92 smooth mountain (Gaussian)
 
 !Scalar/vector collocation (HC or HTC)
 HC : scalars on cell node and vectors on Voronoi cell edge midpoints
 HTC : scalars on cell node and vectors on Voronoi cell edge intersection with triangle edge
 
 ! Cell Vector recontruction method
-perhx : Perot's method
+perhx : Perot's method (required for Peixoto 2015)
 trsk : simple weighted average
 gass : Gassman's version to avoid Hol. instabil
 
 !Coriolis vec recon method
-dtred : Dual triangle method
+dtred : Dual triangle method (Similar to Nikovic 2002) 
 trsk  : TRiSK method
-pered : Peor's method for edges
+pered : New method using Perot for edges (see Peixoto 2015)
+hyb   : Hybrid scheme mixing pered and trsk (not in use anymore, since no advantage was seen)
 
 !Scalar interpolations
-bary : barycentric coordinates
+bary : barycentric coordinates (required for Peixoto 2015 scheme)
 trsk : simple average
 
 !Gradient discrete method
-bary : uses 3 values and bary coordinates (required on on HC grid)
-trsk : simple difference
+bary : uses 3 values and bary coordinates ( not in use anymore - avoid)
+trsk : simple difference 
 
-!
+!Potential Vorticity correction
+none : No correction
+apvm : Anticipated potential vorticity method from Ringler et at 2010
+clust : CLUST scheme from Weller 2012
+parameter: append parameter to be used after method name

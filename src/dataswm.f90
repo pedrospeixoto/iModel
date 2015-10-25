@@ -497,14 +497,14 @@ contains
        swmname=trim(swmname)//"_pvs"//trim(adjustl(trim(pv_stab)))
        swmname=trim(swmname)//trim(adjustl(trim(atmp)))
     end if
-    if(hollgw>0)then
-       write(atmp,'(f5.2)') real(hollgw)
+    if(hollgw>0 .and. (testcase==32 .or. testcase==33) )then
+       write(atmp,'(f6.2)') real(hollgw)
        swmname=trim(swmname)//"_hol"//trim(adjustl(trim(atmp)))
        !print*, atmp
     end if
 
     RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
-    RefSolAnal=testcase==2.or. testcase==22.or. testcase==24 &
+    RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
          .or. testcase==32.or. testcase==33 .or. &
          testcase==40 .or. testcase==41.or. testcase==42
 

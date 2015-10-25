@@ -1,6 +1,6 @@
 !Grid parameters 
 !Number of vertices (may be changed if icos/octg mesh is chosen) 
-10000
+160000
 !Kind of mesh use: icos, octg, read, rand
 read
 !Position: eqs, pol, ran, ref
@@ -14,46 +14,46 @@ nopt
 !Test case to be done - uncomment method to be used in imodel.f90
 15
 !If mesh read from file give filename (Extensions: .xyz cartesian coords, .gmt lon, lat)
-HR95JT_007.xyz
+icos_pol_scvt_h1_8.xyz
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos0 Symmetry implied; 4- Both 2 and 3
 1
 
 !-----------Description of parameters -------------------------------------!
 !Mesh kind
-!   icos (icosahedral) 
-!   octg (octahedral)
-!   read (read from file - give filename where indicated)
-!   rand (random points - be careful...)
+!   icos (icosahedral) \\
+!   octg (octahedral) \\
+!   read (read from file - give filename where indicated) \\
+!   rand (random points - be careful, you can get ugly meshes...) \\
    
-!Mesh Positions: 
-!  eqs (equator symmetric)
-!  pol (north pole point)
-!  ran (all random points)
-!  ref (random with local mesh refinement - needs scvt optimization)
+!Mesh Positions 
+!  eqs (equator symmetric)\\
+!  pol (north pole point)\\
+!  ran (all random points)\\
+!  ref (local mesh refinement - needs scvt optimization)\\
 
-!Optimization of mesh: 
-!  nopt (no optimization)
-!  sprg (spring dynamics)
-!  scvt (centroidal voronoi)
-!  salt (aligned tesselation - be careful ...)
-!  hr95 (Hiekes and Randall 1995 optimization using Miura's alg - be careful...)
+!Optimization of mesh 
+!  nopt (no optimization) \\
+!  sprg (spring dynamics - ok until level 8) \\
+!  scvt (centroidal voronoi) \\
+!  salt (aligned tesselation - not debuged ...) \\
+!  hr95 (Heikes and Randall 1995 optimization using Miura's alg - not debuged...) \\
 
-!Possible test cases:
-!  case(1) !Test geodesic to regular grid conversion tool
-!  case(2) !Test Search methods
-!  case(3) !Mesh distortion tests
-!  case(4) !Divergence Tests
-!  case(5) !Laplacian Tests
-!  case(6) !Test scalar interpolations
-!  case(7) !Test vector interpolation
-!  case(8) !Test vector reconstruction
-!  case(9) !Passive advection simulation
-!  case(10)!Transport flow simulation
-!  case(11)!Multigrid tests
-!  case(12)!Tg reconstruction test
-!  case(13)!Rotational discretization test
-!  case(14)!Horizontal Disct Shallow water model diagnostics
-!  case(15)!Shallow water model test cases
+!Possible test cases
+!  case(1) !Test geodesic to regular grid conversion tool\\
+!  case(2) !Test grid point search methods\\
+!  case(3) !Mesh quality and distortion tests\\
+!  case(4) !Divergence Tests\\
+!  case(5) !Laplacian Tests\\
+!  case(6) !Test scalar interpolations\\
+!  case(7) !Test vector interpolation\\
+!  case(8) !Test vector reconstruction\\
+!  case(9) !Passive advection simulation\\
+!  case(10)!Transport flow simulation\\
+!  case(11)!Multigrid tests\\
+!  case(12)!Tg reconstruction test\\
+!  case(13)!Rotational discretization test\\
+!  case(14)!Horizontal Discret Shallow water model diagnostics\\
+!  case(15)!Shallow water model test cases\\
 
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos interior
 !  2 - Optimizes only the new points in hierarchy; 
