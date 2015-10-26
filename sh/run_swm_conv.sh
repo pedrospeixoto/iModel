@@ -1,6 +1,6 @@
 #!/bin/bash
 
-source inc_vars.sh 
+source sh/inc_vars.sh 
 
 # Script for multiple shallow water equation tests
 
@@ -17,7 +17,7 @@ awk '{ if ( NR == 17 ) { print "trsk";} else {print $0;} }'  par/swm.par > par/s
 awk '{ if ( NR == 17 ) { print "trsk";} else {print $0;} }'  par/swm2.par > par/swm.par
 
 #sh/runngrids8.sh
-sh/runngridsHR95HK_8.sh
+sh/runngridsHR95_8.sh
 sh/runngridsSCVT_8.sh
 
 # NEW SCHEME
@@ -26,7 +26,7 @@ awk '{ if ( NR == 11 ) { print "perhx 0.75";} else {print $0;} }'  par/swm2.par 
 awk '{ if ( NR == 13 ) { print "pered";} else {print $0;} }'  par/swm.par > par/swm2.par
 awk '{ if ( NR == 15 ) { print "bary";} else {print $0;} }'  par/swm2.par > par/swm.par
 
-sh/runngridsHR95HK_8.sh
+sh/runngridsHR95_8.sh
 sh/runngridsSCVT_8.sh
 
 #sh/runngrids9.sh
