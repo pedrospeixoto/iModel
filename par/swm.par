@@ -4,15 +4,15 @@
 !Total period definition (ex:12days) / integrations stopping time (5 days)
 12 12
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-50 0 0
+100 0 0
 !Scalar/vector location (HC or HTC)
-HTC
+HC
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set)
-trsk 0.75
+perhx 0.75
 !Coriolis vec reconstruction method
 trsk
 !Scalar interpolations
-trsk
+bary
 !Gradient discrete method
 trsk
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors
