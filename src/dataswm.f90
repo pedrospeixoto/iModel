@@ -203,7 +203,9 @@ module dataswm
   type(scalar_field):: Kin_energy  !on cell center
   type(scalar_field):: Kin_energy_exact  !on cell center
   type(scalar_field):: Kin_energy_error  !on cell center
-  type(scalar_field):: Kin_energy_tr  !on cell center
+  type(scalar_field):: Kin_energy_tr  !on tr center
+  type(scalar_field):: Kin_energy_tr_exact  !on tr center
+  type(scalar_field):: Kin_energy_tr_error  !on tr center
   !type(scalar_field):: Kin_energy_ed  !on edges
 
   !Auxiliar field
@@ -717,7 +719,10 @@ contains
     Kin_energy_tr%pos=1
     Kin_energy_tr%name="Kin_energy_tr"
     allocate(Kin_energy_tr%f(1:Kin_energy_tr%n), stat=ist)
-
+    if(test_lterror==1)then
+       allocate(Kin_energy_tr_exact%f(1:Kin_energy_tr%n), stat=ist)
+       allocate(Kin_energy_tr_error%f(1:Kin_energy_tr%n), stat=ist)
+    end if
 
     !Auxiliar field
     ghbK%n=mesh%nv
@@ -972,6 +977,8 @@ contains
        q_ed_error=q_ed
        Kin_energy_exact=Kin_energy
        Kin_energy_error=Kin_energy
+       Kin_energy_tr_exact=Kin_energy_tr
+       Kin_energy_tr_error=Kin_energy_tr
        grad_ghbK_exact=grad_ghbK
        grad_ghbK_error=grad_ghbK
        grad_h=grad_ghbK

@@ -12,9 +12,9 @@ nopt
 !Show ongoing process details on screen? 0-No; 1-Yes
 1
 !Test case to be done - uncomment method to be used in imodel.f90
-15
+14
 !If mesh read from file give filename (Extensions: .xyz cartesian coords, .gmt lon, lat)
-icos_pol_scvt_h1_3.xyz
+icos_pol_scvt_h1_8.xyz
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos0 Symmetry implied; 4- Both 2 and 3
 1
 

@@ -386,6 +386,18 @@ contains
          trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
+    ! Kinectic Energy calculation on Triangles
+    !---------------------------------------------------
+    if(useReconmtdGass)then
+      call error_calc(Kin_energy_tr, Kin_energy_tr_exact, Kin_energy_tr_error, errormaxrel, error2rel, errormax)
+      print '(a16, i12,  3e18.8)', " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax
+      write(errorsunit,trim(fmt)) " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax, &
+         trim(swmname)//" "//trim(mesh%name)
+         !print*, Kin_energy_tr%f(1:10)
+         !print*, Kin_energy_tr_exact%f(1:10)
+    end if
+
+    !---------------------------------------------------
     ! Absolute vorticity
     !---------------------------------------------------
     call error_calc(eta, eta_exact, eta_error, errormaxrel, error2rel, errormax)
@@ -1181,6 +1193,8 @@ contains
           !Exact PV
           q_tr_exact%f(k)=eta_ct*dsin(mesh%tr(k)%c%lat)/(h0-h_ct*dsin(mesh%tr(k)%c%lat)**2)
           if(test_lterror==1)then
+            !Kin energy
+             Kin_energy_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
              !Grad of PV
              vtmp=eta_ct*dcos(mesh%tr(k)%c%lat)*(h0+h_ct*dsin(mesh%tr(k)%c%lat)**2) &
                   /(erad*(h0-h_ct*dsin(mesh%tr(k)%c%lat)**2)**2)
@@ -1876,6 +1890,8 @@ contains
        if(test_lterror==1)then
           !Loop over triangles
           do k=1, mesh%nt
+            !Kin energy
+             Kin_energy_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
              !Absolute vorticity
              eta_exact%f(k)=eta_ct*dsin(mesh%tr(k)%c%lat)
              h_tr_exact%f(k)=hollgw
