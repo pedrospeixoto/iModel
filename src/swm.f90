@@ -2454,7 +2454,10 @@ contains
           cell_area=0._r8
           do l=1, 3
              ed=mesh%tr(k)%ed(l)
-             ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
+             !Gassmann
+             !ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
+             !Dubos
+             ed_area=0.5*mesh%ed(ed)%leng*arclen(mesh%ed(ed)%c%p,mesh%tr(k)%c%p)
              cell_area=cell_area+ed_area
              Kin_energy_tr%f(k)=Kin_energy_tr%f(k)+ed_area*u%f(ed)**2
           end do

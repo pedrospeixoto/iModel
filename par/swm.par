@@ -1,6 +1,6 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-32 0
+2 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
 12 12
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
