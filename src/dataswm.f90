@@ -499,7 +499,7 @@ contains
        swmname=trim(swmname)//"_pvs"//trim(adjustl(trim(pv_stab)))
        swmname=trim(swmname)//trim(adjustl(trim(atmp)))
     end if
-    if(hollgw>0 .and. (testcase==32 .or. testcase==33) )then
+    if(hollgw>0 .and. (testcase==32 .or. testcase==33 .or. testcase==34) )then
        write(atmp,'(f6.2)') real(hollgw)
        swmname=trim(swmname)//"_hol"//trim(adjustl(trim(atmp)))
        !print*, atmp
@@ -507,7 +507,7 @@ contains
 
     RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
     RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
-         .or. testcase==32.or. testcase==33 .or. &
+         .or. testcase==32.or. testcase==33 .or. testcase==34 .or. &
          testcase==40 .or. testcase==41.or. testcase==42
 
     print*, "SWM Name for Plots: ", trim(swmname)
@@ -941,6 +941,7 @@ contains
        !$OMP SHARED(q_ed, q_ed_exact, q_ed_error) &
        !$OMP SHARED( q_grad_tr, q_grad_tr_exact, q_grad_tr_error) &
        !$OMP SHARED(Kin_energy, Kin_energy_exact, Kin_energy_error) &
+       !$OMP SHARED(kin_energy_tr_exact, kin_energy_tr, kin_energy_tr_error) &
        !$OMP SHARED(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, grad_h) &
        !$OMP SHARED(divuh, divuh_exact, divuh_error) &
        !$OMP SHARED(divueta, divueta_exact, divueta_error) &

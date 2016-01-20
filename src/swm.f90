@@ -88,8 +88,10 @@ contains
 
     !Right hand side of mass equation (number of cell equations)
     !real(r8)::masseq(1:meshtmp%nv)
+	!real(r8)::masseq(1:meshtmp%nv)
 
     !Right hand side of momentum equation (number of edge equations)
+    !real(r8)::momeq(1:meshtmp%ne)
     !real(r8)::momeq(1:meshtmp%ne)
 
     !Errors
@@ -115,6 +117,11 @@ contains
 
     !Time in seconds
     real(r8)::time
+
+	!logical :: nonlin_pert=.true.
+	real(r8):: nonlin_alpha=1.0
+	real(r8):: u00=1.0
+	!real(r8), dimension(:), allocatable:: h_pert, u_pert
 
     !Save global variable mesh
     mesh=meshtmp
@@ -152,9 +159,10 @@ contains
     call calc_energies(Penergy0, Kenergy0, Tenergy0, Availenergy0)
 
     call write_evol_error(0, 0._r8, inimass, errormax_h, error2_h, errormax_u, error2_u,  errormax, error2, &
-         Penergy0, Kenergy0, Tenergy0, Availenergy0, 0.0_r8, 0.0_r8, 0.0_r8)
+         Penergy0, Kenergy0, Tenergy0, Availenergy0, 0.0_r8, 0.0_r8, 0.0_r8, 0.0_r8)
 
     call write_evol(0, 0._r8, inimass, Penergy0, Kenergy0, Tenergy0, Availenergy0, 0._r8)
+
 
     !Time loop
     do k=1, ntime
@@ -170,6 +178,19 @@ contains
        !u%f(1:u%n) = u_old%f(1:u%n) + dt * momeq(1:u%n)
        !h%f(1:h%n) = h_old%f(1:h%n) + dt * masseq(1:h%n)
        call ode_rk4 (time, h_old, u_old, h, u, dt)
+
+		!Linear analysis for Hollingsworth problem
+	   if(testcase==34)then
+		call error_calc(h, h_exact, h_error, errormaxrel_h, error2_h, errormax_h)
+		call error_calc(u, u_exact, u_error, errormaxrel_u, error2_u, errormax_u)
+		!alpha*max|u_pert|=u00
+		!alpha exp(lambda t) ==> how does alpha behave? alpha=nonlin_alpha
+		nonlin_alpha=0.001/errormax_u
+
+		!Rebuild the total h and u with
+		h%f=h_exact%f+nonlin_alpha*(h%f-h_exact%f)
+		u%f=u_exact%f+nonlin_alpha*(u%f-u_exact%f)
+	   end if
 
        if(RefSolRead)then
           call read_refdata_endgame(time)
@@ -214,7 +235,7 @@ contains
           call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
                errormaxrel_u, error2_u,  errormaxrel, error2, &
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
-               (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke)
+               (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
 
           if(errormaxrel_h > 10)then
              !Plot fields
@@ -225,7 +246,7 @@ contains
 
           if(k==ntime)then
              call write_errors(time, errormaxrel_h, error2_h, errormaxrel_u, error2_u, (Tmass-inimass)/inimass, &
-                  (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0)
+                  (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, nonlin_alpha)
           end if
 
        elseif( k<=2 .or. k==ntime  .or. mod(k,nprints)==0 )then
@@ -1771,7 +1792,7 @@ contains
           end do
        end if
 
-    case(32, 33) !Global Steady State Zonal Geo Flow Hollingsworth instability
+    case(32, 33, 34) !Global Steady State Zonal Geo Flow Hollingsworth instability
 
        u0=pi2*erad/(12._r8*day2sec)
        h0=2.94e4_r8*gravi
@@ -3357,7 +3378,7 @@ contains
   end subroutine plot_errors_uh
 
   subroutine write_errors(time, errormax_h, error2_h, errormax_u, error2_u, error_mass, &
-       Penergy, Kenergy, Tenergy)
+       Penergy, Kenergy, Tenergy, tmp)
     !----------------------------------------------------------
     !  write errors to fixed general file for all model parameters
     !----------------------------------------------------------
@@ -3378,6 +3399,7 @@ contains
     real(r8):: Tenergy
     real(r8):: Kenergy
     real(r8):: Penergy
+    real(r8):: tmp
 
     !Char buffer
     character (len=512):: buffer
@@ -3401,11 +3423,11 @@ contains
     end if
 
     !Write errors to file
-    write(iunit, '(i12, 1f12.4, i4, i10, 11e20.10 , a120)') &
+    write(iunit, '(i12, 1f12.4, i4, i10, 12e20.10 , a120)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, tmass, &
-         Penergy, Kenergy, Tenergy , &
+         Penergy, Kenergy, Tenergy, tmp, &
          trim(adjustl(trim(swmname)))//"_"//trim(adjustl(trim(mesh%name)))
 
     print*
@@ -3413,14 +3435,14 @@ contains
     buffer="         n    mvdist  tcase   nt     dt(s) "//&
          "       cfl     time(dys) errormax_h      error2_h     "//&
          "   errormax_u      error2_u        mass             "//&
-         " Penergy           Kenergy     Tenergy"
+         " Penergy           Kenergy     Tenergy     tmp"
 
     write(*,'(a)') trim(buffer)
-    write(*, '(i12, 1f8.3, i4, i10, 3f10.4, 8e16.6)') &
+    write(*, '(i12, 1f8.3, i4, i10, 3f10.4, 9e16.6)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, tmass, &
-         Penergy, Kenergy, Tenergy
+         Penergy, Kenergy, Tenergy, tmp
     print*
   end subroutine write_errors
 
@@ -3428,7 +3450,7 @@ contains
        errormax_u, error2_u, &
        errormax_pv, error2_pv,&
        Penergy, Kenergy, Tenergy, Availenergy, &
-       RMSdiv, maxdiv, max_gradke)
+       RMSdiv, maxdiv, max_gradke, tmp)
     !----------------------------------------------------------
     !  write errors to specific file for this specific model set up
     !    at defined time steps
@@ -3453,7 +3475,7 @@ contains
     real(r8):: Kenergy
     real(r8):: Penergy
     real(r8):: Availenergy
-    real(r8):: RMSdiv, maxdiv, max_gradke
+    real(r8):: RMSdiv, maxdiv, max_gradke, tmp
     integer(i4):: k
     !Time
     real(r8):: time
@@ -3470,7 +3492,7 @@ contains
          " mass              Penergy      "//&
          "     Kenergy             Tenergy          Availenergy      "//&
          "     RMSdiv              maxdiv    "//&
-         "     max_gradke              SWMparameters"
+         "     max_gradke          tmp        SWMparameters"
 
     inquire(file=filename, opened=iopen)
     if(iopen)then
@@ -3488,7 +3510,7 @@ contains
        buffer="     n    mvdist  tcase     k     nt   dt(s) "//&
             "       cfl   time(dys) errormax_h   error2_h  "//&
             "   errormax_u  error2_u    mass       "//&
-            " Penergy           Kenergy     Tenergy    Availenergy  errormax_pv   error2_pv  RMSdiv  maxdiv  max_gradke"
+            " Penergy           Kenergy     Tenergy    Availenergy  errormax_pv   error2_pv  RMSdiv  maxdiv  max_gradke    tmp"
        write(*, '(a)') trim(buffer)
     end if
 
@@ -3496,17 +3518,17 @@ contains
 
     !if( k==1 .or. k==ntime  .or. mod(k,nprints)==0 )then
     !Write errors to file
-    write(iunit, '(i12, 1f12.4, i4, 2i10, 17e20.10 , a100)') &
+    write(iunit, '(i12, 1f12.4, i4, 2i10, 18e20.10 , a100)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, errormax_pv, error2_pv, tmass, &
-         Penergy, Kenergy, Tenergy , Availenergy, RMSdiv, maxdiv, max_gradke, &
+         Penergy, Kenergy, Tenergy , Availenergy, RMSdiv, maxdiv, max_gradke, tmp, &
          trim(adjustl(trim(swmname)))//"_"//trim(adjustl(trim(mesh%name)))
-    write(*, '(i8, 1f8.3, i4, 2i8, 3f8.3, 14e12.4)') &
+    write(*, '(i8, 1f8.3, i4, 2i8, 3f8.3, 15e12.4)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, tmass, &
-         Penergy, Kenergy, Tenergy, Availenergy, errormax_pv, error2_pv, RMSdiv, maxdiv, max_gradke
+         Penergy, Kenergy, Tenergy, Availenergy, errormax_pv, error2_pv, RMSdiv, maxdiv, max_gradke, tmp
     !if(k==0)then
     !Buffer for write_evol output - neat output this way
     !buffer="        n    mvdist  tcase       k       nt    dt(s)  "//&
