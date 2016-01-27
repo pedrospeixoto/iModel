@@ -121,7 +121,7 @@ contains
 	!logical :: nonlin_pert=.true.
 	real(r8):: nonlin_alpha=1.0
 	real(r8):: u00=1.0
-	!real(r8), dimension(:), allocatable:: h_pert, u_pert
+	real(r8), dimension(:), allocatable:: h_force, u_force
 
     !Save global variable mesh
     mesh=meshtmp
@@ -163,6 +163,8 @@ contains
 
     call write_evol(0, 0._r8, inimass, Penergy0, Kenergy0, Tenergy0, Availenergy0, 0._r8)
 
+	allocate(u_force(1:u%n))
+	allocate(h_force(1:h%n))
 
     !Time loop
     do k=1, ntime
@@ -181,11 +183,29 @@ contains
 
 		!Linear analysis for Hollingsworth problem
 	   if(testcase==34)then
+		!Set forcing
+		if(k==1)then
+			u_force=u_exact%f-u%f
+			h_force=h_exact%f-h%f
+
+			!Add perturbation to h
+			i=18
+			h%f(i)=h%f(i)+h%f(i)/100.0
+			h%f(mesh%v(i)%nb(1))=h%f(mesh%v(i)%nb(1))+h%f(mesh%v(i)%nb(1))/1000.0
+			h%f(mesh%v(i)%nb(2))=h%f(mesh%v(i)%nb(2))+h%f(mesh%v(i)%nb(2))/1000.0
+			h%f(mesh%v(i)%nb(3))=h%f(mesh%v(i)%nb(3))+h%f(mesh%v(i)%nb(3))/1000.0
+			!call plotfields(0, 1.0_r8)
+			!print*, mesh%v(i)%lat
+		end if
+		u%f=u%f+u_force
+		h%f=h%f+h_force
+
 		call error_calc(h, h_exact, h_error, errormaxrel_h, error2_h, errormax_h)
 		call error_calc(u, u_exact, u_error, errormaxrel_u, error2_u, errormax_u)
+
 		!alpha*max|u_pert|=u00
 		!alpha exp(lambda t) ==> how does alpha behave? alpha=nonlin_alpha
-		nonlin_alpha=0.001/errormax_u
+		nonlin_alpha=0.0001/errormax_u
 
 		!Rebuild the total h and u with
 		h%f=h_exact%f+nonlin_alpha*(h%f-h_exact%f)
@@ -237,7 +257,7 @@ contains
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
 
-          if(errormaxrel_h > 10)then
+          if(errormaxrel_h > 10 .and. k > 3 )then
              !Plot fields
              print*, "Stopping due to large errors", errormaxrel_h
              call plotfields(ntime, time)
@@ -1803,9 +1823,10 @@ contains
           stop
        end if
 
+
        ! For tc33, h is contant, u is rotation and the f=0
-       if(testcase==33)then
-          fcte=0.
+       if(testcase==33 .or. testcase==34)then
+          fcte=-1.4584e-4_r8
           fsphere=2
           !u0=200
           h_ct=((u0**2)/2._r8)*gravi
@@ -2411,7 +2432,7 @@ contains
        elseif(fsphere==1)then !Just put the linear term - f sphere
           ! Set to constant f
           eta%f(k)=  fcte !1.4584e-4_r8 !+2.*Omega*dsin(mesh%tr(k)%c%lat)
-       elseif(fsphere==2)then !Just put the linear term - f sphere
+       elseif(fsphere==2)then !nonlinear with constant fm - f sphere
           eta%f(k)=eta%f(k)+  fcte
        end if
 
@@ -3524,7 +3545,7 @@ contains
          errormax_h, error2_h, errormax_u, error2_u, errormax_pv, error2_pv, tmass, &
          Penergy, Kenergy, Tenergy , Availenergy, RMSdiv, maxdiv, max_gradke, tmp, &
          trim(adjustl(trim(swmname)))//"_"//trim(adjustl(trim(mesh%name)))
-    write(*, '(i8, 1f8.3, i4, 2i8, 3f8.3, 15e12.4)') &
+    write(*, '(i8, 1f8.3, i4, 2i8, 3f8.3, 14e12.4, 1e16.8)') &
          mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
          k, ntime, dt, cfl, time*sec2day, &
          errormax_h, error2_h, errormax_u, error2_u, tmass, &
