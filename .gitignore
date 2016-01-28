@@ -1,0 +1,12 @@
+/ref/*.dat
+/ref/*.mod
+/ref/*.exe
+/ref/*.out
+*.tmp
+fort.*
+*~
+/graphs/*
+/data/*
+/bin/*
+log*
+imodel

@@ -1825,12 +1825,24 @@ contains
 
 
        ! For tc33, h is contant, u is rotation and the f=0
-       if(testcase==33 .or. testcase==34)then
-          fcte=-1.4584e-4_r8
+       if(testcase==33)then
+          fcte=0.0_r8
           fsphere=2
           !u0=200
           h_ct=((u0**2)/2._r8)*gravi
           eta_ct=(2.*u0/erad)
+       elseif(testcase==34)then
+       	  !F-sphere
+       	  !fcte=1.4584e-4_r8
+          !fsphere=2
+          !u0=200
+          !h_ct=((u0**2)/2._r8)*gravi
+          !eta_ct=(2.*u0/erad)
+
+          !Normal run
+          fsphere=0
+          h_ct=(erad*omega*u0+(u0**2)/2._r8)*gravi
+          eta_ct=(2.*u0/erad+2.*omega)
        else
           h_ct=(erad*omega*u0+(u0**2)/2._r8)*gravi
           eta_ct=(2.*u0/erad+2.*omega)
@@ -1848,6 +1860,9 @@ contains
           h%f(i)=hollgw
           !if(testcase==32)then !Only put bottom topograpy in tc32 - geostrophic balanced flow
           bt%f(i)=h0-h_ct*dsin(mesh%v(i)%lat)**2
+          if(fsphere==2)then
+            bt%f(i)=bt%f(i)-(erad/grav)*fcte*dsin(mesh%v(i)%lat)
+          end if
           !elseif(testcase==33)then
           !   bt%f(i)=h0-((u0**2)/2._r8)*gravi*dsin(mesh%v(i)%lat)**2
           !end if
