@@ -8,5 +8,8 @@ fort.*
 /graphs/*
 /data/*
 /bin/*
+/grid/*.xyz
+/grid/*.ngb
+/grid/*.dat
 log*
 imodel
