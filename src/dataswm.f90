@@ -389,6 +389,10 @@ contains
     useReconmtdTrisk=trim(reconmtd)=="trsk"
     useReconmtdGass=trim(reconmtd)=="gass"
     useReconmtdMelv=trim(reconmtd)=="melv"
+    if(trim(reconmtd)=="dubos")then
+        useReconmtdGass=.true.
+        gasscoef=0.0
+    end if
     if((.not. useReconmtdPerhx).and.(.not. useReconmtdTrisk) &
          .and.(.not. useReconmtdGass).and.(.not. useReconmtdMelv))then
        print*, "Unknown vector reconstruction method", reconmtd

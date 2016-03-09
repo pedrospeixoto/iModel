@@ -8,7 +8,7 @@
 !Scalar/vector location (HC or HTC)
 HTC
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
-trsk 0.75 
+dubos 0.75 
 !Coriolis vec reconstruction method
 trsk
 !Scalar interpolations
@@ -53,6 +53,7 @@ HTC : scalars on cell node and vectors on Voronoi cell edge intersection with tr
 perhx : Perot's method (required for Peixoto 2015)
 trsk : simple weighted average
 gass : Gassman's version to avoid Hol. instabil
+dubos: Dubos energy conserving - equals to Gass with coef 0.0
 
 !Coriolis vec recon method
 dtred : Dual triangle method (Similar to Nikovic 2002) 
