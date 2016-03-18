@@ -1,7 +1,7 @@
 # iModel
 Icosahedral grid tools for geophysical fluid dynamics modelling
 
-Pedro Peixoto Oct 2015
+Pedro Peixoto Nov 2015
 pedrosp@ime.usp.br
 
 -------------------------------------------------------
