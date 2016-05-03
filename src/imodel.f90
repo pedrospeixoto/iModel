@@ -49,15 +49,20 @@ program imodel
     swm_horiz_loc_trunc_er, &
     swm_normal_mode_analysis
 
+
+  use high_order
+
+
   !Variable declaration
   implicit none
+  
 
   type(grid_structure) :: mesh
-  type(multimesh) :: meshvet
-
+  type(multimesh) :: meshvet   
+  
+  
   !Print a header on screen
   call printheader()
-
   !Create/Load mesh
 
    !Read mesh user defined parameters and simulation case
@@ -67,7 +72,6 @@ program imodel
 	  !Call mesh generation and structuring algorithm
     call meshbuild(mesh)
   end if
-
 
   !Do a simulation/test with the mesh loaded
   select case(simulcase)
@@ -124,6 +128,9 @@ program imodel
 
   case(15) !Shallow water model test cases
     call swm_tests(mesh)
+    
+  case(16) !Jeferson
+    call finite_volume_high_order(mesh)
 
   case default
      print*, "Please select a proper simulation case ...:", simulcase

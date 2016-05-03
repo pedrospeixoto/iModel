@@ -551,6 +551,9 @@ contains
              nb=nb+1
              if(lp==lpl) exit
              lp=lptr(lp)
+             
+             print * , "Informe o v a l o r de a : "
+             
           end do
 
           !Allocate (or reallocate) neighbourhood lists
@@ -3144,6 +3147,7 @@ contains
 
 
   subroutine getnearnodes(p, mesh, r, listv, listd, n)
+  
     !----------------------------------------------------------
     !	GETNEARNODES
     !
@@ -3165,7 +3169,7 @@ contains
     !   Uses lat/lon search table
     !--------------------------------------------------------------	
     !Maximum number of elements on the list
-    integer (i4), parameter :: max=500
+    integer (i4), parameter :: nmax=500
 
     !Input variables
     real (r8), intent(in) :: p(1:3)
@@ -3180,8 +3184,8 @@ contains
     real (r8), allocatable :: listd(:)
 
     !Temporary lists
-    integer (i4):: listvtmp(1:max)
-    real (r8):: listdtmp(1:max)
+    integer (i4):: listvtmp(1:nmax)
+    real (r8):: listdtmp(1:nmax)
 
     !Radius of region
     real (r8), intent(in) :: r
@@ -3199,10 +3203,10 @@ contains
 
 
     !Check for consistent input
-    if(n>max)then
+    if(n>nmax)then
        print*, "GETNEARNODES WARNING: Too many neighbours wanted", n
-       print*, "  Using the maximum: ", max
-       n=max
+       print*, "  Using the maximum: ", nmax
+       n=nmax
     end if
 
     !Get nearest node
@@ -3220,16 +3224,16 @@ contains
     end if
 
     !Get nearest nodes to point
-    do i=2, max
+    do i=2, nmax
 
        !Get next nearest node
        node=nextnearestnode(p, mesh, i-1, listvtmp, d)
        !print*, i, node, d
        !Check if radius reached or maximum number of nodes
-       if(d>rmax .or. i==n .or. i==mesh%nv/2 .or. d>pio2)then
+       if(d>rmax .or. i==mesh%nv/2 .or. d>pio2)then
           n=i-1
           exit
-       elseif(i==max)then
+       elseif(i==nmax .or. i==n )then
           n=i
           exit
        end if
@@ -3257,7 +3261,6 @@ contains
     return
 
   end subroutine getnearnodes
-
 
   function nextnearestnode(p, mesh, n, listv, dist)
     !----------------------------------------------------------
