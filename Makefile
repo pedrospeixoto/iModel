@@ -82,6 +82,7 @@ bin/datastructmult.obj \
 bin/transport.obj \
 bin/multigrid.obj \
 bin/eispack.obj \
+bin/high_order.obj \
 
 #Compile and build all
 all: header config bin/imodel ending
@@ -170,6 +171,10 @@ bin/swm.obj: src/swm.f90
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv swm.mod bin/.
 
+#Jeferson
+bin/high_order.obj: src/high_order.f90
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv high_order.mod bin/.
 
 #Main executable
 bin/imodel: src/imodel.f90 $(OBJ)
