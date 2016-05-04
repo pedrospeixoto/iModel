@@ -11,5 +11,6 @@ fort.*
 /grid/*.xyz
 /grid/*.ngb
 /grid/*.dat
+/grid/*.gmt
 log*
 imodel
