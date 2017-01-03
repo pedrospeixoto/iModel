@@ -8126,9 +8126,9 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_ed.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, *) "# Triangle Edges (lon, lat)"
+    write(iunit, '(a27)') "# Triangle Edges (lon, lat)"
     do i=1, mesh%ne
-       write(iunit, *) "> Edge: ", i
+       write(iunit, '(a8,i12)') "> Edge: ", i
        write(iunit,'(2f16.8)') mesh%v(mesh%ed(i)%v(1))%lon*rad2deg, &
             mesh%v(mesh%ed(i)%v(1))%lat*rad2deg
        write(iunit,'(2f16.8)') mesh%v(mesh%ed(i)%v(2))%lon*rad2deg, &
@@ -8140,7 +8140,7 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_edc.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, *) "# Edges center/midpoint(lon, lat)"
+    write(iunit, '(a33)') "# Edges center/midpoint(lon, lat)"
     do i=1, mesh%ne
        write(iunit,'(2f16.8)') mesh%ed(i)%c%lon*rad2deg, &
             mesh%ed(i)%c%lat*rad2deg
@@ -8151,8 +8151,8 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_ednr.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, '(a100)') adjustl("# Edges center/midpoint(lon, lat) and "// &
-         "Normal vec (degrees from north, lenght)")
+    write(iunit, '(a77)') "# Edges center/midpoint(lon, lat) and "// &
+         "Normal vec (degrees from north, length)"
     do i=1, mesh%ne
        call convert_vec_cart2sph(mesh%ed(i)%c%p, mesh%ed(i)%nr, vlon, vlat)
        !For gmt the output must be: lon, lat, direction(degrees from north), length
@@ -8166,8 +8166,8 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_edtg.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, '(a100)') "# Edges center/midpoint(lon, lat) and "// &
-         "Tangent vec (degrees from north, lenght)"
+    write(iunit, '(a77)') "# Edges center/midpoint(lon, lat) and "// &
+         "Tangent vec (degrees from north, length)"
     do i=1, mesh%ne
        call convert_vec_cart2sph(mesh%ed(i)%c%p, mesh%ed(i)%tg, vlon, vlat)
        write(iunit,'(4f16.8)') mesh%ed(i)%c%lon*rad2deg, &
@@ -8180,9 +8180,9 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_edhx.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, *) "# Hexagonal Edges (lon, lat)"
+    write(iunit, '(a28)') "# Hexagonal Edges (lon, lat)"
     do i=1, mesh%ne
-       write(iunit, *) "> Edge: ", i
+       write(iunit, '(a8,i12)') "> Edge: ", i
        write(iunit,'(2f16.8)') mesh%tr(mesh%edhx(i)%v(1))%c%lon*rad2deg, &
             mesh%tr(mesh%edhx(i)%v(1))%c%lat*rad2deg
        write(iunit,'(2f16.8)') mesh%tr(mesh%edhx(i)%v(2))%c%lon*rad2deg, &
@@ -8194,7 +8194,7 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_edhxnr.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, '(a100)') "# Hexagonal Edges center/midpoint(lon, lat) and "// &
+    write(iunit, '(a80)') "# Hexagonal Edges center/midpoint(lon, lat) and "// &
          "Normal vec (degrees from north, length)"
     do i=1, mesh%ne
        v=mesh%edhx(i)%nr
@@ -8209,8 +8209,8 @@ contains
     call getunit(iunit)
     filename=trim(griddir)//trim(mesh%name)//"_edhxtg.gmt"
     open(iunit, file=filename, status='replace')
-    write(iunit, '(a100)') "# Hexagonall Edges center/midpoint(lon, lat) and "//&
-         "Tangent vec (degrees from north, lenght)"
+    write(iunit, '(a80)') "# Hexagonal Edges center/midpoint(lon, lat) and "//&
+         "Tangent vec (degrees from north, length)"
     do i=1, mesh%ne
        v=mesh%edhx(i)%tg
        call convert_vec_cart2sph(mesh%edhx(i)%c%p, v, vlon, vlat)

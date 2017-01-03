@@ -91,12 +91,12 @@ if [ $kmap -eq 2 ] ;then #Linear projection - global
 	width=29c  
 	height=16c 
     fi
-     # scalepos = xpos/ypos/length/width[h] 
+    # scalepos = xpos/ypos/length/width[h] 
     scalepos=22.3c/5.5c/11c/0.5c
-     #Global
+    #Global
     reg="-R-180/180/-90/90"
     #reg="-R-180/180/0/90"
-        #map=$reg" -JX16/8"
+    #map=$reg" -JX16/8"
     map=$reg" -Jx0.06d"    
 fi
 
@@ -109,7 +109,7 @@ if [ $kmap -eq 3 ] ;then  #Local Mercator projection
 	#width=15c  
 	height=15c 
     fi
-     # scalepos = xpos/ypos/length/width[h] 
+    # scalepos = xpos/ypos/length/width[h] 
     scalepos=12.9c/5.5c/11c/0.5c
 
     #Range of map
@@ -136,7 +136,7 @@ if [ $kmap -eq 4 ] ;then #Polar Stereog projection - local
 	height=18c 
     fi
     pole=-90 #90
-    latpol=-70 #70.5
+    latpol=-60 #70.5
     size=7
     # scalepos = xpos/ypos/length/width[h] 
     scalepos=15.5c/6.5c/12c/0.5c
@@ -155,12 +155,12 @@ if [ $kmap -eq 5 ] ;then #Linear projection - global
 	width=29c  
 	height=8c 
     fi
-     # scalepos = xpos/ypos/length/width[h] 
+    # scalepos = xpos/ypos/length/width[h] 
     scalepos=22.3c/2.5c/6c/0.5c
-     #Global
+    #Global
     #reg="-R0/360/-90/90"
     reg="-R-180/180/0/90"
-        #map=$reg" -JX16/8"
+    #map=$reg" -JX16/8"
     map=$reg" -Jx0.06d"    
 fi
 
@@ -229,7 +229,7 @@ echo $mesh
 
 #Set mesh properties
 if [ $mesh ] ; then
-    if [ $kmap -ne 2 ] ; then
+    if [ $kmap -ne 2 -a $kmap -ne 5 ] ; then
 	mesh=$dirmesh/$mesh
 	echo 'Mesh to be ploted:' $mesh
 	echo "Select kind of mesh to be ploted:"
@@ -264,7 +264,7 @@ fi
 
 #Set basemap
 if [ $kmap -eq 1 ] ; then   #Azimutal projection
-   #Set basemap without gridlines
+    #Set basemap without gridlines
     if [ $kplot -eq 1 ] ; then	#Only mesh
 	gmt psbasemap  $map -B0 -K -V  -Xc -Yc > $plot
     else  #Scale will be needed
@@ -275,7 +275,7 @@ fi
 if [ $kmap -eq 2 -o $kmap -eq 5 ] ; then #Linear projection
     #Basemap - edit -Bxgx to get lines where wanted
 
-#    gmt psbasemap  $map -BWSne40/40 -Yc -K  \
+    #    gmt psbasemap  $map -BWSne40/40 -Yc -K  \
     gmt psbasemap  $map -BWSne -Bx40 -By40 -Yc -K  \
 	--MAP_GRID_PEN_PRIMARY=faint,gray,-  > $plot
 fi
@@ -287,7 +287,8 @@ fi
 
 if [ $kmap -eq 4 ] ; then  #Polar plot
     if [ $kplot -eq 1 ] ; then	#Only mesh
-	gmt psbasemap  $map -K -V  -Xc -Yc -B20g20/0.1g0.1 > $plot
+	#                                 -B dlon/dlat 
+	gmt psbasemap  $map -K -V  -Xc -Yc -B20g20 > $plot
     else  #Scale will be needed
 	gmt psbasemap  $map -K -V -Yc -B20g20 > $plot
     fi
@@ -342,33 +343,33 @@ if [ $scalar ] ; then
     #Ask if absolute value wanted
     postest=`echo "scale=12; (-0.0000000001 <= $minval2)" | bc -l `
     kabs=0
-#   if [ $postest -eq 0 ] ; then
-#	    echo "Field with negative values. Use absolute value?:"
-#	    echo " 0) NO"
-#	    echo " 1) YES"
-#	    read kabs
-#	    echo    
-#    fi
+    #   if [ $postest -eq 0 ] ; then
+    #	    echo "Field with negative values. Use absolute value?:"
+    #	    echo " 0) NO"
+    #	    echo " 1) YES"
+    #	    read kabs
+    #	    echo    
+    #    fi
 
     if [ $kabs -eq 1 ] ; then
-       #Set absolute value  - could set log scale
+	#Set absolute value  - could set log scale
 	gmt grdmath $scalar.grd ABS = $scalar.grd
     fi
 
-#    #Ask if want to subtract one from values (density values)
-#    nearonetest1=`echo "scale=12; (0.9 <= $minval2)" | bc -l `
-#    nearonetest2=`echo "scale=12; (1.1 >= $maxval2)" | bc -l `
+    #    #Ask if want to subtract one from values (density values)
+    #    nearonetest1=`echo "scale=12; (0.9 <= $minval2)" | bc -l `
+    #    nearonetest2=`echo "scale=12; (1.1 >= $maxval2)" | bc -l `
     kone=0
-#    if [ $nearonetest1 -eq 1 -a $nearonetest2 -eq 1 ] ; then
-#	    echo "Field near value one. Substract one?:"
-#	    echo " 0) NO"
-#	    echo " 1) YES"
-#	    read kone
-#	    echo    
-#    fi
+    #    if [ $nearonetest1 -eq 1 -a $nearonetest2 -eq 1 ] ; then
+    #	    echo "Field near value one. Substract one?:"
+    #	    echo " 0) NO"
+    #	    echo " 1) YES"
+    #	    read kone
+    #	    echo    
+    #    fi
 
     if [ $kone -eq 1 ] ; then
-       #Subtract one from values
+	#Subtract one from values
 	gmt grdmath $scalar.grd -1 ADD = $scalar.grd       
 	postest=0
     fi
@@ -384,12 +385,12 @@ if [ $scalar ] ; then
     #gmt grdmath $scalar.grd -1 ADD ABS +1 ADD LOG = $scalar.grd
 
     kg=0
-#    echo "Multiply/divide by gravity ?:"
-#    echo " 0) NO"
-#    echo " 1) Multiply (h->phi or x/phi->xi/h) "
-#    echo " 2) Divide   (phi->h or xi/h->xi/phi"
-#    read kg
-#    echo    
+    #    echo "Multiply/divide by gravity ?:"
+    #    echo " 0) NO"
+    #    echo " 1) Multiply (h->phi or x/phi->xi/h) "
+    #    echo " 2) Divide   (phi->h or xi/h->xi/phi"
+    #    read kg
+    #    echo    
     
     if [ $kg -eq 1 ] ; then
 	gmt grdmath $scalar.grd 9.80616 MUL = $scalar.grd
@@ -443,7 +444,7 @@ if [ $scalar ] ; then
     
     #Create color pallet
     #------------------------------------
-   
+    
     kcolor=1
 
     echo "Select color pallet:"
@@ -475,7 +476,7 @@ if [ $scalar ] ; then
     
     if [ $kcolor -eq 3 ] ; then #Multicolor jet
 	gmt makecpt -Cjet -T$minval/$maxval/$scale -Z  \
-    		--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0 > $scalar.cpt
+    	    --COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0 > $scalar.cpt
         #grd2cpt $scalar.grd -Cjet  -Z -V  > $scalar.cpt
     fi
     
@@ -533,7 +534,7 @@ fi
 
 # PLOTING MESH
 if [ $mesh ] ; then
-	#Print coast
+    #Print coast
     #pscoast  $map -Wfaint/150/150/150 -K -O >> $plot
 
     if [ $kmesh -ne 5 ] ; then
@@ -541,64 +542,63 @@ if [ $mesh ] ; then
 	gmt psxy $nodes  $map -Sc0.005c  -W0.5,gray -Ggray -O  -K -V  >> $plot
 	#gmt psxy $nodes  $map -Sc0.5c  -W0.5/blue -Ggray -O  -K -V  >> $plot
 
-	echo hhhh1
 	#Print triangle edges
 	#GMT5 cannot cope with comments in the same as gmt 4, so remove them
-	sed -i.bak '/>/d' $ed
-	sed -i.bak '/#/d' $ed
-	echo $map
+	#sed -i.bak '/>/d' $ed
+	#sed -i.bak '/#/d' $ed
+	#echo $map
 	if [ $scalar ] ; then
 	    gmt psxy $ed  $map  -Wthin,gray   -O -K -V  >> $plot
 	else
 	    gmt psxy $ed  $map -Wthin,blue   -O -K -V  >> $plot
 	fi
     fi
-echo hiiii
-	#Labels
+
+    #Labels
     if [ $kmesh -eq 3 -o $kmesh -eq 4 -o $kmesh -eq 7 ] ; then
 	echo "Labeling mesh ..."
-	    #Save node label file
-	    #  lon, lat, font size, ? , ? , position, label 
-	awk '{print $1, $2, 6, 0, 0, "LT", NR}' $nodes > 'nodes_ll.txt'
-
-	    #Plot nodes's labels
-	 gmt pstext 'nodes_ll.txt' $map -O -K >> $plot
+	#Save node label file
+	#  lon, lat, label 
+	#awk '{print $1, $2, 10, 0, 0, "LT", NR}' $nodes > 'nodes_ll.txt'
+	awk '{print $1, $2, NR}' $nodes > 'nodes_ll.txt'
 	
-	    #Triangle circumcenters
-	 gmt psxy $trcc  $map -St0.05c  -W0.05,red -Gred  -O -K >> $plot
+	#Plot nodes's labels
+	gmt pstext 'nodes_ll.txt' -F+f8p,Helvetica,black $map -O -K >> $plot
 	
-	    #Save triangle labels
-	awk '{print $1, $2, 5, 0, 0, "LT", NR}' $trcc > 'triangle_cc.txt'
+	#Triangle circumcenters
+	gmt psxy $trcc  $map -St0.05c  -W0.05,red -Gred  -O -K >> $plot
 	
-	    #Plot triangle labels
-	 gmt pstext 'triangle_cc.txt' $map -O  -K >> $plot
+	#Save triangle labels
+	awk '{print $1, $2, NR}' $trcc > 'triangle_cc.txt'
 	
+	#Plot triangle labels
+	gmt pstext 'triangle_cc.txt' -F+f6p,Helvetica,black $map -O  -K >> $plot	
 	rm 'nodes_ll.txt'  'triangle_cc.txt'
     fi
     
-	#Normal and tangent edge vectors
+    #Normal and tangent edge vectors
     if [ $kmesh -eq 4  ] ; then
 	echo "Ploting mesh normal and tangent vectors ..."
 
-             # Plot normal and tangent vectors
+        # Plot normal and tangent vectors
 	gmt psxy $ed $map   -W1,blue   -O -K  >> $plot
 
-	gmt psxy $edc  $map -Sc0.1c  -W0.1,blue -Ggreen  -O  -K >> $plot
+	gmt psxy $edc  $map -Sc0.0001c  -W0.01,blue -Ggreen  -O  -K >> $plot
 
-            #  lon, lat, font size, ? , ? , position, label 
-	awk '{print $1, $2, 5, 0, 0, "LT", NR-1}' $edc > 'edc_ll.txt'
+        #  lon, lat, label 
+	awk '{print $1, $2, NR-1}' $edc > 'edc_ll.txt'
 
-	gmt pstext 'edc_ll.txt' $map -O -K  >> $plot
+	gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
 
-	vecstyle="0.01/0.05/0.05"
-	gmt psxy $ednr $map -W1,green -Ggreen -SV$vecstyle -O -K  >> $plot
+	#vecstyle="0.01/0.05/0.05" #depreciated
+	vecstyle="0.01i+bc+ea+g"
+	gmt psxy $ednr $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
+	gmt psxy $edtg $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
 	
-	gmt psxy $edtg $map -W1,green -Ggreen -SV$vecstyle -O -K  >> $plot
-	
-              #Clean workspace
+        #Clean workspace
 	rm  'edc_ll.txt'	    
     fi
-	#Voronoi mesh, edges only 
+    #Voronoi mesh, edges only 
     if [ $kmesh -ge 5  ] ; then
 	if [ $scalar ] ; then
 	    gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
@@ -608,23 +608,24 @@ echo hiiii
 	fi
 
     fi
-	# Voronoi mesh with labels and normal/tangent edge vectors
+    # Voronoi mesh with labels and normal/tangent edge vectors
     if [ $kmesh -eq 7  ] ; then
-	    # arrowwidth/headlength/headwidth  
+	# arrowwidth/headlength/headwidth  
 	#vecstyle="0.008/0.03/0.03"
-	vecstyle="0.05/0.06/0.08"
-
-            # Set vectorcolor
+	#vecstyle="0.05/0.06/0.08" #depreciated in gmt5
+	vecstyle="0.01i+bc+ea+g"
+	
+        # Set vectorcolor
 	veccolor=0/100/0
 
-	    # -Wx is pen, x is brush size, -G is fill 
+	# -Wx is pen, x is brush size, -G is fill 
 	gmt psxy $edhxnr $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
 	gmt psxy $edhxtg $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
 
-         #  lon, lat, font size, ? , ? , position, label 
-	awk '{print $1, $2, 5, 0, 0, "LT", NR-1}' $edc > 'edc_ll.txt'
+        #  lon, lat, font size, ? , ? , position, label 
+	awk '{print $1, $2, NR-1}' $edc > 'edc_ll.txt'
 
-	gmt pstext 'edc_ll.txt' $map -O -K  >> $plot
+	gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
     fi
 fi
 
