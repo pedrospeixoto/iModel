@@ -21,10 +21,10 @@ ifdef F90
 ifeq ($(OS), Linux)
 ifeq ($(DEBUG), 1)
      #FFLAG := -O0 -traceback -debug extended -check all -warn -ftrapuv -check noarg_temp_created
-     FFLAG := -openmp -traceback -debug extended -check noarg_temp_created -ftrapuv -check all
+     FFLAG := -qopenmp -traceback -debug extended -check noarg_temp_created -ftrapuv -check all
      #-fpp
 else
-     FFLAG := -O3 -openmp -parallel -heap-arrays
+     FFLAG := -O3 -qopenmp -parallel -heap-arrays
      #-fpp
      #FFLAG := -openmp -O0 -ipo
      #FFLAG := -O3 -xHOST

@@ -4,6 +4,7 @@
 #rsync -avu pedrosp@cfd01.ime.usp.br:/var/tmp/pedrosp/Work/Programas/MPAS/MPAS-PXT/grids/ --progress .
 
 #Get grids from web server
+cd grids
 wget --recursive --no-parent --no-clobber --convert-links --cut-dirs=3 --no-host-directories http://www.ime.usp.br/~pedrosp/grids/swm/
 rm index.* robots.txt
 find . -type f -name 'index.html*' -delete
