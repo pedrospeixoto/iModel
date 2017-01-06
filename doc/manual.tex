@@ -49,7 +49,7 @@ The software is very much self contained and does not rely on extra third party 
 
 It was designed to run with very basic Fortran 90 coding, therefore tends to runs on any version of \textbf{GNU gfortran} compilers or \textbf{Intel ifort} compilers. Intel compiler will chosen as default if installed.
 
-The outputs of the program are either text files or maps with binary data files. The maps are outputted to be read and graphed using \textbf{Generic Mapping Tool} (Version 4.x.x), and several scripts for this purpose are provided.
+The outputs of the program are either text files or maps with binary data files. The maps are outputted to be read and graphed using \textbf{Generic Mapping Tool} Version 4.x.x, and several scripts for this purpose are provided. It is also possible to use \textbf{Generic Mapping Tool} Version 5.x.x, with the scripts with *gmt5.sh in gmt/ folder.
 
 Some output data can be easily analysed in Matlab, but since they are outputted as text files, any other software may be used.
 
@@ -268,7 +268,7 @@ The main testing programs can be selected in the par/mesh.par file as one of the
 
 \subsection{Grid visualization and examples}
 
-To view the grid generated, go to the gmt/ folder and use the `plot.sh' script. You need to provide as command line input the name of the grid you want to be plotted. This is done by passing the name of the file that contain the `*nodes.gmt' in the grd/ folder. The script will guide you through its options, for either plotting just the triangular grid, Voronoi grid and other options. Outputs will be placed in graphs/ folder. Edit plot.sh to fulfil your needs.
+To view the grid generated, go to the gmt/ folder and use the `plot.sh' script (for GMT4) or `plot{\textunderscore}gmt5.sh' (for GMT5). You need to provide as command line input the name of the grid you want to be plotted. This is done by passing the name of the file that contain the `*nodes.gmt' in the grd/ folder. The script will guide you through its options, for either plotting just the triangular grid, Voronoi grid and other options. Outputs will be placed in graphs/ folder. Edit plot.sh to fulfill your needs.
 
 \subsubsection{Example 1 - icosahedral grid level 2}
 To generate the grid set in par/mesh.par the following parameters (leave the rest as default):
@@ -494,7 +494,7 @@ trsk \\
 trsk \\
 \end{verse}
 
-You can get the preprint of \cite{Peixoto2015} in \url{www.ime.usp.br/~pedrosp}, but I do appologise that some of the notation is different in the paper and code. Please contact me if you wish to have pre-calculated HR95 optimized grids.
+You can get the preprint of \cite{Peixoto2015} in \url{www.ime.usp.br/~pedrosp}, but I do apologize that some of the notation is different in the paper and code. Please contact me if you wish to have pre-calculated HR95 optimized grids.
 
 
 \bibliographystyle{plainnat}% citação bibliográfica alpha
