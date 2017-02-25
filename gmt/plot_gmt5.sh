@@ -455,7 +455,7 @@ if [ $scalar ] ; then
     echo " 5) Seismology - Multicolor"
     echo " 6) Color - Seis + 0-white to 1-black"
     echo " 7) Color - Inverted Seis + 1-white to 0-black"
-    echo " 8) Color "
+    echo " 8) Grayscale "
     read kcolor
     echo    
 
@@ -504,6 +504,16 @@ if [ $scalar ] ; then
 	#makecpt -Chaxby -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cseism -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	gmt makecpt -Cseism_nonlin -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	#makecpt -Cwysiwyg -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
+    	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
+    fi
+    
+    if [ $kcolor -eq 8 ] ; then #Greyscale
+	#makecpt -Cjet  -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	#makecpt -Chaxby -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	#makecpt -Cseism -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	gmt grd2cpt $scalar.grd -Cgray  -Z   > $scalar.cpt
+	#gmt makecpt -Cseism_nonlin -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cwysiwyg -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
     	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
     fi    
@@ -689,11 +699,19 @@ sed -i s/"^%%Title:.*"/"%%Title:$newtitle"/ $plot
 echo "and pdf and eps files (for pdflatex and latex)."
 gmt psconvert -Te -A -P $plot  # EPS
 gmt psconvert -Tf -A -P $plot  # PDF
-#gmt ps2raster -Te -A -P $plot  # EPS
+
+cp $plot $baseplot"_grey".ps
+gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_grey.pdf" -f $baseplot.pdf
+gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_grey.ps" -f $baseplot.ps
+#gmt psconvert -Te -A -P $baseplot"_grey".ps  # EPS
+pdf2ps -eps $baseplot"_grey.ps" $baseplot"_grey.eps"
+
+#pdftops  $baseplot"_grey.pdf" $baseplot"_grey.eps"
 
 #ps2pdf14 -dEmbedAllFonts=true -dPDFSETTINGS=/prepress $plot $baseplot-tmp.pdf
 #pdfcrop $baseplot-tmp.pdf $baseplot.pdf
 rm $plot
+rm $baseplot"_grey.ps"
 gv $baseplot.eps &
 #okular $baseplot.pdf &
 
