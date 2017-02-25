@@ -234,12 +234,12 @@ if [ $mesh ] ; then
 	echo 'Mesh to be ploted:' $mesh
 	echo "Select kind of mesh to be ploted:"
 	echo " 1) - "
-	echo " 2) Simple triangular geodesic grid - no labels"
-	echo " 3) Geodesic triangular grid with labels"
-	echo " 4) Geodesic triangular grid with labels and edge vectors"
-	echo " 5) Simple Geodesic voronoi grid"
-	echo " 6) Simple Geodesic voronoi grid with triangulation"
-	echo " 7) Geodesic voronoi grid with labels, edge vectors"
+	echo " 2) Simple triangular/primal geodesic grid - no labels"
+	echo " 3) Geodesic triangular/primal grid with labels"
+	echo " 4) Geodesic triangular/primal grid with labels and edge vectors"
+	echo " 5) Simple Geodesic voronoi/dual grid"
+	echo " 6) Simple Geodesic voronoi/dual grid with triangulation/primal"
+	echo " 7) Geodesic voronoi/dual grid with labels, edge vectors"
 	read kmesh
         #Grid files
 	nodes=$mesh'_nodes.gmt'
