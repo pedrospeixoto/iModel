@@ -205,7 +205,8 @@ contains
 
 		!alpha*max|u_pert|=u00
 		!alpha exp(lambda t) ==> how does alpha behave? alpha=nonlin_alpha
-		nonlin_alpha=0.0001/errormax_u
+		!nonlin_alpha=0.0001/errormax_u
+        nonlin_alpha=0.000001/error2_u
 
 		!Rebuild the total h and u with
 		h%f=h_exact%f+nonlin_alpha*(h%f-h_exact%f)
@@ -257,7 +258,7 @@ contains
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
 
-          if(errormaxrel_h > 10 .and. k > 3 )then
+          if(errormaxrel_h > 9 .and. k > 3 )then
              !Plot fields
              print*, "Stopping due to large errors", errormaxrel_h
              call plotfields(ntime, time)
