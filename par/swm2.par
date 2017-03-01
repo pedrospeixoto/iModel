@@ -1,16 +1,16 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-1 0
+34 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-12 12
+50 50
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-50 0 0
+400 0 0
 !Scalar/vector location (HC or HTC)
-HC
-!Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set)
-perhx 0.75
+HTC
+!Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
+gass 0.85
 !Coriolis vec reconstruction method
-pered
+trsk
 !Scalar interpolations
 trsk
 !Gradient discrete method
@@ -19,8 +19,8 @@ trsk
 2 10 0
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
-!Hollingsworth coef - Only for test case 32 and 33
-0
+!Hollingsworth coef - Only for test case 32, 33, 34
+0.01
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
 0.0
 !Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter
@@ -40,7 +40,8 @@ none 0.5
 21 : Galewski et al Barotropically unstable jet with perturbation
 22 : Galewski et al Barotropically unstable jet without perturbation
 32 : Hollingsworth instability with tc2
-33 : Hollingsworth instability with constant h and non rotating frame  
+33 : Hollingsworth instability with constant h and non rotating frame
+34 : Hollingsworth instability with tc2 suppressing nonlinearities  
 42 : Rotated Steady state localised test on f-sphere
 51 : Flow over mountain Will92 smooth mountain (Gaussian)
 
@@ -52,6 +53,7 @@ HTC : scalars on cell node and vectors on Voronoi cell edge intersection with tr
 perhx : Perot's method (required for Peixoto 2015)
 trsk : simple weighted average
 gass : Gassman's version to avoid Hol. instabil
+dubos: Dubos energy conserving - equals to Gass with coef 0.0
 
 !Coriolis vec recon method
 dtred : Dual triangle method (Similar to Nikovic 2002) 

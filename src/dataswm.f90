@@ -495,6 +495,11 @@ contains
     print*
     swmname=trim(swmname)//"_"//trim(adjustl(trim(stag)))
     swmname=trim(swmname)//"_vrec"//trim(adjustl(trim(reconmtd)))
+    if(useReconmtdGass)then
+        write(atmp,'(f4.2)') real(gasscoef)
+        swmname=trim(swmname)//trim(adjustl(trim(atmp)))
+    end if
+
     swmname=trim(swmname)//"_crec"//trim(adjustl(trim(coriolis_reconmtd)))
     swmname=trim(swmname)//"_sint"//trim(adjustl(trim(sinterpol)))
     swmname=trim(swmname)//"_grd"//trim(adjustl(trim(gradmtd)))
