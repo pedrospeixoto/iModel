@@ -445,8 +445,8 @@ module datastruct
      !Grid name, used for file names as outputs
      ! name=kind//pos//optm//hrchy//n
      ! or file name if nodes are read from file
-     character (len=32) :: name
-     character (len=128) :: filename
+     character (len=128) :: name
+     character (len=256) :: filename
 
   end type grid_structure
 

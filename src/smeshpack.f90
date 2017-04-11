@@ -91,7 +91,7 @@ contains
     type(grid_structure), intent(inout) :: mesh
 
     !Auxiliar variables
-    character (len=128):: header
+    character (len=256):: header
     logical:: ifile
     logical:: opt
     integer (i4):: nv
