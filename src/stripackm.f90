@@ -5857,7 +5857,7 @@ contains
 
        n0 = nrand ( n, n0)  !P. Peixoto
        nrandcount=nrandcount+1
-       if(nrandcount > n) then
+       if(nrandcount > 4*n) then
           print*, "TRFIND Warning: Going into an infinite loop"
           print*, "   Consider re-ordering the nodes"
        end if

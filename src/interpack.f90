@@ -640,7 +640,7 @@ contains
           vector_reconstruct=vecrecon_lsq (p, var, stencil, mesh, pindtmp)
           !vector_reconstruct=vecrecon_lsq (p, var, stencil, mesh)
        case("trsk") !TRISK (Thuburn et al 2009) tangent vector reconstruction
-          vector_reconstruct=vecrecon_trsk(pindtmp, var, mesh)
+          vector_reconstruct=vecrecon_trsk(pindtmp, var, mesh, p)
        case("pered") !Perot for edges tangent vector reconstruction
           vector_reconstruct=vecrecon_pered(pindtmp, var, mesh)
        case("dtred") !Dual triangle recons for edges (tangent vector reconstruction)
@@ -653,7 +653,7 @@ contains
     case(6) !Normal given at hexagon edge at intersection with tr edge midpoint
        select case(trim(kindinterpol))
        case("trsk") !TRISK (Thuburn et al 2009) tangent vector reconstruction
-          vector_reconstruct=vecrecon_trsk(pindtmp, var, mesh)
+          vector_reconstruct=vecrecon_trsk(pindtmp, var, mesh, p)
        case("pered") !Perot for edges tangent vector reconstruction
           vector_reconstruct=vecrecon_pered(pindtmp, var, mesh)
        case("dtred") !Dual triangle recons for edges (tangent vector reconstruction)
@@ -675,7 +675,7 @@ contains
     return
   end function vector_reconstruct
 
-  function tgrecon_index (ed, kindinterpol, pos, mesh)
+  function tgrecon_index (ed, kindinterpol, pos, mesh, recpos)
     !-----------------------------------------------------------
     !  tangent reconstruction index
     !
@@ -697,18 +697,23 @@ contains
     integer (i4):: ed
 
     !Vector positions
-    integer(i4):: pos
+    integer(i4):: pos !position of input data
+    integer(i4), optional:: recpos !position of desired reconstruction
 
     !Reconstructed vector
     real (r8):: tgrecon_index
 
     select case(trim(kindinterpol))
     case("trsk") !TRISK (Thuburn et al 2009) tangent vector reconstruction
-       tgrecon_index=trsk_order_index(ed,  pos, mesh)
+        if(present(recpos)) then !Reconstruction might be to a different point
+            tgrecon_index=trsk_order_index(ed,  pos, mesh, recpos)
+        else !Do reconstruction to same point as input data
+            tgrecon_index=trsk_order_index(ed,  pos, mesh)
+        endif
     case("pered") !Perot for edges tangent vector reconstruction
        tgrecon_index=pered_order_index(ed,  mesh)
-    case("dtred") !Dual triangle recons for edges (tangent vector reconstruction)
-       tgrecon_index=trsk_order_index(ed,  pos, mesh)
+    !case("dtred") !Dual triangle recons for edges (tangent vector reconstruction)
+    !   tgrecon_index=trsk_order_index(ed,  pos, mesh)
     case default
        print*, "TGRECON INDEX ERROR: Don't know how to do this interpolation:", &
             kindinterpol
@@ -720,115 +725,6 @@ contains
   end function tgrecon_index
 
 
-  !  function vec_tg_reconstruct (ed, var, mesh, kinterp, rbf_mat)
-  !    !-----------------------------------------------------------
-  !    !  VECTOR RECONSTRUCTION OF TANGENT VECTOR
-  !    !
-  !    ! Given the triangulation of a set of nodes on the unit
-  !    !  sphere (mesh), along with vector components (normal) at
-  !    !  the edge midpoints (in var), computes the value at the midpoint
-  !    !  of edge "ed"  using 'kinterp' method.
-  !    ! The normal components should be given on midpoints of
-  !    !  hexagons (var$pos = 3)
-  !    !-------------------------------------------------------
-  !    !Reconstruction point
-  !    integer(i4), intent(in):: ed
-  !
-  !    !Input Variable with vector comp on hexagon midpoints
-  !    type(interpolable_variable), intent(inout) :: var
-  !
-  !    !Mesh in which the variable belongs
-  !    type(grid_structure), intent(in) :: mesh
-  !
-  !    !RBF matrix vector (used only on rbf interpolations)
-  !    type(rbf_matrix_structure), optional :: rbf_mat(:)
-  !
-  !    !Kind of reconstruction
-  !    ! trisk - Thuburn et al method
-  !    ! pertg - Perot's method
-  !    ! rbftg - RBF
-  !    character (len=8), optional :: kinterp
-  !    character (len=8):: kindinterpol
-  !
-  !    !Interpolation/reconstruction stencil
-  !    character (len=4):: stencil
-  !
-  !    !Reconstructed vector
-  !    real (r8):: vec_tg_reconstruct
-  !
-  !    !Auxiliar index
-  !    integer(i4):: i
-  !
-  !    !Set defaulf kind of interpolation (in case kinterp not given)
-  !    if(.not.present(kinterp))then
-  !       kindinterpol="trisk"
-  !    else
-  !       !Local kind of interpolation
-  !       kindinterpol=kinterp
-  !    end if
-  !
-  !    !Set RBF stencil kind
-  !    if(kindinterpol(1:3)=='rbf')then
-  !       if(.not.present(rbf_mat))then
-  !          print*, "Vector_recon error: rbf_mat must be given!"
-  !          stop
-  !       end if
-  !       stencil(1:4)=kindinterpol(4:7)
-  !       kindinterpol='rbf'
-  !    end if
-  !
-  !    if(kindinterpol(1:3)=='per')then
-  !       stencil(1:4)=kindinterpol(4:6)
-  !       kindinterpol='per'
-  !    end if
-  !
-  !    if(kindinterpol(1:3)=='lsq')then
-  !       stencil(1:4)=kindinterpol(4:7)
-  !       kindinterpol='lsq'
-  !       !print*, "hi", trim(kindinterpol), trim(stencil)
-  !    end if
-  !
-  !    if(kindinterpol(1:3)=='lsq')then
-  !       stencil(1:4)=kindinterpol(4:7)
-  !       kindinterpol='lsq'
-  !       !print*, "hi", trim(kindinterpol), trim(stencil)
-  !    end if
-  !
-  !
-  !    select case(var%pos)
-  !    case(3) !Normal given at hexagon edge midpoints
-  !       select case(trim(kindinterpol))
-  !       case("none", "nonetr", "nonehx") !Just find the triangle
-  !          !   i=getnearnode(p, mesh)
-  !          !   vector_reconstruct=0._r8
-  !       case("trisk") !Perot (2000) reconstruction
-  !          vec_tg_reconstruct=vec_tg_recon_trisk(ed, var, mesh)
-  !          !case("per") !Perot (2000) reconstruction
-  !          !  vector_reconstruct=vecrecon_perot(p, var, stencil, mesh, pindtmp)
-  !          !vector_reconstruct=vecrecon_perot(p, var, stencil, mesh)
-  !          !case("rbf") !Radial basis function reconstruction
-  !          !   vector_reconstruct=vecrecon_rbf(p, var, stencil, rbf_mat, mesh)
-  !          !case("lsq") !Least Square fit
-  !          !   vector_reconstruct=vecrecon_lsq (p, var, stencil, mesh, pindtmp)
-  !          !vector_reconstruct=vecrecon_lsq (p, var, stencil, mesh)
-  !       case default
-  !          print*, "VECTOR RECON ERROR: Don't know how to do this interpolation:", &
-  !               kindinterpol, var%pos
-  !          stop
-  !       end select
-  !    case default
-  !       print*, "VECTOR RECON ERROR: Don't know how to do this interpolation:", &
-  !            kindinterpol, var%pos
-  !       stop
-  !    end select
-  !
-  !    !Force vetor to be tangent to the sphere
-  !    !vec_tg_reconstruct=proj_vec_sphere(vec_tg_reconstruct, mesh%ed(ed)%c%p)
-  !
-  !    return
-  !  end function vec_tg_reconstruct
-
-  !subroutine getmultirecon(kinterp, recon, interp, interp_ho, massc)
   subroutine getmultirecon(kinterp, recon_mtd)
     !------------------------------------------------
     ! Get the multiple vector reconstruction method
@@ -3828,10 +3724,11 @@ contains
     return
   end function vecrecon_klausen
 
-  function vecrecon_trsk(ed, var, mesh)
+  function vecrecon_trsk(ed, var, mesh, p)
     !--------------------------------------------------------
     ! vecrecon_trisk
-    ! Vector reconstruction - tangent component - Thuburn et all (2009)
+    ! Vector reconstruction - tangent component
+    !      returns full reconstructed vector - Thuburn et all (2009)
     !   TRISK
     !--------------------------------------------------------
     !Reconstruction point
@@ -3848,6 +3745,9 @@ contains
     !  "o" or " " original Trisk scheme
     !character, optional :: mtd_in
     !character :: mtd
+
+    !Output point of reconstruction
+    real (r8), dimension(1:3), optional:: p
 
     !Reconstructed vector
     real (r8), dimension(1:3):: vecrecon_trsk
@@ -3919,17 +3819,159 @@ contains
     end do
     utg=utg/mesh%ed(ed)%leng
 
-    !Get reconstructed vector including normal component
-    if(var%pos==3)then
-       vecrecon_trsk=utg*mesh%edhx(ed)%tg+var%f(ed)*mesh%edhx(ed)%nr
-    elseif(var%pos==6)then
-       vecrecon_trsk=utg*mesh%ed(ed)%nr+var%f(ed)*mesh%ed(ed)%tg
+    if(present(p))then !Confirm position of desired reconstruction
+        if(norm(p-mesh%edhx(ed)%c%p)<1E-10 .and. var%pos==3)then !midpoint to midpoint
+            vecrecon_trsk=utg*mesh%edhx(ed)%tg+var%f(ed)*mesh%edhx(ed)%nr
+        elseif(norm(p-mesh%ed(ed)%c%p)<1E-10 .and. var%pos==3)then !midpoint to intersection
+            vecrecon_trsk=utg*mesh%ed(ed)%nr*sign(1.0_r8,dot_product(mesh%ed(ed)%nr,mesh%edhx(ed)%tg))+var%f(ed)*mesh%edhx(ed)%nr
+        elseif(norm(p-mesh%ed(ed)%c%p)<1E-10 .and. var%pos==6)then !intersection to intersection
+            vecrecon_trsk=utg*mesh%ed(ed)%nr+var%f(ed)*mesh%ed(ed)%tg
+        elseif(norm(p-mesh%edhx(ed)%c%p)<1E-10 .and. var%pos==6)then !intersection to midpoint
+            vecrecon_trsk=utg*mesh%edhx(ed)%tg*sign(1.0_r8,dot_product(mesh%edhx(ed)%tg,mesh%ed(ed)%nr))+var%f(ed)*mesh%ed(ed)%tg
+        elseif(norm(p-mesh%edhx(ed)%c%p)>1E-10 .and. norm(p-mesh%edhx(ed)%c%p)>1E-10)then
+            print*, "vecrecon_trisk error: you are trying to use TRSK to reconstruct to a point which is not at an edge midpoint"
+            print*, " edge:", ed, " reconstruction point:", p
+            stop
+        endif
     else
-       vecrecon_trsk=0.
-    endif
+        !Get reconstructed vector including normal component
+        if(var%pos==3)then
+           vecrecon_trsk=utg*mesh%edhx(ed)%tg+var%f(ed)*mesh%edhx(ed)%nr
+        elseif(var%pos==6)then
+           vecrecon_trsk=utg*mesh%ed(ed)%nr+var%f(ed)*mesh%ed(ed)%tg
+        else
+           vecrecon_trsk=0.
+        endif
+    end if
 
     return
   end function vecrecon_trsk
+
+  function vecrecon_trsk_tg(ed, var, mesh, p)
+    !--------------------------------------------------------
+    ! vecrecon_trisk_tg
+    ! Vector reconstruction - tangent component only! - Thuburn et all (2009)
+    !   TRISK
+    !--------------------------------------------------------
+    !Reconstruction point
+    integer(i4), intent(in) :: ed
+
+    !Variable with normal vector values
+    type(scalar_field), intent(in) :: var
+
+    !Mesh structure
+    type(grid_structure) :: mesh
+
+    !Method to be used
+    !  "b" weights calculated with barycentric coord
+    !  "o" or " " original Trisk scheme
+    !character, optional :: mtd_in
+    !character :: mtd
+
+    !Output point of reconstruction
+    real (r8), dimension(1:3), optional:: p
+
+    !Reconstructed vector
+    real (r8), dimension(1:3):: vecrecon_trsk_tg
+
+    !Just tangent component of reconstructed vector
+    real (r8):: utg
+
+    !Cells adjacent to edge ed
+    integer (i4):: cell(1:2)
+
+    !Indexes and aux vars
+    integer (i4):: i
+    integer (i4):: j
+    integer (i4):: k
+    integer (i4):: ed_celli
+    integer (i4):: signcor
+
+    !Check for argument entry error
+    if(ed==0)then
+       print*, "vecrecon_trsk error: Edge index must be informed"
+       stop
+    end if
+
+
+    !Initialize reconstruction vectors
+    vecrecon_trsk_tg=0._r8
+    utg=0._r8
+
+    !Get cell surrounding edge
+    cell(1:2)=mesh%edhx(ed)%sh(1:2)
+
+    !Calculate primal-dual cell area ratios, Div weights and TRSK weights
+    if(.not. allocated(mesh%hx(mesh%nv)%trskw))then
+       call calc_trisk_weights(mesh)
+    end if
+    !print*, var%pos
+    !stop
+    !Works for if(var%pos==3 or 6)then  !Normal components given on hx edge midpoints
+    !See Thuburn et al 2009 eq 8
+    do i=1,2
+       ed_celli=0
+       do j=1, mesh%v(cell(i))%nnb
+          !Find the index of edge ed within cell(i)
+          if(ed==mesh%v(cell(i))%ed(j))then
+             ed_celli=j
+             exit
+          end if
+       end do
+       if(ed_celli==0)then !check for errors
+          print*, "vecrecon_trisk error: edge not in cell"
+          stop
+       end if
+       !For all edges of cell, add contribution to reconstruction
+       do j=1, mesh%v(cell(i))%nnb
+          !Edge's global index
+          k=mesh%v(cell(i))%ed(j)
+          !Apply sign corrections
+          if(var%pos==3)then
+             signcor=-1.*mesh%hx(cell(i))%nr(j)*mesh%hx(cell(i))%tg(ed_celli)
+          elseif(var%pos==6)then
+             signcor=-1.*mesh%hx(cell(i))%ttgout(j)*mesh%hx(cell(i))%tnrccw(ed_celli)
+          endif
+          utg=utg+var%f(k)*mesh%edhx(k)%leng*mesh%hx(cell(i))%trskw(ed_celli, j)*signcor
+          !Correct vector direction
+          !mesh%hx(cell)%trskw(i,j)=-mesh%hx(cell)%trskw(i,j)*mesh%hx(cell)%nr(j)
+          !Correct so that the tangent on edge ed is ccw
+          !mesh%hx(cell)%trskw(i,j)=mesh%hx(cell)%trskw(i,j)*mesh%hx(cell)%tg(i)
+       end do
+    end do
+    utg=utg/mesh%ed(ed)%leng
+
+    if(present(p))then !Confirm position of desired reconstruction
+        if(norm(p-mesh%edhx(ed)%c%p)<1E-10 .and. var%pos==3)then !midpoint to midpoint
+            vecrecon_trsk_tg = utg*mesh%edhx(ed)%tg
+
+        elseif(norm(p-mesh%ed(ed)%c%p)<1E-10 .and. var%pos==3)then !midpoint to intersection
+            vecrecon_trsk_tg = utg*mesh%ed(ed)%nr*sign(1.0_r8,dot_product(mesh%ed(ed)%nr,mesh%edhx(ed)%tg))
+
+        elseif(norm(p-mesh%ed(ed)%c%p)<1E-10 .and. var%pos==6)then !intersection to intersection
+            vecrecon_trsk_tg = utg*mesh%ed(ed)%nr
+
+        elseif(norm(p-mesh%edhx(ed)%c%p)<1E-10 .and. var%pos==6)then !intersection to midpoint
+            vecrecon_trsk_tg = utg*mesh%edhx(ed)%tg*sign(1.0_r8,dot_product(mesh%edhx(ed)%tg,mesh%ed(ed)%nr))
+
+        elseif(norm(p-mesh%edhx(ed)%c%p)>1E-10 .and. norm(p-mesh%edhx(ed)%c%p)>1E-10)then
+            print*, "vecrecon_trisk error: you are trying to use TRSK to reconstruct to a point which is not at an edge midpoint"
+            print*, " edge:", ed, " reconstruction point:", p
+            stop
+        endif
+    else
+        !Get reconstructed tangent vector
+        if(var%pos==3)then
+           vecrecon_trsk_tg=utg*mesh%edhx(ed)%tg
+        elseif(var%pos==6)then
+           vecrecon_trsk_tg=utg*mesh%ed(ed)%nr
+        else
+           vecrecon_trsk_tg=0.
+        endif
+    end if
+    !print*, ed, utg, vecrecon_trsk_tg
+    return
+  end function vecrecon_trsk_tg
 
   subroutine calc_trisk_weights(mesh)
     !---------------------------------------------------------
@@ -4053,7 +4095,7 @@ contains
 
   end subroutine calc_trisk_weights
 
-  function trsk_order_index(ed, pos, mesh)
+  function trsk_order_index(ed, pos, mesh, recpos)
     !--------------------------------------------------------
     ! trsk_order_index
     ! Calculated the consistency conditions for trisk and returns an index
@@ -4076,6 +4118,7 @@ contains
 
     !Position of normals (hx ed midpoint==3, tr x hx intersec ==6)
     integer (i4):: pos
+    integer (i4), optional:: recpos !position of reconstruction (tangent)
 
     !Indexes and aux vars
     integer (i4):: i
@@ -4103,11 +4146,9 @@ contains
     !print*, "------------------"
     !print*, "Edge:", ed
     !print*, cell
-    !Works for if(var%pos==3)then  !Normal components given on hx edge midpoints
 
     vtg=0
     do i=1,2
-
        ed_celli=0
        do j=1, mesh%v(cell(i))%nnb
           !Find the index of edge ed within cell(i)
@@ -4132,9 +4173,6 @@ contains
              signcor=-1.*mesh%hx(cell(i))%ttgout(j)*mesh%hx(cell(i))%tnrccw(ed_celli)
              vtg=vtg+mesh%ed(k)%tg*mesh%edhx(k)%leng*mesh%hx(cell(i))%trskw(ed_celli, j)*signcor
           endif
-          !utg=utg+var%f(k)*mesh%edhx(k)%leng*mesh%hx(cell(i))%trskw(ed_celli, j)*signcor
-
-          !vtg=vtg+(mesh%edhx(k)%tg)*mesh%hx(cell(i))%tg(j)
           !print*, k
           !print*, (mesh%edhx(k)%tg)*mesh%hx(cell(i))%tg(j)
           !print*, vtg
@@ -4150,13 +4188,24 @@ contains
     !print*, vtg
     !print*, mesh%ed(ed)%tg
     !print*,"----------------------------"
-    !Get reconstructed vector including normal component
-    if(pos==3)then
-       trsk_order_index=norm(vtg-mesh%edhx(ed)%tg)
-    elseif(pos==6)then
-       trsk_order_index=norm(vtg-mesh%ed(ed)%nr)
+    !Calculate index
+    if(present(recpos))then
+        if(pos==3 .and. recpos==3)then
+            trsk_order_index=norm(vtg-mesh%edhx(ed)%tg)
+        elseif(pos==6 .and. recpos==6)then
+            trsk_order_index=norm(vtg-mesh%ed(ed)%nr)
+        elseif(pos==3 .and. recpos==6)then
+            trsk_order_index=norm(vtg-mesh%ed(ed)%nr*sign(1.0_r8, dot_product(mesh%edhx(ed)%tg, mesh%ed(ed)%nr)))
+        elseif(pos==6 .and. recpos==3)then
+            trsk_order_index=norm(vtg-mesh%edhx(ed)%tg*sign(1.0_r8, dot_product(mesh%edhx(ed)%tg, mesh%ed(ed)%nr)))
+       end if
+    else
+        if(pos==3)then
+           trsk_order_index=norm(vtg-mesh%edhx(ed)%tg)
+        elseif(pos==6)then
+           trsk_order_index=norm(vtg-mesh%ed(ed)%nr)
+        endif
     endif
-
 
     return
   end function trsk_order_index

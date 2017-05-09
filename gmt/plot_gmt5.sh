@@ -545,7 +545,7 @@ fi
 # PLOTING MESH
 if [ $mesh ] ; then
     #Print coast
-    #pscoast  $map -Wfaint/150/150/150 -K -O >> $plot
+    #gmt pscoast  $map -Wfaint,gray -K -O >> $plot
 
     if [ $kmesh -ne 5 ] ; then
 	#Print nodes

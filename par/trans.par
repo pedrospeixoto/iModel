@@ -32,7 +32,7 @@ lsqhxe
 !RBF shape parameter (only if RBF method - ex:1.0)
 2
 !Number of plots on animation. ex:64
-2
+1
 
 
 !!!! See simul.par for details of the interpolation/reconstruction methods that can be used

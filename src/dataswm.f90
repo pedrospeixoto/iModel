@@ -35,7 +35,7 @@ module dataswm
 
   !Linearized SW equation tests constant f
   integer (i4):: fsphere !0=false, 1=true and linearized eq, 2=true but non linear eq
-  real(r8):: fcte !Value of f for f-sphere=1
+  real(r8):: fcte !Value of f for f-sphere=1 or f-sphere=2
 
   !Time variables
   real (r8):: dt  !Time step

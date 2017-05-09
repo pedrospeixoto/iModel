@@ -118,10 +118,15 @@ contains
     !Time in seconds
     real(r8)::time
 
-	!logical :: nonlin_pert=.true.
+    !logical :: nonlin_pert=.true.
 	real(r8):: nonlin_alpha=1.0
 	real(r8):: u00=1.0
 	real(r8), dimension(:), allocatable:: h_force, u_force
+
+    !Check for blow ups
+    integer(i4)::blowup=0
+
+    !blowup=0
 
     !Save global variable mesh
     mesh=meshtmp
@@ -163,8 +168,8 @@ contains
 
     call write_evol(0, 0._r8, inimass, Penergy0, Kenergy0, Tenergy0, Availenergy0, 0._r8)
 
-	allocate(u_force(1:u%n))
-	allocate(h_force(1:h%n))
+    allocate(u_force(1:u%n))
+    allocate(h_force(1:h%n))
 
     !Time loop
     do k=1, ntime
@@ -181,7 +186,7 @@ contains
        !h%f(1:h%n) = h_old%f(1:h%n) + dt * masseq(1:h%n)
        call ode_rk4 (time, h_old, u_old, h, u, dt)
 
-		!Linear analysis for Hollingsworth problem
+	   !Linear analysis for Hollingsworth problem
 	   if(testcase==34)then
 		!Set forcing
 		if(k==1)then
@@ -258,11 +263,16 @@ contains
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
 
-          if(errormaxrel_h > 9 .and. k > 3 )then
+          if(errormaxrel_h > 5 .and. k > 3 )then
+
+             blowup=blowup+1
+             print*, "System might be unstable, large errors:", errormaxrel_h
              !Plot fields
-             print*, "Stopping due to large errors", errormaxrel_h
              call plotfields(ntime, time)
-             exit
+             if(blowup==5)then
+                print*, "Stopping due to large errors", errormaxrel_h
+                exit
+             end if
           end if
 
           if(k==ntime)then

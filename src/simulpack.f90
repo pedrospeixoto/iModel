@@ -82,7 +82,8 @@ module simulpack
        vector_interpol, &
        vector_reconstruct, &
        vrec_remap, &
-       vecrecon_trsk
+       vecrecon_trsk, &
+       vecrecon_trsk_tg
 
   !Differential operators pack
   use diffoperpack, only: &
@@ -2641,7 +2642,7 @@ contains
     type(grid_structure) :: mesh
 
     !Indexes
-    integer (i4):: i
+    integer (i4):: i, j
 
     !Units for files
     logical:: ifile
@@ -2679,7 +2680,8 @@ contains
     type(rbf_matrix_structure), allocatable :: rbf_mat(:)
 
     integer (i4):: vecreconpos      !Position for vector reconstruction
-    integer (i4):: vecpos           !Position for given vectors
+    integer (i4):: vecpos           !Position for data vectors
+    integer (i4):: vecpos_out       !Position for out data vectors
     !logical :: intisrecon           !Flag when interpol mtd is the recon mtd
 
     !Time counting variables
@@ -2706,15 +2708,24 @@ contains
     ! Define variables on mesh
     !----------------------------------------
     select case (trim(stag))
-    case ("HCT") !Vectors on triangle edges instersec hx edges
+    case ("HCT", "HWT") !Vectors on triangle edges instersec hx edges
        vecpos=6
-    case ("HC") !Vectors on Hexagon edge midpoints
+    case ("HC", "HW") !Vectors on Hexagon edge midpoints
        vecpos=3
     case default
         print*, "vec_tg_reconstruction_test error: I only know how to "//&
           " reconstruct tg vectors from HC and HCT grids - for now!"
         stop
     end select
+
+    vecpos_out=vecpos !same as data
+
+    !Swap position for reconstructed vector for HW grids
+    if(trim(stag)=="HW")then
+        vecpos_out=6 !edge intersection
+    elseif(trim(stag)=="HWT")then
+        vecpos_out=3 !same as data
+    end if
 
     !Full vector
     vecedfull%pos=vecpos
@@ -2732,13 +2743,13 @@ contains
     allocate(vecncomp%f(1:vecncomp%n))
 
     !Tangent component - scalar
-    vectgcomp%pos=vecpos
+    vectgcomp%pos=vecpos_out
     vectgcomp%n=mesh%ne
     allocate(vectgcomp%f(1:vectgcomp%n))
 
 
     select case (trim(stag))
-    case ("HCT") !Vectors on Hexagon edges
+    case ("HCT", "HWT") !Vectors on Hexagon edges
        !Calculate vector field and components
        vecmax=0._r8
        do i=1,mesh%ne
@@ -2746,10 +2757,14 @@ contains
           vecedfull%p(i)%v=vecfield(p)
           vecmax=max(vecmax,norm(vecedfull%p(i)%v))
           vecncomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%ed(i)%tg)
-          vectgcomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%ed(i)%nr)
+          if(trim(stag)=="HWT")then !Reconstruct to intersection point
+            vectgcomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%edhx(i)%tg)
+          else
+            vectgcomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%ed(i)%nr)
+          end if
           vecnormal%p(i)%v=vecncomp%f(i)*mesh%ed(i)%tg
        end do
-    case ("HC") !Vectors on Hexagon edges
+    case ("HC", "HW") !Vectors on Hexagon edges
        !Calculate vector field and components
        vecmax=0._r8
        do i=1,mesh%ne
@@ -2757,7 +2772,13 @@ contains
           vecedfull%p(i)%v=vecfield(p)
           vecmax=max(vecmax,norm(vecedfull%p(i)%v))
           vecncomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%edhx(i)%nr)
-          vectgcomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%edhx(i)%tg)
+          !Tangent component - scalar
+          if(trim(stag)=="HW")then !Reconstruct to intersection point
+            p=mesh%ed(i)%c%p
+            vectgcomp%f(i)=dot_product(vecfield(p), mesh%ed(i)%nr)
+          else  !Reconstruct to midpoint
+            vectgcomp%f(i)=dot_product(vecedfull%p(i)%v, mesh%edhx(i)%tg)
+          end if
           vecnormal%p(i)%v=vecncomp%f(i)*mesh%edhx(i)%nr
        end do
     end select
@@ -2766,21 +2787,14 @@ contains
     !Alocate space for reconstructed vector field
     !----------------------------------------
 
-    vecreconpos=vecpos
-
-    !Set number of vector reconstructions
-    select case(vecreconpos)
-    case(2, 3, 6) !Reconstruction to edges
-       vecrec%n=mesh%ne
-    case default
-          print*, "Error on vector reconstruction test: unknown recon position ", vecreconpos
-          stop
-    end select
+    vecreconpos=vecpos_out
+    vecrec%n=mesh%ne
 
     !Reconstructed vectors
     vecrec%pos=vecreconpos
     allocate(vecrec%p(1:vecrec%n))
 
+    !Consistency index for reconstruction
     trskind%pos=vecreconpos
     trskind%n=vecrec%n
     allocate(trskind%f(1:trskind%n))
@@ -2790,7 +2804,7 @@ contains
     vecerror%n=vecrec%n
     allocate(vecerror%p(1:vecerror%n))
 
-    !Exact vector field error
+    !Exact vector field
     vecexact%pos=vecreconpos
     vecexact%n=vecrec%n
     allocate(vecexact%p(1:vecexact%n))
@@ -2825,19 +2839,32 @@ contains
     errormax=0._r8
     indmax=0._r8
     energy=0._r8
-    do i=1,  vecrec%n
-       !Do reconstruction to hx edges
-       if(vecpos==3)then
-          p=mesh%edhx(i)%c%p
-       elseif(vecpos==6)then
+    do i=1,  vecrec%n !For each edge
+       if(vecpos_out==6)then !reconstruct to edge intersection
           p=mesh%ed(i)%c%p
+       elseif(vecpos_out==3)then !Do reconstruction to hx edges midpoint
+          p=mesh%edhx(i)%c%p
        endif
-       vecrec%p(i)%v=vector_reconstruct (p, vecncomp, mesh, recon_mtd%recon, rbf_mat, i)
-       !vecrecon_trsk(i, vecncomp, mesh)
-       trskind%f(i)=tgrecon_index(i, recon_mtd%recon, vecpos, mesh)
-       !vecexact%p(i)%v=vecfield(p)
-       vecerror%p(i)%v=vecedfull%p(i)%v-vecrec%p(i)%v
-       vecnerror%f(i)=norm(vecerror%p(i)%v)
+       vecexact%p(i)%v=vecfield(p)
+
+       !Consistency index (does not depend on data, only on grid)
+       trskind%f(i)=tgrecon_index(i, recon_mtd%recon, vecpos, mesh, vecreconpos)
+
+       !Calculate reconstruction and errors
+       !Calculate error only of the tg component
+       if(trim(recon_mtd%recon)=="trsk")then !.and. trim(stag)=="HW")then
+        vecrec%p(i)%v=vecrecon_trsk_tg (i, vecncomp, mesh, p) !Returns just tg vector
+        if(vecpos_out==3)then
+            vecerror%p(i)%v=vectgcomp%f(i)*mesh%edhx(i)%tg-vecrec%p(i)%v !
+        elseif(vecpos_out==6)then
+            vecerror%p(i)%v=vectgcomp%f(i)*mesh%ed(i)%nr-vecrec%p(i)%v !
+        endif
+        vecnerror%f(i)=norm(vecerror%p(i)%v)
+       else !Calculate error based on full vector - should give same results if vecpos_out=vecpos
+        vecrec%p(i)%v=vector_reconstruct (p, vecncomp, mesh, recon_mtd%recon, rbf_mat, i)
+        vecerror%p(i)%v=vecedfull%p(i)%v-vecrec%p(i)%v
+        vecnerror%f(i)=norm(vecerror%p(i)%v)
+       endif
        !print*,vecnerror%f(i),   trskind%f(i)
        !print*, i, vecnerror%f(i)
        errormax=max(errormax, vecnerror%f(i))
@@ -2845,13 +2872,12 @@ contains
        error2=error2+vecnerror%f(i)**2
        ind2=ind2+trskind%f(i)**2
        !dot_product(vecexact%p(i)%v, mesh%edhx(i)%tg) !
-       if(vecpos==3)then
+       if(vecpos_out==3)then
           tgcomp=dot_product(vecrec%p(i)%v, mesh%edhx(i)%tg)
-          energy=energy+mesh%ed(i)%leng*mesh%edhx(i)%leng*vecncomp%f(i)*tgcomp/2
-       elseif(vecpos==6)then
+       elseif(vecpos_out==6)then
           tgcomp=dot_product(vecrec%p(i)%v, mesh%ed(i)%nr)
-          energy=energy+mesh%ed(i)%leng*mesh%edhx(i)%leng*vecncomp%f(i)*tgcomp/2
        endif
+       energy=energy+mesh%ed(i)%leng*mesh%edhx(i)%leng*vecncomp%f(i)*tgcomp/2
        !energy=energy+mesh%ed(i)%lenp*mesh%edhx(i)%lenp*vecncomp%f(i)*tgcomp/2
     end do
     !Normalize energy with respect to vector field
@@ -3275,7 +3301,7 @@ contains
          k=1.
          u=-k*(dsin((lon+pi)/2._r8)**2)*(dsin(2.*lat))*(dcos(lat)**2)
       case(5)
-         u=dcos(lat)*dsin(lat)
+         u=dcos(lat) !*dsin(lat)
       case(6) !Trigonometric (Tomita)
          if(abs(lat*rad2deg)>=90 - eps)then
             u=0

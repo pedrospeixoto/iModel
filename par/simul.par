@@ -1,6 +1,6 @@
 !Experiment parameters
 !Staggering kind
-HC
+HW
 !Kind of interpolation
 lintrv
 !Kind of vector reconstruction
@@ -33,6 +33,8 @@ trsk
   ! TA  - Scalars and vectors on triangle circumcenter, hexagon vertices
   ! TC  - Scalars on triangle vertices, hexagon centers and vectors triangle edge midpoints
   ! HCT - Voronoi staggered grid but with vectors on intersection of hx edge and tr edge.
+  ! HW  - Mixture of HC and HCT. Normals live at Voronoi edge midpoint, but tangentials live at intersection point HC->HCT. 
+  ! HWT  - Mixture of HCT and HC. Normals live at intersection point, but tangentials live at midpoints HCT->HC.
   !--------------------------------------------------------------------------------------
 
 !++++++++++ Kind of interpolations +++++++++++++++++++
