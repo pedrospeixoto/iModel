@@ -456,6 +456,7 @@ if [ $scalar ] ; then
     echo " 6) Color - Seis + 0-white to 1-black"
     echo " 7) Color - Inverted Seis + 1-white to 0-black"
     echo " 8) Grayscale "
+    echo " 9) Blue-White-Red smoother"
     read kcolor
     echo    
 
@@ -473,7 +474,18 @@ if [ $scalar ] ; then
     		--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
 	fi
     fi
-    
+
+    if [ $kcolor -eq 9 ] ; then #Blue - Red
+	if [ $postest -eq 0 ] ; then
+	    #gmt grd2cpt $scalar.grd -Cpolar  -Z -T= \
+	    #	--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
+	    gmt grd2cpt $scalar.grd -Cbluered_zero  -Z -T=  > $scalar.cpt
+	else            
+            gmt makecpt -Cpolar -T$minval/$maxval/$scale -Z \
+    		--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
+	fi
+    fi
+
     if [ $kcolor -eq 3 ] ; then #Multicolor jet
 	gmt makecpt -Cjet -T$minval/$maxval/$scale -Z  \
     	    --COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0 > $scalar.cpt
@@ -529,7 +541,7 @@ if [ $scalar ] ; then
 
     #Set tickmarks distance for scale
     gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
-        --FORMAT_FLOAT_MAP="%.1e" --FONT_ANNOT_PRIMARY="20">> $plot
+	--FORMAT_FLOAT_MAP="%.1e" --FONT_ANNOT_PRIMARY="20">> $plot   
     #gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
     #--FONT_ANNOT_PRIMARY="20">> $plot
 
@@ -611,7 +623,8 @@ if [ $mesh ] ; then
     #Voronoi mesh, edges only 
     if [ $kmesh -ge 5  ] ; then
 	if [ $scalar ] ; then
-	    gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
+	    #gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
+	    gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot
 	else
 	    #psxy $edhx -m  $map   -Wthin/black   -O -K   >> $plot
 	    gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot

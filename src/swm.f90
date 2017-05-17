@@ -187,7 +187,7 @@ contains
        call ode_rk4 (time, h_old, u_old, h, u, dt)
 
 	   !Linear analysis for Hollingsworth problem
-	   if(testcase==34)then
+	   if(testcase==34 .or. testcase==35)then
 		!Set forcing
 		if(k==1)then
 			u_force=u_exact%f-u%f
@@ -263,13 +263,13 @@ contains
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
 
-          if(errormaxrel_h > 5 .and. k > 3 )then
+          if((errormaxrel_h > 10.0 .or. isnan(errormaxrel_h)).and. k > 3 )then
 
              blowup=blowup+1
              print*, "System might be unstable, large errors:", errormaxrel_h
              !Plot fields
              call plotfields(ntime, time)
-             if(blowup==5)then
+             if(blowup >= 5 .or. isnan(errormaxrel_h) .or. errormaxrel_h > 100000000.0 )then
                 print*, "Stopping due to large errors", errormaxrel_h
                 exit
              end if
@@ -1823,7 +1823,7 @@ contains
           end do
        end if
 
-    case(32, 33, 34) !Global Steady State Zonal Geo Flow Hollingsworth instability
+    case(32, 33, 34, 35) !Global Steady State Zonal Geo Flow Hollingsworth instability
 
        u0=pi2*erad/(12._r8*day2sec)
        h0=2.94e4_r8*gravi
@@ -1836,7 +1836,7 @@ contains
 
 
        ! For tc33, h is contant, u is rotation and the f=0
-       if(testcase==33)then
+       if(testcase==33.or.testcase==35)then
           fcte=0.0_r8
           fsphere=2
           !u0=200
