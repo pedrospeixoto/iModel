@@ -624,7 +624,7 @@ if [ $mesh ] ; then
     if [ $kmesh -ge 5  ] ; then
 	if [ $scalar ] ; then
 	    #gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
-	    gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot
+	    gmt psxy $edhx  $map   -W0.5,black   -O -K   >> $plot
 	else
 	    #psxy $edhx -m  $map   -Wthin/black   -O -K   >> $plot
 	    gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot

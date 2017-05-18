@@ -57,6 +57,11 @@ module dataswm
   logical :: useOrigPV
   real(r8) :: pvspar
 
+  !Level versus layer model
+  ! 0=use PV (layer model)
+  ! 1=do not use PV (mimic level model)
+  logical :: noPV
+
   !Use reference solution
   logical::useRefSol
   logical::RefSolRead, RefSolAnal
@@ -184,6 +189,7 @@ module dataswm
   type(scalar_field):: eta   !absolute vorticity - on triangles
   type(scalar_field):: eta_exact   !absolute vorticity - on triangles
   type(scalar_field):: eta_error   !absolute vorticity - on triangles
+  type(scalar_field):: eta_ed   !absolute vorticity - on edges
   type(scalar_field):: q_tr  !pv on triangles
   type(scalar_field):: q_tr_exact  !pv on triangles
   type(scalar_field):: q_tr_error  !pv on triangles
@@ -301,6 +307,9 @@ contains
     !Loggical if time variables need or not to be set up
     logical::usetime
 
+    !Temporary Integer fo nopv flag
+    integer::inoPV
+
     !Couters
     !integer(i4)::i
     !integer(i4)::j
@@ -349,6 +358,8 @@ contains
     read(fileunit,*)  trskindmax
     read(fileunit,*)  buffer
     read(fileunit,*)  pv_stab, pvspar
+    read(fileunit,*)  buffer
+    read(fileunit,*)  inoPV
     close(fileunit)
 
     !Flag to test linearized version of equation
@@ -383,6 +394,14 @@ contains
        print*, "Unknown Coriolis vector reconstruction method", coriolis_reconmtd
        stop
     end if
+
+    noPV=inoPV>0
+    if(noPV)then
+        if(useCoriolisMtdDtred.or.useCoriolisMtdPered)then
+           print*, "Cannot use this Coriolis vector reconstruction method with level model (noPV)", coriolis_reconmtd, noPV
+           stop
+        endif
+    endif
 
     !Check  Vector reconstruction method
     useReconmtdPerhx=trim(reconmtd)=="perhx"
@@ -492,6 +511,11 @@ contains
     print*, "Gradient method         : ", gradmtd
     print*, "Hollingsworth parameter : ", hollgw
     print*, "PV stabilization mtd    : ", pv_stab
+    if(noPV)then
+        print*, "Using level model (no PV)  : ", noPV
+    else
+        print*, "Using layer model (with PV)  : ", noPV
+    end if
     print*
     swmname=trim(swmname)//"_"//trim(adjustl(trim(stag)))
     swmname=trim(swmname)//"_vrec"//trim(adjustl(trim(reconmtd)))
@@ -508,6 +532,11 @@ contains
        swmname=trim(swmname)//"_pvs"//trim(adjustl(trim(pv_stab)))
        swmname=trim(swmname)//trim(adjustl(trim(atmp)))
     end if
+
+    if(noPV)then
+       swmname=trim(swmname)//"_nopv"
+    endif
+
     if(hollgw>0 .and. (testcase==32 .or. testcase==33 .or. testcase==34 .or. testcase==35) )then
        write(atmp,'(f6.2)') real(hollgw)
        swmname=trim(swmname)//"_hol"//trim(adjustl(trim(atmp)))
@@ -667,6 +696,11 @@ contains
        allocate(eta_exact%f(1:eta%n), stat=ist)
        allocate(eta_error%f(1:eta%n), stat=ist)
     end if
+
+    eta_ed%n=mesh%ne
+    eta_ed%pos=edpos
+    eta_ed%name="eta_ed"
+    allocate(eta_ed%f(1:eta_ed%n), stat=ist)
 
     !Potential vorticity
     q_tr%n=mesh%nt
@@ -870,7 +904,7 @@ contains
     !$OMP SHARED(u_error, u_exact, uh, uhq_perp) &
     !$OMP SHARED(v_hx, v_ed, vhq_hx) &
     !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed) &
-    !$OMP SHARED(h_tr, eta, q_tr, q_ed) &
+    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed) &
     !$OMP SHARED(Kin_energy, Kin_energy_tr, ghbK, grad_ghbK, hbt, bt) &
     !$OMP SHARED(divuh, q_tr_exact, q_tr_error, q_grad_ed, divu, lapu ) &
     !$OMP SHARED(massf0, massf1, massf2, massf3) &
@@ -898,6 +932,7 @@ contains
 
     !Vorticity
     eta%f=0._r8
+    eta_ed%f=0._r8
     q_tr%f=0._r8
     q_ed%f=0._r8
 

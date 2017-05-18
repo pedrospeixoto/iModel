@@ -263,7 +263,7 @@ contains
                (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
                (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
 
-          if((errormaxrel_h > 10.0 .or. isnan(errormaxrel_h)).and. k > 3 )then
+          if((errormaxrel_h > 20.0 .or. isnan(errormaxrel_h)).and. k > 3 )then
 
              blowup=blowup+1
              print*, "System might be unstable, large errors:", errormaxrel_h
@@ -2540,7 +2540,7 @@ contains
     !------------------------------------------------------------
     !$omp parallel do &
     !$omp default(none) &
-    !$omp shared(mesh,  q_ed, q_tr) &
+    !$omp shared(mesh,  q_ed, q_tr,eta_ed, eta) &
     !$omp shared(useSinterpolTrisk, useSinterpolBary) &
     !$omp shared(useStagHTC, useStagHC) &
     !$omp private(d1, d2) &
@@ -2549,11 +2549,13 @@ contains
        !Calculate PV on edges
        if(useStagHC.or. useSinterpolTrisk)then
           q_ed%f(l)=0.5_r8*(q_tr%f(mesh%ed(l)%sh(1))+q_tr%f(mesh%ed(l)%sh(2)))
+          eta_ed%f(l)=0.5_r8*(eta%f(mesh%ed(l)%sh(1))+eta%f(mesh%ed(l)%sh(2)))
        else
           d1=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(1))%c%p)
           d2=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(2))%c%p)
           !print*, d1/(d1+d2), d2/(d1+d2)
           q_ed%f(l)=(d2*q_tr%f(mesh%ed(l)%sh(1))+d1*q_tr%f(mesh%ed(l)%sh(2)))/(d1+d2)
+          eta_ed%f(l)=(d2*eta%f(mesh%ed(l)%sh(1))+d1*eta%f(mesh%ed(l)%sh(2)))/(d1+d2)
        end if
     end do
 
@@ -2870,15 +2872,14 @@ contains
     !---------------------------------------------------------------
     !Calculate coriolis term
     !---------------------------------------------------------------
-
     !OPENMP PARALLEL DO
     !$omp parallel do &
     !$omp default(none) &
     !$omp shared(mesh, uh, u, h, q_ed, momeq, uhq_perp, vhq_tr, vhq_hx) &
-    !$omp shared(isTrskindLow, uhq_perp_exact) &
+    !$omp shared(isTrskindLow, uhq_perp_exact, eta_ed) &
     !$omp shared(useSinterpolTrisk, useSinterpolBary) &
     !$omp shared(useStagHTC, useStagHC, useCoriolisMtdHyb, useCoriolisMtdDtred) &
-    !$omp shared(useCoriolisMtdPered, useCoriolisMtdTrisk, useCoriolisMtdExact) &
+    !$omp shared(useCoriolisMtdPered, useCoriolisMtdTrisk, useCoriolisMtdExact, noPV) &
     !$omp private(edcelli, signcor, qtmp) &
     !$omp private(i, i1, i2, j, l1, l2, node, k, k1, k2, d1, d2) &
     !$omp private(vectmp, vectmp1, vectmp2) &
@@ -2912,14 +2913,20 @@ contains
                 elseif(useStagHC)then
                    signcor=dsign(1._r8,-1._r8*mesh%hx(node)%nr(j)*mesh%hx(node)%tg(edcelli))
                 endif
-                qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(k))
-                uhq_perp%f(l)= uhq_perp%f(l)+ &
-                     uh%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+                if(noPV)then
+                    qtmp=0.5_r8*(eta_ed%f(l)+eta_ed%f(k))
+                    uhq_perp%f(l)= uhq_perp%f(l)+ &
+                         u%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+                else
+                    qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(k))
+                    uhq_perp%f(l)= uhq_perp%f(l)+ &
+                         uh%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+                endif
              end do
           end do
           uhq_perp%f(l)=uhq_perp%f(l)/mesh%ed(l)%leng
           !print*, l
-       elseif(useCoriolisMtdDtred)then
+       elseif(useCoriolisMtdDtred)then !This method only works for layer model (with PV)
           !Use dual triangle reconstruction
           k1=mesh%ed(l)%sh(1)
           k2=mesh%ed(l)%sh(2)
@@ -2939,7 +2946,7 @@ contains
              !vectmp=proj_vec_sphere(vectmp, mesh%edhx(l)%c%p)
              uhq_perp%f(l)=dot_product(vectmp,mesh%edhx(l)%tg)
           end if
-       elseif(useCoriolisMtdPered)then
+       elseif(useCoriolisMtdPered)then !This method only works for layer model (with PV)
           !print*, l
           do i=1,2 !cells sharing edge l
              node=mesh%edhx(l)%sh(i)
