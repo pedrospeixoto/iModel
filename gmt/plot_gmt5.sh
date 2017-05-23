@@ -714,17 +714,17 @@ gmt psconvert -Te -A -P $plot  # EPS
 gmt psconvert -Tf -A -P $plot  # PDF
 
 cp $plot $baseplot"_grey".ps
-gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_grey.pdf" -f $baseplot.pdf
-gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_grey.ps" -f $baseplot.ps
+gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.pdf" -f $baseplot.pdf
+gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.ps" -f $baseplot.ps
 #gmt psconvert -Te -A -P $baseplot"_grey".ps  # EPS
-pdf2ps -eps $baseplot"_grey.ps" $baseplot"_grey.eps"
+pdf2ps -eps $baseplot"_grey.ps" $baseplot"_gray.eps"
 
 #pdftops  $baseplot"_grey.pdf" $baseplot"_grey.eps"
 
 #ps2pdf14 -dEmbedAllFonts=true -dPDFSETTINGS=/prepress $plot $baseplot-tmp.pdf
 #pdfcrop $baseplot-tmp.pdf $baseplot.pdf
 rm $plot
-rm $baseplot"_grey.ps"
+rm $baseplot"_gray.ps"
 gv $baseplot.eps &
 #okular $baseplot.pdf &
 
