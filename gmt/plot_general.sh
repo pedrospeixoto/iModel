@@ -25,7 +25,7 @@ else
     echo "gmt not installed"
     exit 0
 fi
-gmt=$gmt4
+
 echo 
 
 #KIND OF PLOT
@@ -180,8 +180,13 @@ echo Map : $map
 
 #GMT settings
 gmt_shell_functions.sh
-gmt set PS_MEDIA Custom_${height}x${width}
-gmt set FONT_ANNOT_PRIMARY +18p
+if [ "$gmt" == "$gmt5" ]; then
+   $gmt gmtset PS_MEDIA Custom_${height}x${width}
+   $gmt gmtset FONT_ANNOT_PRIMARY +18p
+else
+   $gmt gmtset PAPER_MEDIA Custom_${height}x${width}
+   $gmt gmtset ANNOT_FONT_SIZE +18p
+fi
 
 #Map composition
 mesh=""
@@ -274,6 +279,14 @@ fi
 #---------------------------------
 
 #Set basemap
+if [ "$gmt" == "$gmt5" ]; then
+    grid_pen="--MAP_GRID_PEN_PRIMARY"
+    base25="-BWSne -Bx40 -By40"
+else
+    grid_pen="--GRID_PEN_PRIMARY"
+    base25="-BWSne40/40"
+fi
+
 if [ $kmap -eq 1 ] ; then   #Azimutal projection
     #Set basemap without gridlines
     if [ $kplot -eq 1 ] ; then	#Only mesh
@@ -287,13 +300,13 @@ if [ $kmap -eq 2 -o $kmap -eq 5 ] ; then #Linear projection
     #Basemap - edit -Bxgx to get lines where wanted
 
     #    $gmt psbasemap  $map -BWSne40/40 -Yc -K  \
-    $gmt psbasemap  $map -BWSne -Bx40 -By40 -Yc -K  \
-	--MAP_GRID_PEN_PRIMARY=faint,gray,-  > $plot
+    $gmt psbasemap  $map $base25 -Yc -K  \
+	$grid_pen=faint,gray,-  > $plot
 fi
 
 if [ $kmap -eq 3 ] ; then  #Mercator projection, local
     $gmt psbasemap  $map -B5/5 -Yc -K  \
-	--MAP_GRID_PEN_PRIMARY=faint,gray,-  > $plot
+	$grid_pen=faint,gray,-  > $plot
 fi
 
 if [ $kmap -eq 4 ] ; then  #Polar plot
@@ -335,6 +348,12 @@ if [ $scalar ] ; then
     fi
     echo "Grid spacing used: " $dy
 
+    if [ "$gmt" == "$gmt5" ]; then
+	xyz2grd_pars="-bif -r"
+    else
+	xyz2grd_pars="-bis -F"
+    fi
+    
     # Convert binary xyz values to grid structure -bi 
     #      (-bis means single precision, def is double)
     # Set dy above
@@ -342,7 +361,7 @@ if [ $scalar ] ; then
     #xyz2grd $scalar.dat -I0.25  $reg -bi -F -G$scalar.grd -V
     #xyz2grd $scalar.dat -I0.25  $reg -bis -F -G$scalar.grd -V
     #xyz2grd $scalar.dat -I1  $reg -bi -F -G$scalar.grd -V    
-    $gmt xyz2grd $scalar.dat -I$dy  $reg -bif -r -G$scalar.grd -V
+    $gmt xyz2grd $scalar.dat -I$dy  $reg $xyz2grd_pars -G$scalar.grd -V
 
     #Check if field has negative values
     minval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $6 }' `
@@ -550,9 +569,15 @@ if [ $scalar ] ; then
     #Plot scalar field map
     $gmt grdimage $scalar.grd -C$scalar.cpt  $map  -O -K -V  >> $plot
 
+    if [ "$gmt" == "$gmt5" ]; then
+	format_scale='--FORMAT_FLOAT_MAP=%.1e --FONT_ANNOT_PRIMARY=20'
+    else
+	format_scale='--D_FORMAT=%0.1e --ANOT_FONT_SIZE=20 '
+    fi
+    
     #Set tickmarks distance for scale
     $gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
-	--FORMAT_FLOAT_MAP="%.1e" --FONT_ANNOT_PRIMARY="20">> $plot   
+	$format_scale >> $plot   
     #$gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
     #--FONT_ANNOT_PRIMARY="20">> $plot
 
@@ -720,22 +745,28 @@ echo "Plotted file:" $plot
 newtitle=`basename $plot .ps`
 sed -i s/"^%%Title:.*"/"%%Title:$newtitle"/ $plot
 
-echo "and pdf and eps files (for pdflatex and latex)."
-$gmt psconvert -Te -A -P $plot  # EPS
-$gmt psconvert -Tf -A -P $plot  # PDF
 
-cp $plot $baseplot"_grey".ps
+if [ "$gmt" == "$gmt5" ]; then
+    $gmt psconvert -Te -A -P $plot  # EPS
+    $gmt psconvert -Tf -A -P $plot  # PDF
+else
+    ps2eps -R + -f $plot
+    epstopdf $baseplot".eps"
+fi
+echo "and pdf and eps files (for pdflatex and latex)."
+    
+cp $plot $baseplot"_gray".ps
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.pdf" -f $baseplot.pdf
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.ps" -f $baseplot.ps
 #$gmt psconvert -Te -A -P $baseplot"_grey".ps  # EPS
-pdf2ps -eps $baseplot"_grey.ps" $baseplot"_gray.eps"
+pdf2ps -eps $baseplot"_gray.ps" $baseplot"_gray.eps"
 
 #pdftops  $baseplot"_grey.pdf" $baseplot"_grey.eps"
 
 #ps2pdf14 -dEmbedAllFonts=true -dPDFSETTINGS=/prepress $plot $baseplot-tmp.pdf
 #pdfcrop $baseplot-tmp.pdf $baseplot.pdf
-rm $plot
-rm $baseplot"_gray.ps"
+#rm $plot
+#rm $baseplot"_gray.ps"
 gv $baseplot.eps &
 #okular $baseplot.pdf &
 
