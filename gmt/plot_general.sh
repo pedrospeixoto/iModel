@@ -25,7 +25,7 @@ else
     echo "gmt not installed"
     exit 0
 fi
-
+gmt=$gmt4
 echo 
 
 #KIND OF PLOT
@@ -277,31 +277,31 @@ fi
 if [ $kmap -eq 1 ] ; then   #Azimutal projection
     #Set basemap without gridlines
     if [ $kplot -eq 1 ] ; then	#Only mesh
-	gmt psbasemap  $map -B0 -K -V  -Xc -Yc > $plot
+	$gmt psbasemap  $map -B0 -K -V  -Xc -Yc > $plot
     else  #Scale will be needed
-	gmt psbasemap  $map -B0 -K -V -Yc > $plot
+	$gmt psbasemap  $map -B0 -K -V -Yc > $plot
     fi
 fi
 
 if [ $kmap -eq 2 -o $kmap -eq 5 ] ; then #Linear projection
     #Basemap - edit -Bxgx to get lines where wanted
 
-    #    gmt psbasemap  $map -BWSne40/40 -Yc -K  \
-    gmt psbasemap  $map -BWSne -Bx40 -By40 -Yc -K  \
+    #    $gmt psbasemap  $map -BWSne40/40 -Yc -K  \
+    $gmt psbasemap  $map -BWSne -Bx40 -By40 -Yc -K  \
 	--MAP_GRID_PEN_PRIMARY=faint,gray,-  > $plot
 fi
 
 if [ $kmap -eq 3 ] ; then  #Mercator projection, local
-    gmt psbasemap  $map -B5/5 -Yc -K  \
+    $gmt psbasemap  $map -B5/5 -Yc -K  \
 	--MAP_GRID_PEN_PRIMARY=faint,gray,-  > $plot
 fi
 
 if [ $kmap -eq 4 ] ; then  #Polar plot
     if [ $kplot -eq 1 ] ; then	#Only mesh
 	#                                 -B dlon/dlat 
-	gmt psbasemap  $map -K -V  -Xc -Yc -B20g20 > $plot
+	$gmt psbasemap  $map -K -V  -Xc -Yc -B20g20 > $plot
     else  #Scale will be needed
-	gmt psbasemap  $map -K -V -Yc -B20g20 > $plot
+	$gmt psbasemap  $map -K -V -Yc -B20g20 > $plot
     fi
 fi
 
@@ -342,13 +342,13 @@ if [ $scalar ] ; then
     #xyz2grd $scalar.dat -I0.25  $reg -bi -F -G$scalar.grd -V
     #xyz2grd $scalar.dat -I0.25  $reg -bis -F -G$scalar.grd -V
     #xyz2grd $scalar.dat -I1  $reg -bi -F -G$scalar.grd -V    
-    gmt xyz2grd $scalar.dat -I$dy  $reg -bif -r -G$scalar.grd -V
+    $gmt xyz2grd $scalar.dat -I$dy  $reg -bif -r -G$scalar.grd -V
 
     #Check if field has negative values
-    minval=`gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $6 }' `
+    minval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $6 }' `
     minval2=`echo $minval | sed 's/e/\\*10\\^/' | sed 's/+//'`
     #echo $minval $minval2
-    maxval=`gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $7 }' `
+    maxval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $7 }' `
     maxval2=`echo $maxval | sed 's/e/\\*10\\^/' | sed 's/+//'`
 
     #Ask if absolute value wanted
@@ -364,7 +364,7 @@ if [ $scalar ] ; then
 
     if [ $kabs -eq 1 ] ; then
 	#Set absolute value  - could set log scale
-	gmt grdmath $scalar.grd ABS = $scalar.grd
+	$gmt grdmath $scalar.grd ABS = $scalar.grd
     fi
 
     #    #Ask if want to subtract one from values (density values)
@@ -381,19 +381,19 @@ if [ $scalar ] ; then
 
     if [ $kone -eq 1 ] ; then
 	#Subtract one from values
-	gmt grdmath $scalar.grd -1 ADD = $scalar.grd       
+	$gmt grdmath $scalar.grd -1 ADD = $scalar.grd       
 	postest=0
     fi
 
-    #gmt grdmath $scalar.grd $minxval SUB = $scalar.grd       
+    #$gmt grdmath $scalar.grd $minxval SUB = $scalar.grd       
 
     maxgtabsmin=0
     maxgtabsmin=`echo "scale=12; (-1 * $minval2 <= $minval2)" | bc -l `
     echo max gt abs min ? $maxgtabsmin
 
-    #gmt grdmath $scalar.grd ABS 1 ADD LOG = $scalar.grd
-    #gmt grdmath $scalar.grd ABS EXP -1 ADD = $scalar.grd
-    #gmt grdmath $scalar.grd -1 ADD ABS +1 ADD LOG = $scalar.grd
+    #$gmt grdmath $scalar.grd ABS 1 ADD LOG = $scalar.grd
+    #$gmt grdmath $scalar.grd ABS EXP -1 ADD = $scalar.grd
+    #$gmt grdmath $scalar.grd -1 ADD ABS +1 ADD LOG = $scalar.grd
 
     kg=0
     #    echo "Multiply/divide by gravity ?:"
@@ -404,16 +404,16 @@ if [ $scalar ] ; then
     #    echo    
     
     if [ $kg -eq 1 ] ; then
-	gmt grdmath $scalar.grd 9.80616 MUL = $scalar.grd
+	$gmt grdmath $scalar.grd 9.80616 MUL = $scalar.grd
     fi
     if [ $kg -eq 2 ] ; then
-	gmt grdmath $scalar.grd 9.80616 DIV = $scalar.grd
+	$gmt grdmath $scalar.grd 9.80616 DIV = $scalar.grd
     fi
 
 
     #Scale marks
-    minval=`gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $6 }' `
-    maxval=`gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $7 }' `
+    minval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $6 }' `
+    maxval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $7 }' `
     #minval=0 #-5.48408926e-02
     #maxval=1.00001  #1.15045559e+00
     #minval=-8.21844757e-01
@@ -472,51 +472,51 @@ if [ $scalar ] ; then
     echo    
 
     if [ $kcolor -eq 1 ] ; then  #White-Darkblue
-        gmt makecpt -Cdarkblue -I -T$minval/$maxval/$scale -Z \
+        $gmt makecpt -Cdarkblue -I -T$minval/$maxval/$scale -Z \
     	    --COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=white > $scalar.cpt
     fi
 
     if [ $kcolor -eq 2 ] ; then #Blue - Red
 	if [ $postest -eq 0 ] ; then
 	    #grd2cpt $scalar.grd -Cpolar  -Z -T= \
-	    gmt grd2cpt $scalar.grd -Cbluered  -Z -T=  > $scalar.cpt
+	    $gmt grd2cpt $scalar.grd -Cbluered  -Z -T=  > $scalar.cpt
 	else            
-            gmt makecpt -Cpolar -T$minval/$maxval/$scale -Z \
+            $gmt makecpt -Cpolar -T$minval/$maxval/$scale -Z \
     		--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
 	fi
     fi
 
     if [ $kcolor -eq 9 ] ; then #Blue - Red
 	if [ $postest -eq 0 ] ; then
-	    #gmt grd2cpt $scalar.grd -Cpolar  -Z -T= \
+	    #$gmt grd2cpt $scalar.grd -Cpolar  -Z -T= \
 	    #	--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
-	    gmt grd2cpt $scalar.grd -Cbluered_zero  -Z -T=  > $scalar.cpt
+	    $gmt grd2cpt $scalar.grd -Cbluered_zero  -Z -T=  > $scalar.cpt
 	else            
-            gmt makecpt -Cpolar -T$minval/$maxval/$scale -Z \
+            $gmt makecpt -Cpolar -T$minval/$maxval/$scale -Z \
     		--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
 	fi
     fi
 
     if [ $kcolor -eq 3 ] ; then #Multicolor jet
-	gmt makecpt -Cjet -T$minval/$maxval/$scale -Z  \
+	$gmt makecpt -Cjet -T$minval/$maxval/$scale -Z  \
     	    --COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0 > $scalar.cpt
         #grd2cpt $scalar.grd -Cjet  -Z -V  > $scalar.cpt
     fi
     
     if [ $kcolor -eq 4 ] ; then #Light Blue -White
-	gmt makecpt -Cblue -T$minval/$maxval/$scale -Z  > $scalar.cpt
+	$gmt makecpt -Cblue -T$minval/$maxval/$scale -Z  > $scalar.cpt
     fi
 
     if [ $kcolor -eq 5 ] ; then #Multicolor jet
 	#makecpt -Cseis -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
-	gmt makecpt -Cmulticol  -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	$gmt makecpt -Cmulticol  -T$minval/$maxval/$scale -Z   > $scalar.cpt
     	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
     fi    
 
     if [ $kcolor -eq 6 ] ; then #Multicolor
 	#makecpt -Crainbow  -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Chaxby -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
-	gmt makecpt -Cseism_nonlin -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	$gmt makecpt -Cseism_nonlin -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cwysiwyg -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
     	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
     fi    
@@ -526,7 +526,7 @@ if [ $scalar ] ; then
 	#makecpt -Cjet  -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Chaxby -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cseism -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
-	gmt makecpt -Cseism_nonlin -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	$gmt makecpt -Cseism_nonlin -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cwysiwyg -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
     	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
     fi
@@ -535,8 +535,8 @@ if [ $scalar ] ; then
 	#makecpt -Cjet  -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Chaxby -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cseism -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
-	gmt grd2cpt $scalar.grd -Cgray  -Z   > $scalar.cpt
-	#gmt makecpt -Cseism_nonlin -T$minval/$maxval/$scale -Z   > $scalar.cpt
+	$gmt grd2cpt $scalar.grd -Cgray  -Z   > $scalar.cpt
+	#$gmt makecpt -Cseism_nonlin -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	#makecpt -Cwysiwyg -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
     	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
     fi    
@@ -548,18 +548,18 @@ if [ $scalar ] ; then
     #-------------------------------------------------
 
     #Plot scalar field map
-    gmt grdimage $scalar.grd -C$scalar.cpt  $map  -O -K -V  >> $plot
+    $gmt grdimage $scalar.grd -C$scalar.cpt  $map  -O -K -V  >> $plot
 
     #Set tickmarks distance for scale
-    gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
+    $gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
 	--FORMAT_FLOAT_MAP="%.1e" --FONT_ANNOT_PRIMARY="20">> $plot   
-    #gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
+    #$gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
     #--FONT_ANNOT_PRIMARY="20">> $plot
 
     #psscale -C$scalar.cpt -D$scalepos -O -K -V  >> $plot
 
     #Print coast
-    #gmt pscoast  $map -Wfaint,150 -K -O >> $plot
+    #$gmt pscoast  $map -Wfaint,150 -K -O >> $plot
 
     rm -rf $scalar.grd
     rm -rf $scalar.cpt
@@ -568,12 +568,12 @@ fi
 # PLOTING MESH
 if [ $mesh ] ; then
     #Print coast
-    #gmt pscoast  $map -Wfaint,gray -K -O >> $plot
+    #$gmt pscoast  $map -Wfaint,gray -K -O >> $plot
 
     if [ $kmesh -ne 5 ] ; then
 	#Print nodes
-	gmt psxy $nodes  $map -Sc0.005c  -W0.5,gray -Ggray -O  -K -V  >> $plot
-	#gmt psxy $nodes  $map -Sc0.5c  -W0.5/blue -Ggray -O  -K -V  >> $plot
+	$gmt psxy $nodes  $map -Sc0.005c  -W0.5,gray -Ggray -O  -K -V  >> $plot
+	#$gmt psxy $nodes  $map -Sc0.5c  -W0.5/blue -Ggray -O  -K -V  >> $plot
 
 	#Print triangle edges
 	#GMT5 cannot cope with comments in the same as gmt 4, so remove them
@@ -581,9 +581,9 @@ if [ $mesh ] ; then
 	#sed -i.bak '/#/d' $ed
 	#echo $map
 	if [ $scalar ] ; then
-	    gmt psxy $ed  $map  -Wthin,gray   -O -K -V  >> $plot
+	    $gmt psxy $ed  $map  -Wthin,gray   -O -K -V  >> $plot
 	else
-	    gmt psxy $ed  $map -Wthin,blue   -O -K -V  >> $plot
+	    $gmt psxy $ed  $map -Wthin,blue   -O -K -V  >> $plot
 	fi
     fi
 
@@ -596,16 +596,16 @@ if [ $mesh ] ; then
 	awk '{print $1, $2, NR}' $nodes > 'nodes_ll.txt'
 	
 	#Plot nodes's labels
-	gmt pstext 'nodes_ll.txt' -F+f8p,Helvetica,black $map -O -K >> $plot
+	$gmt pstext 'nodes_ll.txt' -F+f8p,Helvetica,black $map -O -K >> $plot
 	
 	#Triangle circumcenters
-	gmt psxy $trcc  $map -St0.05c  -W0.05,red -Gred  -O -K >> $plot
+	$gmt psxy $trcc  $map -St0.05c  -W0.05,red -Gred  -O -K >> $plot
 	
 	#Save triangle labels
 	awk '{print $1, $2, NR}' $trcc > 'triangle_cc.txt'
 	
 	#Plot triangle labels
-	gmt pstext 'triangle_cc.txt' -F+f6p,Helvetica,black $map -O  -K >> $plot	
+	$gmt pstext 'triangle_cc.txt' -F+f6p,Helvetica,black $map -O  -K >> $plot	
 	rm 'nodes_ll.txt'  'triangle_cc.txt'
     fi
     
@@ -614,19 +614,19 @@ if [ $mesh ] ; then
 	echo "Ploting mesh normal and tangent vectors ..."
 
         # Plot normal and tangent vectors
-	gmt psxy $ed $map   -W1,blue   -O -K  >> $plot
+	$gmt psxy $ed $map   -W1,blue   -O -K  >> $plot
 
-	gmt psxy $edc  $map -Sc0.0001c  -W0.01,blue -Ggreen  -O  -K >> $plot
+	$gmt psxy $edc  $map -Sc0.0001c  -W0.01,blue -Ggreen  -O  -K >> $plot
 
         #  lon, lat, label 
 	awk '{print $1, $2, NR-1}' $edc > 'edc_ll.txt'
 
-	gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
+	$gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
 
 	#vecstyle="0.01/0.05/0.05" #depreciated
 	vecstyle="0.01i+bc+ea+g"
-	gmt psxy $ednr $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
-	gmt psxy $edtg $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $ednr $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $edtg $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
 	
         #Clean workspace
 	rm  'edc_ll.txt'	    
@@ -634,11 +634,11 @@ if [ $mesh ] ; then
     #Voronoi mesh, edges only 
     if [ $kmesh -ge 5  ] ; then
 	if [ $scalar ] ; then
-	    #gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
-	    gmt psxy $edhx  $map   -W0.5,black   -O -K   >> $plot
+	    #$gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
+	    $gmt psxy $edhx  $map   -W0.5,black   -O -K   >> $plot
 	else
 	    #psxy $edhx -m  $map   -Wthin/black   -O -K   >> $plot
-	    gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot
+	    $gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot
 	fi
 
     fi
@@ -653,13 +653,13 @@ if [ $mesh ] ; then
 	veccolor=0/100/0
 
 	# -Wx is pen, x is brush size, -G is fill 
-	gmt psxy $edhxnr $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
-	gmt psxy $edhxtg $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $edhxnr $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $edhxtg $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
 
         #  lon, lat, font size, ? , ? , position, label 
 	awk '{print $1, $2, NR-1}' $edc > 'edc_ll.txt'
 
-	gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
+	$gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
     fi
 fi
 
@@ -690,7 +690,7 @@ if [ $vec ] ; then
     veccolor=0/100/0
 
     # -W is pen, -G is fill
-    gmt psxy 'vec.tmp' $map -W1/$veccolor -G$veccolor -SV$vecstyle -O -K -V\
+    $gmt psxy 'vec.tmp' $map -W1/$veccolor -G$veccolor -SV$vecstyle -O -K -V\
 	--PAPER_MEDIA=Custom_${height}x${width} >> $plot
 
     #rm -rf 'vec.tmp'
@@ -703,7 +703,7 @@ fi
 #echo "31 -64" > point4.dat
 echo "-180 -90" > 'point.dat'
 #echo "-23.8744234108428        34.7927455551923" > 'point.dat'
-gmt psxy  point.dat  $map -Sx0.0005c  -W0.0005 -Gred -O  >> $plot
+$gmt psxy  point.dat  $map -Sx0.0005c  -W0.0005 -Gred -O  >> $plot
 #psxy  point.dat  $map -Sx0.1c  -W0.5/black -Gred -O -K >> $plot
 
 #Plot mapcenter - Just to end the ps file
@@ -721,13 +721,13 @@ newtitle=`basename $plot .ps`
 sed -i s/"^%%Title:.*"/"%%Title:$newtitle"/ $plot
 
 echo "and pdf and eps files (for pdflatex and latex)."
-gmt psconvert -Te -A -P $plot  # EPS
-gmt psconvert -Tf -A -P $plot  # PDF
+$gmt psconvert -Te -A -P $plot  # EPS
+$gmt psconvert -Tf -A -P $plot  # PDF
 
 cp $plot $baseplot"_grey".ps
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.pdf" -f $baseplot.pdf
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.ps" -f $baseplot.ps
-#gmt psconvert -Te -A -P $baseplot"_grey".ps  # EPS
+#$gmt psconvert -Te -A -P $baseplot"_grey".ps  # EPS
 pdf2ps -eps $baseplot"_grey.ps" $baseplot"_gray.eps"
 
 #pdftops  $baseplot"_grey.pdf" $baseplot"_grey.eps"
