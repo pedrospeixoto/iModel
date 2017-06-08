@@ -21,8 +21,11 @@ if type "$gmt5" > /dev/null; then
 elif type "$gmt4" > /dev/null; then
     gmt=$gmt4
     echo "Using GMT 4"
+elif type "psxy" > /dev/null; then
+    gmt=""
+    echo "Legacy gmt4  version"
 else
-    echo "gmt not installed"
+    echo "GMT not installed"
     exit 0
 fi
 
@@ -64,7 +67,7 @@ echo
 #MAP CENTER
 #lon=0 #-179.5 #1.23296 #31.7174
 #lat=0 #-80 #-89.5 #-61.30099 #-0.0374
-lon=0 #17.5
+lon=60 #17.5
 lat=0
 #lon=30.125
 #lat=-64.875
@@ -357,10 +360,6 @@ if [ $scalar ] ; then
     # Convert binary xyz values to grid structure -bi 
     #      (-bis means single precision, def is double)
     # Set dy above
-    #xyz2grd $scalar.dat -I0.125  $reg -bi -F -G$scalar.grd -V
-    #xyz2grd $scalar.dat -I0.25  $reg -bi -F -G$scalar.grd -V
-    #xyz2grd $scalar.dat -I0.25  $reg -bis -F -G$scalar.grd -V
-    #xyz2grd $scalar.dat -I1  $reg -bi -F -G$scalar.grd -V    
     $gmt xyz2grd $scalar.dat -I$dy  $reg $xyz2grd_pars -G$scalar.grd -V
 
     #Check if field has negative values
@@ -428,7 +427,6 @@ if [ $scalar ] ; then
     if [ $kg -eq 2 ] ; then
 	$gmt grdmath $scalar.grd 9.80616 DIV = $scalar.grd
     fi
-
 
     #Scale marks
     minval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $6 }' `
@@ -507,8 +505,6 @@ if [ $scalar ] ; then
 
     if [ $kcolor -eq 9 ] ; then #Blue - Red
 	if [ $postest -eq 0 ] ; then
-	    #$gmt grd2cpt $scalar.grd -Cpolar  -Z -T= \
-	    #	--COLOR_BACKGROUND=blue  --COLOR_FOREGROUND=red > $scalar.cpt
 	    $gmt grd2cpt $scalar.grd -Cbluered_zero  -Z -T=  > $scalar.cpt
 	else            
             $gmt makecpt -Cpolar -T$minval/$maxval/$scale -Z \
@@ -519,7 +515,6 @@ if [ $scalar ] ; then
     if [ $kcolor -eq 3 ] ; then #Multicolor jet
 	$gmt makecpt -Cjet -T$minval/$maxval/$scale -Z  \
     	    --COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0 > $scalar.cpt
-        #grd2cpt $scalar.grd -Cjet  -Z -V  > $scalar.cpt
     fi
     
     if [ $kcolor -eq 4 ] ; then #Light Blue -White
@@ -527,9 +522,7 @@ if [ $scalar ] ; then
     fi
 
     if [ $kcolor -eq 5 ] ; then #Multicolor jet
-	#makecpt -Cseis -I -T$minval/$maxval/$scale -Z   > $scalar.cpt
 	$gmt makecpt -Cmulticol  -T$minval/$maxval/$scale -Z   > $scalar.cpt
-    	#--COLOR_BACKGROUND=0/0/127  --COLOR_FOREGROUND=127/0/0
     fi    
 
     if [ $kcolor -eq 6 ] ; then #Multicolor
@@ -578,10 +571,6 @@ if [ $scalar ] ; then
     #Set tickmarks distance for scale
     $gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
 	$format_scale >> $plot   
-    #$gmt psscale -C$scalar.cpt -D$scalepos -B$scale -O -K -V  \
-    #--FONT_ANNOT_PRIMARY="20">> $plot
-
-    #psscale -C$scalar.cpt -D$scalepos -O -K -V  >> $plot
 
     #Print coast
     #$gmt pscoast  $map -Wfaint,150 -K -O >> $plot
@@ -595,6 +584,12 @@ if [ $mesh ] ; then
     #Print coast
     #$gmt pscoast  $map -Wfaint,gray -K -O >> $plot
 
+    if [ "$gmt" == "$gmt5" ]; then
+	multiflag=""
+    else
+	multiflag="-m"
+    fi
+    
     if [ $kmesh -ne 5 ] ; then
 	#Print nodes
 	$gmt psxy $nodes  $map -Sc0.005c  -W0.5,gray -Ggray -O  -K -V  >> $plot
@@ -602,13 +597,13 @@ if [ $mesh ] ; then
 
 	#Print triangle edges
 	#GMT5 cannot cope with comments in the same as gmt 4, so remove them
-	#sed -i.bak '/>/d' $ed
+	#SED -i.bak '/>/d' $ed
 	#sed -i.bak '/#/d' $ed
 	#echo $map
 	if [ $scalar ] ; then
-	    $gmt psxy $ed  $map  -Wthin,gray   -O -K -V  >> $plot
+	    $gmt psxy $ed $map  -Wthin,gray $multiflag  -O -K -V  >> $plot
 	else
-	    $gmt psxy $ed  $map -Wthin,blue   -O -K -V  >> $plot
+	    $gmt psxy $ed $map -Wthin,blue $multiflag  -O -K -V  >> $plot
 	fi
     fi
 
@@ -616,21 +611,38 @@ if [ $mesh ] ; then
     if [ $kmesh -eq 3 -o $kmesh -eq 4 -o $kmesh -eq 7 ] ; then
 	echo "Labeling mesh ..."
 	#Save node label file
-	#  lon, lat, label 
-	#awk '{print $1, $2, 10, 0, 0, "LT", NR}' $nodes > 'nodes_ll.txt'
-	awk '{print $1, $2, NR}' $nodes > 'nodes_ll.txt'
+	#  lon, lat, label
+	if [ "$gmt" == "$gmt5" ]; then
+	    awk '{print $1, $2, NR}' $nodes > 'nodes_ll.txt'
+	else
+	    awk '{print $1, $2, 10, 0, 0, "LT", NR}' $nodes > 'nodes_ll.txt'
+	fi
 	
 	#Plot nodes's labels
-	$gmt pstext 'nodes_ll.txt' -F+f8p,Helvetica,black $map -O -K >> $plot
+	if [ "$gmt" == "$gmt5" ]; then
+	    font="-F+f8p,Helvetica,black"
+	else
+	    font=""
+	fi
+	$gmt pstext 'nodes_ll.txt' $font  $map -O -K >> $plot
 	
 	#Triangle circumcenters
 	$gmt psxy $trcc  $map -St0.05c  -W0.05,red -Gred  -O -K >> $plot
 	
 	#Save triangle labels
-	awk '{print $1, $2, NR}' $trcc > 'triangle_cc.txt'
+	if [ "$gmt" == "$gmt5" ]; then
+	    awk '{print $1, $2, NR}' $trcc > 'triangle_cc.txt'
+	else
+	    awk '{print $1, $2, 5, 0, 0, "LT", NR}' $trcc > 'triangle_cc.txt'
+	fi
 	
 	#Plot triangle labels
-	$gmt pstext 'triangle_cc.txt' -F+f6p,Helvetica,black $map -O  -K >> $plot	
+	if [ "$gmt" == "$gmt5" ]; then
+	    font="-F+f6p,Helvetica,black"
+	else
+	    font=""
+	fi
+	$gmt pstext 'triangle_cc.txt' $font $map -O  -K >> $plot	
 	rm 'nodes_ll.txt'  'triangle_cc.txt'
     fi
     
@@ -650,6 +662,8 @@ if [ $mesh ] ; then
 
 	#vecstyle="0.01/0.05/0.05" #depreciated
 	vecstyle="0.01i+bc+ea+g"
+	# GMT 4
+	#vecstyle="0.01/0.05/0.05"
 	$gmt psxy $ednr $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
 	$gmt psxy $edtg $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
 	
@@ -660,10 +674,10 @@ if [ $mesh ] ; then
     if [ $kmesh -ge 5  ] ; then
 	if [ $scalar ] ; then
 	    #$gmt psxy $edhx  $map   -Wthin,gray   -O -K   >> $plot
-	    $gmt psxy $edhx  $map   -W0.5,black   -O -K   >> $plot
+	    $gmt psxy $edhx  $map  $multiflag  -W0.5,black   -O -K   >> $plot
 	else
 	    #psxy $edhx -m  $map   -Wthin/black   -O -K   >> $plot
-	    $gmt psxy $edhx  $map   -W0.1,black   -O -K   >> $plot
+	    $gmt psxy $edhx  $map   $multiflag -W0.1,black   -O -K   >> $plot
 	fi
 
     fi
@@ -690,7 +704,9 @@ fi
 
 #Vector field plot
 if [ $vec ] ; then
-
+    echo "NOT converted to GMT5 and new GMT4"
+    exit 0
+    
     #pscoast  $map -Wfaint/150/150/150 -K -O >> $plot
 
     echo Basename for vectors: $vec
@@ -721,7 +737,7 @@ if [ $vec ] ; then
     #rm -rf 'vec.tmp'
 fi
 
-
+# Point to close the graph file
 #echo "30 -65" > point1.dat
 #echo "30 -64" > point2.dat
 #echo "31 -65" > point3.dat
@@ -730,9 +746,6 @@ echo "-180 -90" > 'point.dat'
 #echo "-23.8744234108428        34.7927455551923" > 'point.dat'
 $gmt psxy  point.dat  $map -Sx0.0005c  -W0.0005 -Gred -O  >> $plot
 #psxy  point.dat  $map -Sx0.1c  -W0.5/black -Gred -O -K >> $plot
-
-#Plot mapcenter - Just to end the ps file
-
 #psxy point.dat  $map -Sx0.01c  -W0.05/blue -Gblue -O  >> $plot
 #psxy point1.dat  $map -Sx0.1c  -W0.5/red -Gred -O  -V -K >> $plot
 #psxy point2.dat  $map -Sx0.1c  -W0.5/red -Gred -O -K -V >> $plot
@@ -745,6 +758,8 @@ echo "Plotted file:" $plot
 newtitle=`basename $plot .ps`
 sed -i s/"^%%Title:.*"/"%%Title:$newtitle"/ $plot
 
+# Convert file to EPS and PDF and generate grayscale figures for papers
+#-------------------------------------------------------------------------
 
 if [ "$gmt" == "$gmt5" ]; then
     $gmt psconvert -Te -A -P $plot  # EPS
@@ -754,20 +769,17 @@ else
     epstopdf $baseplot".eps"
 fi
 echo "and pdf and eps files (for pdflatex and latex)."
-    
+
+#Grayscale figures
 cp $plot $baseplot"_gray".ps
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.pdf" -f $baseplot.pdf
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.ps" -f $baseplot.ps
-#$gmt psconvert -Te -A -P $baseplot"_grey".ps  # EPS
 pdf2ps -eps $baseplot"_gray.ps" $baseplot"_gray.eps"
 
-#pdftops  $baseplot"_grey.pdf" $baseplot"_grey.eps"
 
-#ps2pdf14 -dEmbedAllFonts=true -dPDFSETTINGS=/prepress $plot $baseplot-tmp.pdf
-#pdfcrop $baseplot-tmp.pdf $baseplot.pdf
 #rm $plot
 #rm $baseplot"_gray.ps"
-gv $baseplot.eps &
+gv $baseplot.ps &
 #okular $baseplot.pdf &
 
 echo
