@@ -652,6 +652,15 @@ if [ $mesh ] ; then
 	$gmt pstext 'triangle_cc.txt' $font $map -O  -K >> $plot	
 	rm 'nodes_ll.txt'  'triangle_cc.txt'
     fi
+
+    if [ "$gmt" == "$gmt5" ]; then
+	#vecstyle="0.1i+ea+g+n0.5" #/0.12i/0.1i+bc"     #+n normalize small vectors attibutes
+    	vecstyle="0.06i+ea" #number set size of arrow
+    else #GMT4 
+	# arrowwidth/headlength/headwidth
+	vecstyle="0.01/0.05/0.05"
+	#vecstyle="0.01,0.03,0.05"
+    fi
     
     #Normal and tangent edge vectors
     if [ $kmesh -eq 4  ] ; then
@@ -667,12 +676,8 @@ if [ $mesh ] ; then
 
 	$gmt pstext 'edc_ll.txt' -F+f6p,Helvetica,black $map -O -K  >> $plot
 
-	#vecstyle="0.01/0.05/0.05" #depreciated
-	vecstyle="0.01i+bc+ea+g"
-	# GMT 4
-	#vecstyle="0.01/0.05/0.05"
-	$gmt psxy $ednr $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
-	$gmt psxy $edtg $map -W0.5,green -Ggreen -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $ednr $map -W0.5,darkgreen -Gdarkgreen -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $edtg $map -W0.5,darkgreen -Gdarkgreen -SV$vecstyle -O -K  >> $plot
 	
         #Clean workspace
 	rm  'edc_ll.txt'	    
@@ -690,17 +695,10 @@ if [ $mesh ] ; then
     fi
     # Voronoi mesh with labels and normal/tangent edge vectors
     if [ $kmesh -eq 7  ] ; then
-	# arrowwidth/headlength/headwidth  
-	#vecstyle="0.008/0.03/0.03"
-	#vecstyle="0.05/0.06/0.08" #depreciated in gmt5
-	vecstyle="0.01i+bc+ea+g"
 	
-        # Set vectorcolor
-	veccolor=0/100/0
-
 	# -Wx is pen, x is brush size, -G is fill 
-	$gmt psxy $edhxnr $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
-	$gmt psxy $edhxtg $map -W0.5,$veccolor -G$veccolor -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $edhxnr $map -W0.5,darkgreen -Gdarkgreen  -SV$vecstyle -O -K  >> $plot
+	$gmt psxy $edhxtg $map -W0.5,darkgreen -Gdarkgreen -SV$vecstyle -O -K  >> $plot
 
         #  lon, lat, font size, ? , ? , position, label 
 	awk '{print $1, $2, NR-1}' $edc > 'edc_ll.txt'
