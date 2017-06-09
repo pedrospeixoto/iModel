@@ -6,13 +6,8 @@ echo 'P. Peixoto - Jun 2017       '
 echo '============================'
 echo
 
-#Close all open gv windows (to avoid a bunch of open stuff)
-killall gv
 
-#Directory for graphs
-#graphdir=graphs
-graphdir=../graphs
-
+# ---- GMT Version settings ---------#
 gmt5='gmt'
 gmt4='GMT'
 if type "$gmt5" > /dev/null; then
@@ -28,8 +23,10 @@ else
     echo "GMT not installed"
     exit 0
 fi
-
+#gmt=GMT
 echo 
+
+# ---- INPUT/OUTPUT SETTINGS ---------#
 
 #KIND OF PLOT
 echo
@@ -48,10 +45,73 @@ echo
 if [ $# -eq 0  ] ; then
     echo "Please enter arguments:"
     echo " Arguments (files) should be passed in the following order:"
-    echo " Mesh (nodes file .gmt), scalar (.dat), vector (.dat), output filename (.ps) "
+    echo " Mesh (nodes file .gmt), scalar (.dat), vector (.dat), output filename (directory/name with no extension) "
     echo " Grid files and vector fields are ASCII. Scalar fields must be binary files"
+    echo " This script is built in agreement with the outputs of iModel"
     exit 0
 fi  
+
+#mesh=""
+case $kplot in
+    1) 	mesh=$1 ; plot=$2 ;;
+    2) 	scalar=$1 ; plot=$2 ;;
+    3) 	vec=$1 ; plot=$2 ;;
+    4) 	mesh=$1 ; scalar=$2 ; plot=$3 ;;
+    5) 	mesh=$1 ; vec=$2 ; plot=$3 ;;
+    6)	scalar=$1 ; vec=$2 ; plot=$3 ;;
+    7) 	mesh=$1 ; scalar=$2 ; vec=$3	; plot=$4 ;;
+esac
+
+#Directory for graph output
+#graphdir=graphs
+graphdir=../graphs
+
+#Output graph file
+if [ $plot ] ; then
+    plot=$plot"_"
+    echo "Output file-basename:" $plot
+    #Other names will be appended to this filename following the names of the
+    #  of the input files
+else
+    plot=$graphdir/
+    echo "Output graphs will be placed in "$plot  
+fi
+
+if [ $scalar ] ; then
+    tmp=$scalar
+    scalar=`basename $tmp .dat`
+    dirscalar=`dirname $tmp`
+    plot=$plot$scalar
+fi
+
+
+if [ $mesh ] ; then
+    tmp=$mesh  
+    mesh=`basename $tmp _nodes.gmt`
+    dirmesh=`dirname $tmp `
+    if [ $scalar ] ; then
+	plot=$plot #usually the scalar field file already has a mesh info on its name
+	#plot=$plot"_"$mesh
+    else
+	plot=$plot$mesh
+    fi
+fi
+
+if [ $vec ] ; then
+    tmp=$vec
+    vec=`basename $tmp .dat`
+    dirvec=`dirname $tmp `
+    plot=$plot$vec
+fi
+
+baseplot=$plot
+echo "Full dir/name for output files: " $baseplot
+plot=$plot.ps
+echo
+#echo $mesh
+
+
+#----- MAP SETTINGS -------#
 
 #MAP PROJECTION
 echo "Select map projection:"
@@ -63,7 +123,6 @@ echo " 5) Linear (-JX) - North Hem"  #Mercator - CYLINDRICAL (-JM)"
 read kmap
 echo
 
-
 #MAP CENTER
 #lon=0 #-179.5 #1.23296 #31.7174
 #lat=0 #-80 #-89.5 #-61.30099 #-0.0374
@@ -74,6 +133,8 @@ lat=0
 #lon=90.5 #1.23296 #31.7174
 #lat=-0.5 #-89.5 #-61.30099 #-0.0374
 
+#echo "Map center (set manually in plot.sh)"
+#echo $lon $lat
 echo $lon $lat > mapcenter.dat
 
 #MAP REGION
@@ -92,9 +153,7 @@ if [ $kmap -eq 1 ] ;then #Azimutal projection - global
     reg="-Rg"
     #reg="-R-1/-89/3/-84r"
     map=$reg" -JA$lon/$lat/14"
-    echo
     echo "Map Center (lon lat):" $lon $lat
-    echo 
 fi
 
 if [ $kmap -eq 2 ] ;then #Linear projection - global
@@ -120,7 +179,6 @@ if [ $kmap -eq 3 ] ;then  #Local Mercator projection
 	height=15c 
     else      #Space for scale needed
 	width=19c  
-	#width=15c  
 	height=15c 
     fi
     # scalepos = xpos/ypos/length/width[h] 
@@ -138,7 +196,7 @@ if [ $kmap -eq 3 ] ;then  #Local Mercator projection
     reg="-R$lonmin/$lonmax/$latmin/$latmax"
     map=$reg" -JM11"
     echo "Region:" $reg
-    #echo "   Manualy define region in plot.sh file!!!."
+    echo "   (Manualy define region in plot.sh if necessary)"
 fi
 
 if [ $kmap -eq 4 ] ;then #Polar Stereog projection - local
@@ -178,10 +236,9 @@ if [ $kmap -eq 5 ] ;then #Linear projection - global
     map=$reg" -Jx0.06d"    
 fi
 
-
 echo Map : $map
-
-#GMT settings
+echo 
+#GMT paper settings
 gmt_shell_functions.sh
 if [ "$gmt" == "$gmt5" ]; then
    $gmt gmtset PS_MEDIA Custom_${height}x${width}
@@ -191,60 +248,7 @@ else
    $gmt gmtset ANNOT_FONT_SIZE +18p
 fi
 
-#Map composition
-mesh=""
-case $kplot in
-    1) 	mesh=$1 ; plot=$2 ;;
-    2) 	scalar=$1 ; plot=$2 ;;
-    3) 	vec=$1 ; plot=$2 ;;
-    4) 	mesh=$1 ; scalar=$2 ; plot=$3 ;;
-    5) 	mesh=$1 ; vec=$2 ; plot=$3 ;;
-    6)	scalar=$1 ; vec=$2 ; plot=$3 ;;
-    7) 	mesh=$1 ; scalar=$2 ; vec=$3	; plot=$4 ;;
-esac
-
-#Set naming variables
-
-#Output graph file
-if [ $plot ] ; then
-    echo "Output filename:" $plot    
-else
-    plot=$graphdir/
-fi
-
-if [ $scalar ] ; then
-    tmp=$scalar
-    scalar=`basename $tmp .dat`
-    dirscalar=`dirname $tmp`
-    plot=$plot$scalar
-fi
-
-
-if [ $mesh ] ; then
-
-    tmp=$mesh  
-    mesh=`basename $tmp _nodes.gmt`
-    dirmesh=`dirname $tmp `
-    if [ $scalar ] ; then
-	plot=$plot
-	#plot=$plot"_"$mesh
-    else
-	plot=$plot$mesh
-    fi
-fi
-
-if [ $vec ] ; then
-    tmp=$vec
-    vec=`basename $tmp .dat`
-    dirvec=`dirname $tmp `
-    plot=$plot$vec
-    #echo $plot
-fi
-
-baseplot=$plot
-plot=$plot.ps
-
-echo $mesh
+##------Get mesh plot information------------------#
 
 #Set mesh properties
 if [ $mesh ] ; then
@@ -270,18 +274,19 @@ if [ $mesh ] ; then
 	edhxnr=$mesh'_edhxnr.gmt'
 	edhxtg=$mesh'_edhxtg.gmt'
 	trcc=$mesh'_trcc.gmt'
-	#kmesh=1
     else
 	echo "Global mesh plot not possible with Linear projection, choose another projection..."
 	exit 0
     fi
 fi
 
+#---------------------------------#
+#      Start ploting !!
+#---------------------------------#
 
-#      Start ploting 
-#---------------------------------
+#-----Basemap plot -------#
 
-#Set basemap
+#GMT configuration flags
 if [ "$gmt" == "$gmt5" ]; then
     grid_pen="--MAP_GRID_PEN_PRIMARY"
     base25="-BWSne -Bx40 -By40"
@@ -290,7 +295,8 @@ else
     base25="-BWSne40/40"
 fi
 
-if [ $kmap -eq 1 ] ; then   #Azimutal projection
+ #Azimutal projection
+if [ $kmap -eq 1 ] ; then  
     #Set basemap without gridlines
     if [ $kplot -eq 1 ] ; then	#Only mesh
 	$gmt psbasemap  $map -B0 -K -V  -Xc -Yc > $plot
@@ -299,20 +305,21 @@ if [ $kmap -eq 1 ] ; then   #Azimutal projection
     fi
 fi
 
-if [ $kmap -eq 2 -o $kmap -eq 5 ] ; then #Linear projection
+ #Linear projection
+if [ $kmap -eq 2 -o $kmap -eq 5 ] ; then
     #Basemap - edit -Bxgx to get lines where wanted
 
-    #    $gmt psbasemap  $map -BWSne40/40 -Yc -K  \
-    $gmt psbasemap  $map $base25 -Yc -K  \
-	$grid_pen=faint,gray,-  > $plot
+    # $gmt psbasemap  $map -BWSne40/40 -Yc -K  \
+    $gmt psbasemap  $map $base25 -Yc -K  $grid_pen=faint,gray,-  > $plot
 fi
 
-if [ $kmap -eq 3 ] ; then  #Mercator projection, local
-    $gmt psbasemap  $map -B5/5 -Yc -K  \
-	$grid_pen=faint,gray,-  > $plot
+ #Mercator projection, local
+if [ $kmap -eq 3 ] ; then 
+    $gmt psbasemap  $map -B5/5 -Yc -K $grid_pen=faint,gray,-  > $plot
 fi
 
-if [ $kmap -eq 4 ] ; then  #Polar plot
+ #Polar plot
+if [ $kmap -eq 4 ] ; then 
     if [ $kplot -eq 1 ] ; then	#Only mesh
 	#                                 -B dlon/dlat 
 	$gmt psbasemap  $map -K -V  -Xc -Yc -B20g20 > $plot
@@ -321,9 +328,11 @@ if [ $kmap -eq 4 ] ; then  #Polar plot
     fi
 fi
 
-#Scalar field plot
-if [ $scalar ] ; then
+#-----Scalar field plot-------#
 
+if [ $scalar ] ; then
+    echo
+    echo "Constructing scalar plot..."
     echo Basename for scalar: $scalar
     scalar=$dirscalar/$scalar
     
@@ -337,11 +346,11 @@ if [ $scalar ] ; then
     pos=$( strindex "$scal" x )   # prints 4
     #echo $pos
     #echo $scal
-    if [ $pos -eq -1 ] ; then	 # imodel and fem model - use 0.25
+    if [ $pos -eq -1 ] ; then	 # Did not find "x" so not endgame output
 	dy=0.25      #1440x720 grid - std output of imodel and femswm
 	#dy=1.40625  #256x128 grid
 	#dy=0.17578125 #2048x1024 grid
-    else
+    else #Get endgame grid info
 	len=${#scal}
 	grid=${scal: $pos : $len}
 	len=${#grid}
@@ -351,6 +360,7 @@ if [ $scalar ] ; then
     fi
     echo "Grid spacing used: " $dy
 
+    #Binary file settings
     if [ "$gmt" == "$gmt5" ]; then
 	xyz2grd_pars="-bif -r"
     else
@@ -362,24 +372,29 @@ if [ $scalar ] ; then
     # Set dy above
     $gmt xyz2grd $scalar.dat -I$dy  $reg $xyz2grd_pars -G$scalar.grd -V
 
-    #Check if field has negative values
+    #Get max min values 
     minval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $6 }' `
     minval2=`echo $minval | sed 's/e/\\*10\\^/' | sed 's/+//'`
     #echo $minval $minval2
     maxval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%12.8e", $7 }' `
     maxval2=`echo $maxval | sed 's/e/\\*10\\^/' | sed 's/+//'`
-
+    echo "Min" $minval "Max" $maxval
+    
     #Ask if absolute value wanted
     postest=`echo "scale=12; (-0.0000000001 <= $minval2)" | bc -l `
     kabs=0
-    #   if [ $postest -eq 0 ] ; then
-    #	    echo "Field with negative values. Use absolute value?:"
-    #	    echo " 0) NO"
-    #	    echo " 1) YES"
-    #	    read kabs
-    #	    echo    
-    #    fi
-
+    if [ $postest -eq 0 ] ; then
+    	echo "Field with negative values."
+	if [ 0 == 1 ] ; then #Change if test is to be done
+	    echo "Use absolute value?:"
+	    echo " 0) NO"
+	    echo " 1) YES"
+	    read kabs
+	    echo
+	fi
+    fi
+    
+    # ABS value
     if [ $kabs -eq 1 ] ; then
 	#Set absolute value  - could set log scale
 	$gmt grdmath $scalar.grd ABS = $scalar.grd
@@ -396,18 +411,17 @@ if [ $scalar ] ; then
     #	    read kone
     #	    echo    
     #    fi
-
+    #Subtract one from values
     if [ $kone -eq 1 ] ; then
-	#Subtract one from values
 	$gmt grdmath $scalar.grd -1 ADD = $scalar.grd       
 	postest=0
     fi
 
     #$gmt grdmath $scalar.grd $minxval SUB = $scalar.grd       
 
-    maxgtabsmin=0
-    maxgtabsmin=`echo "scale=12; (-1 * $minval2 <= $minval2)" | bc -l `
-    echo max gt abs min ? $maxgtabsmin
+    #maxgtabsmin=0
+    #maxgtabsmin=`echo "scale=12; (-1 * $minval2 <= $minval2)" | bc -l `
+    #echo max gt abs min ? $maxgtabsmin
 
     #$gmt grdmath $scalar.grd ABS 1 ADD LOG = $scalar.grd
     #$gmt grdmath $scalar.grd ABS EXP -1 ADD = $scalar.grd
@@ -420,7 +434,6 @@ if [ $scalar ] ; then
     #    echo " 2) Divide   (phi->h or xi/h->xi/phi"
     #    read kg
     #    echo    
-    
     if [ $kg -eq 1 ] ; then
 	$gmt grdmath $scalar.grd 9.80616 MUL = $scalar.grd
     fi
@@ -431,10 +444,6 @@ if [ $scalar ] ; then
     #Scale marks
     minval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $6 }' `
     maxval=`$gmt grdinfo $scalar.grd -C | awk '{printf "%1.8e", $7 }' `
-    #minval=0 #-5.48408926e-02
-    #maxval=1.00001  #1.15045559e+00
-    #minval=-8.21844757e-01
-    #maxval=7.33441532e-01
 
     kscale=0
     echo "Fixed scale?:"
@@ -467,8 +476,6 @@ if [ $scalar ] ; then
     echo "Min" $minval2 "Max" $maxval2
     echo "Scale:" $scale
     #echo "Scale OPT:" $scaleopt
-    
-    #Tiks for the scale
     
     #Create color pallet
     #------------------------------------
@@ -579,8 +586,11 @@ if [ $scalar ] ; then
     rm -rf $scalar.cpt
 fi
 
-# PLOTING MESH
+#-------------- PLOTING MESH-----------------#
 if [ $mesh ] ; then
+    echo
+    echo "Constructing mesh plot..."
+
     #Print coast
     #$gmt pscoast  $map -Wfaint,gray -K -O >> $plot
 
@@ -596,9 +606,6 @@ if [ $mesh ] ; then
 	#$gmt psxy $nodes  $map -Sc0.5c  -W0.5/blue -Ggray -O  -K -V  >> $plot
 
 	#Print triangle edges
-	#GMT5 cannot cope with comments in the same as gmt 4, so remove them
-	#SED -i.bak '/>/d' $ed
-	#sed -i.bak '/#/d' $ed
 	#echo $map
 	if [ $scalar ] ; then
 	    $gmt psxy $ed $map  -Wthin,gray $multiflag  -O -K -V  >> $plot
@@ -704,40 +711,67 @@ fi
 
 #Vector field plot
 if [ $vec ] ; then
-    echo "NOT converted to GMT5 and new GMT4"
-    exit 0
+    #echo "NOT converted to GMT5 and new GMT4"
+    #exit 0
     
     #pscoast  $map -Wfaint/150/150/150 -K -O >> $plot
-
+    echo
+    echo "Constructing vector plot..."
     echo Basename for vectors: $vec
     vec=$dirvec/$vec
 
-    #Use this AWK command to scale vectors
-    # lon, lat, angle from north, length
-    #awk '{ if ( NR % 18 == 0 ) { print $1, $2, $3, $4/200 ;} }' $vec.dat > 'vec.tmp'
-    #awk '{ if ( NR % 1 == 0 ) { print $1, $2, $3, $4/200 ;} }' $vec.dat > 'vec.tmp'
 
-    #Map for lon-lat vector grids
+    #Set re-scaling factor of vector (multiplies vector
+    vecscale=1/200
+    vecscale=1/20
+    vecscale=1
+    
+    #Set vectors to be ploted, if too many for graphical output
+    vecnum=`wc -l < $vec.dat`
+    echo "Number of vectors (+1): " $vecnum
+    if [ "$vecnum" -gt "10000" ] ; then
+	vecskip=17
+	echo "Plotting every "$vecskip" vectors..."
+    else
+	vecskip=1
+    fi
+
+    #Map for lon-lat vector grids 
+    # lon, lat, angle from north, length
+    awk '{ if ( NR % '$vecskip' == 0 ) { print $1, $2, $3, $4*'$vecscale' ;} }' $vec.dat > 'vec.tmp'
+
+    #Cut heading line ?
+    #awk '{ if ( NR > 1 ) { print $1, $2, $3, $4 ;} }' vec.tmp > vec.tmp2
+    #mv vec.tmp2 vec.tmp
+    
+    #Use this AWK command to scale vectors - experiments
+    #awk '{ if ( NR % 18 == 0 ) { print $1, $2, $3, $4/200 ;} }' $vec.dat > 'vec.tmp'
     #awk '{ if ( $1 % 3.125 == 0 && $2 % 3.125 == 0 ) { print $1, $2, $3, $4/200 ;} }' $vec.dat > 'vec.tmp'
     #awk '{ if ( NR < 1630 ) { print $1, $2, $3, $4/100 ;} }' $vec.dat > 'vec.tmp'
     #awk '{ { print $1 , $2, $3, $4*10000000 ;} }' $vec.dat > 'vec.tmp'
-    awk '{ { print $1, $2, $3, $4/200 ;} }' $vec.dat > 'vec.tmp'
+    #awk '{ { print $1, $2, $3, $4*'$vecscale' ;} }' $vec.dat > 'vec.tmp'
 
     #Draw vectors
-    # arrowwidth/headlength/headwidth  
-    vecstyle="0.01/0.03/0.05"
-
-    # Set vector color and size
-    veccolor=0/100/0
-
+    # http://gmt.soest.hawaii.edu/doc/latest/psxy.html#vec-attributes
+    #   marker size and unit (inches) +
+    if [ "$gmt" == "$gmt5" ]; then
+	#vecstyle="0.1i+ea+g+n0.5" #/0.12i/0.1i+bc"     #+n normalize small vectors attibutes
+    	vecstyle="0.06i+ea" #number set size of arrow
+    else #GMT4 
+	# arrowwidth/headlength/headwidth
+	vecstyle="0.01/0.03/0.05"
+	#vecstyle="0.01,0.03,0.05"
+    fi
     # -W is pen, -G is fill
-    $gmt psxy 'vec.tmp' $map -W1/$veccolor -G$veccolor -SV$vecstyle -O -K -V\
-	--PAPER_MEDIA=Custom_${height}x${width} >> $plot
+    #$gmt psxy 'vec.tmp' $map -W1/$veccolor -G$veccolor -SV$vecstyle -O -K -V >> $plot
+    # -Wvecwidth,veccolor 
+    $gmt psxy 'vec.tmp' $map -W0.5,darkblue -Gdarkblue -SV$vecstyle -O -K -V >> $plot
+    #--PS_MEDIA=Custom_${height}x${width} 
 
     #rm -rf 'vec.tmp'
 fi
 
-# Point to close the graph file
+# Add point to close the graph file or reference points
 #echo "30 -65" > point1.dat
 #echo "30 -64" > point2.dat
 #echo "31 -65" > point3.dat
@@ -769,7 +803,15 @@ else
     epstopdf $baseplot".eps"
 fi
 echo "and pdf and eps files (for pdflatex and latex)."
-
+echo
+#Close all open gv windows (to avoid a bunch of open stuff)
+killall gv
+#rm $plot
+#rm $baseplot"_gray.ps"
+gv $baseplot.eps &
+#okular $baseplot.pdf &
+echo
+echo "Creating grayscale figures..."
 #Grayscale figures
 cp $plot $baseplot"_gray".ps
 gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -dColorConversionStrategy=/Gray -dPDFUseOldCMS=false  -dNOCACHE -o $baseplot"_gray.pdf" -f $baseplot.pdf
@@ -777,10 +819,6 @@ gs -dNOPAUSE -dBATCH -dSAFER -sDEVICE=pdfwrite -dProcessColorModel=/DeviceGray -
 pdf2ps -eps $baseplot"_gray.ps" $baseplot"_gray.eps"
 
 
-#rm $plot
-#rm $baseplot"_gray.ps"
-gv $baseplot.ps &
-#okular $baseplot.pdf &
 
 echo
 echo "-----------------------------------------------------------"
