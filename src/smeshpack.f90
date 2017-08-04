@@ -2532,8 +2532,8 @@ contains
        !See Voronoi Tessellations and their application to climate and global modeling
        ! by Lili Ju, Todd Ringler and Max Gunzburger
        !Center of refined region
-       latc=-20.0*pi/180._r8
-       lonc=-20.0*pi/180._r8
+       latc=-50.0*pi/180._r8
+       lonc=-30.0*pi/180._r8
        !Distance to center
        dists=dsqrt((lat-latc)**2+(lon-lonc)**2)
        !Density function parameters

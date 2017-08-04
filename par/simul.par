@@ -1,10 +1,10 @@
 !Experiment parameters
 !Staggering kind
-HW
+HC
 !Kind of interpolation
 lintrv
 !Kind of vector reconstruction
-trsk
+perhx
 !Kind of higher order reconstruction method (used in hybrid scheme - put "0" if not to be used)
 0
 !Reconstruction method for divergence estimates (use 0 for no reconstruction - usual)
