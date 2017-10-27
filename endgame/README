@@ -1,0 +1,12 @@
+EndGame Shallow Water dynamics
+-------------------------------
+
+Gung-Ho Dynamics: High-resolution test case reference solutions
+using a version of the ENDGame shallow water model
+
+Developed by John Thuburn, December 2012
+Updated by Pedro Peixoto, Oct 2017 (to test for Hollingsworth intabilities)
+
+See man/*.pdf for details of the original code.
+
+

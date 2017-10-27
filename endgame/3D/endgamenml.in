@@ -1,0 +1,22 @@
+! Namelists for ENDGame
+!
+! Basic information in the run
+&rundata
+  lrestart = F,
+  yrestart = 'run00001restart0000000576'
+&END
+!
+! Switches
+&switchdata
+  slice = F,
+  monotone = T
+&END
+!
+! Timing information
+&timedata
+  dt = 1200.0d0,
+  nstop = 1080,
+  noutput = 72,
+  nrestart = 144
+&END
+

@@ -1,7 +1,7 @@
 # iModel
 Icosahedral grid tools for geophysical fluid dynamics modelling
 
-Pedro Peixoto Nov 2015
+Pedro Peixoto Oct 2017
 pedrosp@ime.usp.br
 
 -------------------------------------------------------
@@ -17,7 +17,6 @@ iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid bas
 Please read doc/manual.pdf for further information.
 
 - Runs on Linux (tested on Debian and Ubuntu) 
-- Runs on Windows-Cygwin 
 - Fully written in Fortran 90 
 
 1) Use the Makefile to compile (just type 'make')
