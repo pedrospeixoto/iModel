@@ -14,3 +14,4 @@ SUBROUTINE integrate
   LOGICAL:: linearstabtest=.false.
   !LOGICAL:: linearstabtest=.true.
 
+You can use GMT scripts from iModel to plot outputs from endgame
