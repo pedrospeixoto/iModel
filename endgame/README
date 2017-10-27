@@ -9,4 +9,8 @@ Updated by Pedro Peixoto, Oct 2017 (to test for Hollingsworth intabilities)
 
 See man/*.pdf for details of the original code.
 
+To test for Hollingsworth instabilities choose test 8 and set linearstabtest=.true. in routine:
+SUBROUTINE integrate
+  LOGICAL:: linearstabtest=.false.
+  !LOGICAL:: linearstabtest=.true.
 
