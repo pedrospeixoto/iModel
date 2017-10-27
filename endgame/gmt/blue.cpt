@@ -1,7 +1,0 @@
-#	cpt file created manualy from grd2cpt -V -I ../data/distorhx_icos_eqs_nopt_6.grd -Cocean -Z
-#COLOR_MODEL = RGB
-#
-0	250	255	255	1	0	0	255
-B	255	255	255
-F	0	0	255
-N	255	255	255
