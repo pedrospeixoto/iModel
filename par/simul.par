@@ -1,6 +1,6 @@
 !Experiment parameters
 !Staggering kind
-HC
+HA
 !Kind of interpolation
 lintrv
 !Kind of vector reconstruction
@@ -18,7 +18,7 @@ perhx
 !RBF shape parameter and flag for variable shape ( ex:1.0 1 (adjustable) or 0 (fixed))
 2 0
 !Scalar/vector field used
-5
+4
 !plots
 1
 

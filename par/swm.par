@@ -1,10 +1,10 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-32 0
+34 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
 12 250
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-400 0 0
+160 0 0
 !Scalar/vector location (HC or HTC)
 HTC
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
