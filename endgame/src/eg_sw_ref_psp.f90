@@ -7,6 +7,7 @@
 ! treatment of phi.
 !
 ! Modified by P.Peixoto in Sept 2015 for output and input
+! Modified by P.Peixoto in Oct 2015 for Hollingsworth analysis
 !------------------------------------------------
 
 MODULE version
@@ -607,7 +608,6 @@ SUBROUTINE initial
   ! Zero orography - modify below for TC 5
   phis = 0.0d0
 
-
   IF (ic == 1) THEN
 
      ! Resting state with uniform phi
@@ -1070,7 +1070,7 @@ SUBROUTINE integrate
      yname = trim(yname)//"x"//trim(adjustl(trim(yres)))
 
 
-     !Filename for log
+     !Filename for log of Hollinsworth analysis
      WRITE(icname,'(I4.2)') ic
      icname=trim(adjustl(trim(icname)))
      WRITE(coriname,'(I4.1)') coriolis_mtd
@@ -1081,11 +1081,8 @@ SUBROUTINE integrate
      ELSE
         slicename=""
      END IF
-
-
      WRITE(hrefname,'(F8.3)') phiref/gravity
      hrefname=trim(adjustl(trim(hrefname)))//"lintest"
-
      IF(adt .NE. hdt)then
         filename="dump/"//"eg_swe_ic"//trim(icname)//"_cor"//trim(coriname)//&
             "_href"//trim(hrefname)//trim(slicename)//&
@@ -1095,8 +1092,6 @@ SUBROUTINE integrate
         "_href"//trim(hrefname)//trim(slicename)//&
             "_log"//trim(adjustl(trim(yname)))//".dat"
      END IF
-
-
 
      !Write values on log file
      if(linearstabtest) then !Hollingsworth test with linearizations
@@ -6634,10 +6629,10 @@ SUBROUTINE plot_var(q, ytitle, pos)
   ELSE
      slicename=""
   ENDIF
-  IF(ic==8 .AND. .TRUE.)THEN !Hollingsworth test with linearizations
-     WRITE(hrefname,'(F8.3)') phiref/gravity
-     hrefname=trim(adjustl(trim(hrefname)))
-  ENDIF
+  !IF(ic==8 .AND. .TRUE.)THEN !Hollingsworth test with linearizations
+  WRITE(hrefname,'(F8.3)') phiref/gravity
+  hrefname=trim(adjustl(trim(hrefname)))
+  !ENDIF
   filename="dump/"//"eg_swe_run_ic"//trim(icname)//"_cor"//trim(coriname)//&
     "_href"//trim(hrefname)//trim(slicename)//"_"//trim(adjustl(trim(ytitle)))//".dat"
   !filename="dump/"//"eg_swe_cor"//trim(coriname)//"ic"//trim(icname)//"_"//trim(ytitle)//".dat"
