@@ -1,0 +1,4 @@
+Rossby 0.05
+Froude 0.05
+Burger 1.0
+Nx 256

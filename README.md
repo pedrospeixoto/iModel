@@ -14,10 +14,20 @@ iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid bas
 - Transport model (Semi-Lagrangian)
 - Shallow water model
 
+Also includes (Developed by John Thuburn):
+- A spherical shallow water model version of ENDGame model, which uses finite differences on lat-long grid (endgame/)
+- A spherical shallow water model of a mixed finite elements schemes, uses cubed shere or hexagonal grid (mfem_swm/)
+
+Also includes (Developed by Pedro Peixoto)
+- A planar shallow water model writen in Matlab using finite differences regular C-grid energy enstrophy conserving schemes (see fdc_een_swm)
+
 Please read doc/manual.pdf for further information.
 
+iModel:
+--------
+ 
 - Runs on Linux (tested on Debian and Ubuntu) 
-- Fully written in Fortran 90 
+- Fortran 90 (tested with ifort and gfortran)
 
 1) Use the Makefile to compile (just type 'make')
 
@@ -28,11 +38,28 @@ Please read doc/manual.pdf for further information.
 3) Mesh parameters must be set in par/mesh.par or other par/*.par files
    Other parameters must be set in par/ directory
 
-3') Choose the simulation to be run in mesh.par (1, 2...)
+4) Choose the simulation to be run in mesh.par (1, 2...)
 
-4) It is recommented to have installed Intel Fortran Compiler (but gfortran may be used)
+5) Output is written in data/
+ 
+6) Use GMT visualization tool scripts from gmt/plot.sh to plot output (Generic Mapping Tool need to be installed separately) 
 
-5) It is recommended to have Generic Mapping Tool installed as visualization tool
+7) Problems? Send me an e-mail
 
-6) Problems? Send me an e-mail
+----------------------------------------------------------------------------
+
+Main references (see www.ime.usp.br/~pedrosp for exact reference):
+
+- Peixoto, Thuburn and Bell, 2017: Numerical instabilities of spherical shallow water models considering small equivalent depths ( Quarterly Journal of the Royal Meteorological Society)
+
+- Bell, Peixoto, Thuburn, 2017: Numerical instabilities of vector invariant momentum equations on rectangular C-grids (Quart. J. Roy. Meteorol. Soc.) 
+
+- Peixoto, 2016: Accuracy analysis of mimetic finite volume operators on geodesic grids and a consistent alternative (Journal of Computational Physics)
+ 
+- Peixoto, PS and Barros, SRM, 2014 : On vector field reconstructions for semi-Lagrangian transport methods on geodesic staggered grids (Journal of Computational Physics) 
+
+- Peixoto, PS and Barros, SRM, 2013 : Analysis of grid imprinting on geodesic spherical icosahedral grids (Journal of Computational Physics)
+
+
+ 
 
