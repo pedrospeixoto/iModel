@@ -2,7 +2,7 @@
 Icosahedral grid tools for geophysical fluid dynamics modelling
 
 Pedro Peixoto Oct 2017
-pedrosp@ime.usp.br
+(pedrosp@ime.usp.br)
 
 -------------------------------------------------------
 
@@ -19,9 +19,9 @@ Also includes (Developed by John Thuburn):
 - A spherical shallow water model of a mixed finite elements schemes, uses cubed shere or hexagonal grid (mfem_swm/)
 
 Also includes (Developed by Pedro Peixoto)
-- A planar shallow water model writen in Matlab using finite differences regular C-grid energy enstrophy conserving schemes (see fdc_een_swm)
+- A planar shallow water model writen in Matlab using finite differences regular C-grid energy enstrophy conserving schemes (fdc_een_swm)
 
-Please read doc/manual.pdf for further information.
+Please read doc/manual.pdf for further information and doc/ in submodel folders.
 
 iModel:
 --------
@@ -48,7 +48,7 @@ iModel:
 
 ----------------------------------------------------------------------------
 
-Main references (see www.ime.usp.br/~pedrosp for exact reference):
+Main references for iModel (see www.ime.usp.br/~pedrosp for exact reference):
 
 - Peixoto, Thuburn and Bell, 2017: Numerical instabilities of spherical shallow water models considering small equivalent depths ( Quarterly Journal of the Royal Meteorological Society)
 
