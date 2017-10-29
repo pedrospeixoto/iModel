@@ -1,0 +1,56 @@
+! Namelists for mimetic SWE model
+!
+! Basic information in the run
+&rundata
+ ygridfile = 'grd/gridopermap_hex_0000010242.dat', 
+ ic = 9
+&END
+!
+! Advection scheme
+&advectdata
+  degree = 2,
+&END
+!
+! Timing information
+&timedata
+  dt = 400.0d0,
+  niter = 4,
+  alpha_v = 0.5d0,
+  alpha_pg = 0.5d0,
+  nstop = 21600,
+  noutput = 216,
+  ndiagnostics = 1,
+  nrestart = 0
+&END
+
+! Days to iterations
+! 15 days with 900 seconds = 1440 iterations
+! 6 days with 900 seconds = 576 iterations
+! 1 days with 240 seconds = 360 iterations
+! 1 days with 400 seconds = 216 iterations
+
+
+! Grid files
+! ygridfile = 'grd/gridopermap_hex_0000000642.dat'
+! ygridfile = 'grd/gridopermap_hex_0000002562.dat'
+! ygridfile = 'grd/gridopermap_hex_0000010242.dat'
+! ygridfile = 'grd/gridopermap_hex_0000040962.dat'
+! ygridfile = 'grd/gridopermap_hex_0000163842.dat'
+! ygridfile = 'grd/gridopermap_hex_0000655362.dat'
+! ygridfile = 'grd/gridopermap_cube_0000000864.dat'
+! ygridfile = 'grd/gridopermap_cube_0000003456.dat'
+! ygridfile = 'grd/gridopermap_cube_0000013824.dat'
+! ygridfile = 'grd/gridopermap_cube_0000055296.dat'
+! ygridfile = 'grd/gridopermap_cube_0000221184.dat'
+! ygridfile = 'grd/gridopermap_cube_0000884736.dat'
+
+!Initial conditions
+ ! ic = 1   Resting, constant phi
+  ! ic = 2   Williamson et al. test case 2
+  ! ic = 4   Solid body rotation for normal mode calculation
+  ! ic = 5   Williamson et al. test case 5
+  ! ic = 7   Galewsky et al. barotropically unstable jet - specify stream fn
+  ! ic = 8   Like case 2 but with orography balancing u
+  ! ic = 9   Like case 2 but with orography balancing u - linear analysis - power method
+
+!nstop = 4800,

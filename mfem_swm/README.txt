@@ -1,1 +1,7 @@
-Mixed Finite Element Shallow Water Model - by John Thuburn
+MIXED FEM SHALLOW WATER MODEL - J. Thuburn
+
+- Original from JT
+- Optimized by M.Shreiber
+- Modified by P. Peixoto in Aug 2015
+
+Read doc/*

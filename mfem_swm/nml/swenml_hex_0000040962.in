@@ -1,0 +1,26 @@
+! Namelists for primal-dual FEM SWE model
+!
+! Basic information in the run
+&rundata
+  ygridfile   = 'gridopermap_hex_0000040962.dat',
+  ygridcoords = 'gridcoords_hex_0000040962.dat'
+&END
+!
+! Advection scheme
+&advectdata
+  degree = 2,
+&END
+!
+! Timing information
+&timedata
+  dt = 450,
+  niter = 4,
+  alpha_v = 0.5d0,
+  alpha_pg = 0.5d0,
+
+  nstop = 20,
+  noutput = 999999,
+!  nrestart = 999999,
+  nrestart = 20,
+  ndiagnostics = 999999
+&END
