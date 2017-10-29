@@ -2,8 +2,8 @@
 !
 ! Basic information in the run
 &rundata
- ygridfile = 'grd/gridopermap_hex_0000010242.dat', 
- ic = 9
+ ygridfile = 'grd/gridopermap_hex_0000000162.dat', 
+ ic = 8
 &END
 !
 ! Advection scheme

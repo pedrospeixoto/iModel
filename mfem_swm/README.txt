@@ -1,7 +1,12 @@
 MIXED FEM SHALLOW WATER MODEL - J. Thuburn
 
-- Original from JT
-- Optimized by M.Shreiber
-- Modified by P. Peixoto in Aug 2015
+- Original development: John Thuburn (2012)
 
-Read doc/*
+- Optimized by Martin Schreiber (2014) - See Dominik Gutermuth Bachelor's thesis:
+https://www5.in.tum.de/pub/dominik_gutermuth_2014_ba.pdf
+
+- Modified by P. Peixoto for Hollingsworth analysis and input output adjusted to imodel (Aug 2017) 
+
+Read doc/* for details 
+
+

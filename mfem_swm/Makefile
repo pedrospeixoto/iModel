@@ -79,4 +79,5 @@ clean:
 	rm -f adjacency_matrices
 	rm -f sfc_optimize
 	rm -f fort.43
-	rm *.mod
+	rm -f *.mod
+	rm -f fort.4*

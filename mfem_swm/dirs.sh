@@ -28,13 +28,6 @@ else
     echo "Grid files will be put inside     grd/"
 fi
 
-if [ -d graphs ] ; then
-    echo "Graphs will be put inside     graphs/"
-else
-    mkdir graphs
-    echo "Directory 'graphs' created" 
-    echo "Graphs will be put inside     graphs/"
-fi
 
 #echo "End of directory structuring."
 echo
