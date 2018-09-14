@@ -1,12 +1,14 @@
 !Experiment parameters
 !Test to be done (1-truncation, 2- convergence, 3-gradient, 4-EV analysis) 
-1
+2
 !Scalar/vector field used
 4
 !Discretizations to cell centroids (1-yes, 0-no)
 0
 !plots
 1
+!Solver parameters (omega-w, maxiter, tol)
+1 100 0.000001
 
 
 

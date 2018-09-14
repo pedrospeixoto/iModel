@@ -82,6 +82,12 @@ module poisson
   character (len=128):: simulname
   character (len=128):: testcasename
 
+  !SOR solver parameters
+  real (r8):: w         !Relaxation parameter
+  real (r8)::nrm_res    !Norm residue
+  real (r8)::TOL        !Tolerance
+  integer (i4):: numit  !max num of iterations
+
 
 contains
 
@@ -122,6 +128,10 @@ contains
     testfunc=1      !Non-div case 1
     plots=.true.   !Do plots or not
 
+    w=1                   !Relaxation parameter
+    tol=0.00000001        !Tolerance
+    nrm_res=100           !Norm residue
+    numit=20              !Maximum number of iterations
 
     !Standard interpolation parameters file
     filename=trim(pardir)//"poisson.par"
@@ -142,6 +152,8 @@ contains
     read(fileunit,*)  idiscretcentroid
     read(fileunit,*)  buffer
     read(fileunit,*)  iplots
+    read(fileunit,*)  buffer
+    read(fileunit,*)  w, numit, tol
 
     close(fileunit)
 
@@ -167,8 +179,11 @@ contains
     !Names depending on test cases
     select case(testcase)
       case(1) !Truncation errors
-        simulname=trim(adjustl(trim(simulname)))//"laptrunc"
+        simulname=trim(adjustl(trim(simulname)))//"_laptrunc"
         testcasename="laptrunc"
+      case(2) !Poisson error
+        simulname=trim(adjustl(trim(simulname)))//"_poiser"
+        testcasename="poiser"
       case default
         simulname="_"
     end select
@@ -180,7 +195,11 @@ contains
     print*, "Test case             : ", testcase, testcasename
     print*, "Function used         : ", testfunc
     print*, "Plots? (nplots)       : ", plots
+    if(trim(testcasename)=="poiser")then
+      print*, "Solver parameters (w,n,tol)   :", w, numit, tol
+    end if
 
+    print*
 
     print*, "Simulation Name for Plots: ", trim(simulname)
     print*
@@ -204,6 +223,8 @@ contains
     select case(testcase)
       case(1) !Truncation errors
         call laplacian_truncation(mesh)
+      case(2) !Poisson errors
+        call poisson_error(mesh)
       case default
         print*, "ERROR on poisson_main: Don't know this testcase:", testcase
         stop
@@ -611,21 +632,11 @@ contains
     real(r8):: p(1:3)
     real(r8):: gradex
     real(r8):: gradest
-    real(r8):: len
-
 
     print*
     print*,"Laplacian Truncation Analysis "
     print*
 
-    !-------------------------------------------
-    !  Read parameters from file "simul.par"
-    !------------------------------------------
-
-    call getsimulpars(mesh)
-
-
-    print*,"Setting up variables ..."
 
     !Scalars on hexagon centers (nodes) - Exact
     lap_ex%pos=0
@@ -703,11 +714,10 @@ contains
         !ExactGrad=ExactGradVector*NormalVectorEdge*CorrectionOutHx
         gradex=dot_product(df(p),mesh%edhx(k)%nr)*mesh%hx(i)%nr(j)
         !Estimated Gradient Normal component
-        gradest=func%f(mesh%v(i)%nb(j))-func%f(i)
-        len=mesh%ed(k)%leng
+        gradest=(func%f(mesh%v(i)%nb(j))-func%f(i))/mesh%ed(k)%leng
         !arclen(p, mesh%v(i)%p) + &
         !arclen(p, mesh%v(mesh%v(i)%nb(j))%p)
-        gradest=gradest/ len !mesh%ed(k)%leng
+
         !Maximum gradient error for cell
         ergrad%f(i)=max(abs(gradest-gradex), ergrad%f(i))
         !Updade Laplacian
@@ -745,7 +755,7 @@ contains
     else
       open(iunit,file=filename, status='replace')
       write(iunit, '(a)') &
-        " n    distance stag testfunc errormax error2 errorgradsup errorgrad2 maxeddif"
+        " n    distance testfunc errormax error2 errorgradsup errorgrad2 maxeddif"
     end if
 
     write(iunit, '(i8, f18.8, i8, 5f22.12)') mesh%nv, mesh%meanvdist*rad2deg, &
@@ -779,7 +789,9 @@ contains
 
   end subroutine laplacian_truncation
 
-
+  !======================================================================
+  !    POISSON TESTS
+  !======================================================================
   subroutine poisson_error(mesh)
 
     !Mesh
@@ -813,21 +825,11 @@ contains
     real(r8):: p(1:3)
     real(r8):: gradex
     real(r8):: gradest
-    real(r8):: len
-
 
     print*
-    print*,"Laplacian Truncation Analysis "
+    print*,"Poisson Error Analysis "
     print*
 
-    !-------------------------------------------
-    !  Read parameters from file "simul.par"
-    !------------------------------------------
-
-    call getsimulpars(mesh)
-
-
-    print*,"Setting up variables ..."
 
     !Scalars on hexagon centers (nodes) - Exact
     lap_ex%pos=0
@@ -845,36 +847,9 @@ contains
        !print "(i8, 4f16.8)", i, lap_ex%f(i), p
     end do
 
-    !Edge displacement
-    eddif%n=mesh%nv
-    eddif%name="edgedif"
-    eddif%pos=0
-    allocate(eddif%f(1:mesh%nv))
-    do i=1, mesh%nv
-      eddif%f(i)=0._r8
-      do j=1,mesh%v(i)%nnb
-        k=mesh%v(i)%ed(j)
-        eddif%f(i)=max(eddif%f(i), (arclen(mesh%ed(k)%c%p, mesh%edhx(k)%c%p)/ &
-          mesh%edhx(k)%leng))
-      end do
-       !eddif%f(i)=eddif%f(i)/mesh%v(i)%nnb
-    end do
-
-    !Edge intersection maximum difference
-    maxeddif=maxval(abs(eddif%f(1:eddif%n)))
-
-    !Gradient error
-    ergrad%n=mesh%nv
-    ergrad%name="ergrad"
-    ergrad%pos=0
-    allocate(ergrad%f(1:mesh%nv))
-    do i=1, mesh%nv
-      ergrad%f(i)=0._r8
-    end do
-
-    !Laplacian error
+    !Poisson solution error
     error%n=mesh%nv
-    error%name="erlap"
+    error%name="erpois"
     error%pos=0
     allocate(error%f(1:mesh%nv))
 
@@ -896,24 +871,18 @@ contains
     allocate(lap%f(1:lap%n))
     do i=1, mesh%nv
       lap%f(i)=0._r8
-      ergrad%f(i)=0._r8
       do j=1, mesh%v(i)%nnb
         !Edge index
         k=mesh%v(i)%ed(j)
         !Hexagonal edge midpoint
         p=mesh%edhx(k)%c%p
-        !ExactGrad=ExactGradVector*NormalVectorEdge*CorrectionOutHx
-        gradex=dot_product(df(p),mesh%edhx(k)%nr)*mesh%hx(i)%nr(j)
-        !Estimated Gradient Normal component
-        gradest=func%f(mesh%v(i)%nb(j))-func%f(i)
-        len=mesh%ed(k)%leng
+
+
         !arclen(p, mesh%v(i)%p) + &
         !arclen(p, mesh%v(mesh%v(i)%nb(j))%p)
-        gradest=gradest/ len !mesh%ed(k)%leng
-        !Maximum gradient error for cell
-        ergrad%f(i)=max(abs(gradest-gradex), ergrad%f(i))
+
         !Updade Laplacian
-        lap%f(i)=lap%f(i)+gradest*mesh%edhx(k)%leng
+        !lap%f(i)=lap%f(i)+gradest*mesh%edhx(k)%leng
       end do
       lap%f(i)=lap%f(i)/mesh%hx(i)%areag
       !Error in laplacian
@@ -922,16 +891,10 @@ contains
     end do
 
     !Global Errors
-
     error2=error_norm_2(lap%f, lap_ex%f, error%n)
     errormax=error_norm_max(lap%f, lap_ex%f, error%n)
     print*, "Error Lap (max, L2): ", errormax, error2
 
-    !Global Errors for gradients
-    errorgrad2=dsqrt(dot_product(ergrad%f,ergrad%f)/ergrad%n)
-    errorgradsup=maxval(abs(ergrad%f(1:ergrad%n)))
-    print*, "Error GRAD (max, L2): ", errorgradsup, errorgrad2
-    print*
 
     ! Save error estimates
     !-------------------------------------------------------
@@ -947,11 +910,11 @@ contains
     else
       open(iunit,file=filename, status='replace')
       write(iunit, '(a)') &
-        " n    distance stag testfunc errormax error2 errorgradsup errorgrad2 maxeddif"
+        " n    distance  testfunc errormax error2"
     end if
 
     write(iunit, '(i8, f18.8, i8, 5f22.12)') mesh%nv, mesh%meanvdist*rad2deg, &
-      testfunc, errormax, error2, errorgradsup, errorgrad2, maxeddif
+      testfunc, errormax, error2
 
     close(iunit)
 
@@ -969,17 +932,75 @@ contains
       error%name=trim(simulname)//"_error"
       call plot_scalarfield(error, mesh)
 
-      eddif%name=trim(simulname)//"_eddif"
-      call plot_scalarfield(eddif, mesh)
-
-      ergrad%name=trim(simulname)//"_ergrad"
-      call plot_scalarfield(ergrad, mesh)
-
     end if
 
     return
 
   end subroutine poisson_error
+
+  subroutine sor(mesh, g, fap)
+    !------------------------------------------------------------
+    !RELAXAC_MULT_CELL
+    ! Relaxation Scheme - Weighted Gauss-Seidel
+    !
+    !  return: "fap" that approximates u solution of
+    !         for equation -Lap(u)=g
+    !------------------------------------------------------------
+    type(grid_structure)::mesh  !Mesh
+    type(scalar_field)::fap     !Approximate value of the function on each grid point
+    type(scalar_field)::g       !Independent term of equation
+
+    !Counters
+    integer::k
+    integer::i
+    integer::j
+
+    real (r8)::ledhx     !Edge length
+    real (r8)::lchx       !Distance between two neighboring centers
+    real (r8)::laptmp
+    real (r8)::laptmp1
+
+
+    !For each iteration
+    do k=1,numit
+
+      !For each grid point
+      do i=1,mesh%nv
+
+        laptmp=0_r8
+        laptmp1=0_r8
+        ledhx=0_r8
+        Lchx=0_r8
+
+        !For each grid neighboring of i
+        do j=1,mesh%v(i)%nnb
+
+          !Edge length
+          ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
+
+          !Distance between two neighboring
+          lchx=mesh%ed(mesh%v(i)%ed(j))%leng
+
+          laptmp1=laptmp1+(ledhx/Lchx)
+          laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j)))
+        enddo
+
+        laptmp=laptmp/mesh%hx(i)%areag
+        laptmp1=laptmp1/mesh%hx(i)%areag
+
+        !para o problema lap f =g
+        !fap%f(i)=(1-w)*fap%f(i)+w*((laptmp-g%f(i))/(laptmp1))
+
+        !para o problema -lap f+f =g
+        fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
+
+      enddo
+
+    enddo
+
+    return
+  end subroutine sor
+
 
   subroutine relaxac(mesh)
     !--------------------------------------------------------
@@ -1003,13 +1024,6 @@ contains
     !Couter
     integer::i
 
-    integer(i4)::numit    !Maximum number of iterations
-
-    real (r8):: w         !Relaxation parameter
-    real (r8)::nrm_res    !Norm residue
-    real (r8)::TOL        !Tolerance
-
-
     !Norm errors on each grid level
     real(r8)::nrm2
     real(r8)::nrmmax
@@ -1021,13 +1035,6 @@ contains
     character (len=300):: buffer
     integer::fileunit
     integer::iunit
-
-
-
-
-    TOL=0.00000001             !Tolerance
-    nrm_res=100                !Norm residue
-    numit=4                   !Maximum number of iterations
 
 
     !Approximate value of the function on each grid point
