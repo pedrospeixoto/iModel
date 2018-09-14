@@ -983,7 +983,7 @@ contains
 
   subroutine relaxac(mesh)
     !--------------------------------------------------------
-    !RELAXAC
+    !RELAXAC test
     !
     ! Test for relaxation of the problem using the 
     !  method of Jacobi.
