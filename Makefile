@@ -80,6 +80,7 @@ bin/dataswm.obj \
 bin/swm.obj \
 bin/datastructmult.obj \
 bin/transport.obj \
+bin/poisson.obj \
 bin/multigrid.obj \
 bin/eispack.obj \
 
@@ -145,6 +146,11 @@ bin/smeshpack.obj: src/smeshpack.f90
 bin/simulpack.obj: src/simulpack.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv simulpack.mod bin/.
+
+#Multigrid pack
+bin/poisson.obj: src/poisson.f90 
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv poisson.mod bin/.
 
 #Multigrid pack
 bin/multigrid.obj: src/multigrid.f90 

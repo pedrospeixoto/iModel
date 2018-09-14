@@ -42,7 +42,19 @@ program imodel
   use datastructmult
 
   !Multigrid solver routines
-  use multigrid
+  use multigrid, only: &
+    mesh_generation, &
+    laplacian, &
+    relaxac, &
+    relation_meshes, &
+    interpol_linear, &
+    multigrid_solver
+
+
+  !Spurconvergence analysis of poisson equaiton
+  use poisson, only: &
+    poisson_main
+
 
   use swm, only: &
     swm_tests, &
@@ -124,6 +136,9 @@ program imodel
 
   case(15) !Shallow water model test cases
     call swm_tests(mesh)
+
+  case(16) !Superconvergence tests of poisson equation
+    call poisson_main(mesh)
 
   case default
      print*, "Please select a proper simulation case ...:", simulcase

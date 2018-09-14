@@ -1,0 +1,33 @@
+!Experiment parameters
+!Test to be done (1-truncation, 2- convergence, 3-gradient, 4-EV analysis) 
+1
+!Scalar/vector field used
+4
+!Discretizations to cell centroids (1-yes, 0-no)
+0
+!plots
+1
+
+
+
+!--------Comments---------------------------------------------------------------
+
+!List of Functions (for scalar interpolation and laplacian tests)
+  !	  1-Cosine bell
+  !	  2-Gaussian
+  !   3-Non-smooth- Slotted cylinder
+  !   4-Smooth Trigonometric
+  !   5-Exponential
+  !   6-Linear in R3
+  !   7-Constant=1
+  !   8- Trigonom oscilation (beta of HR95)
+    
+!List of Vector Fields for vector interpolation and divergence tests
+  !	  1-Test case 1 - non div 
+  !	  2-Test case 2 - non div 
+  !   3-Test case 3 - div
+  !   4- Constant parallel field
+  !   5- Rotation field around z-axis
+  !   6- Trigonometric Divergent Field (Tomita)
+  !	  7- Rotation field not aligned with equator
+  !	  8- Rossby-Haurwitz 
