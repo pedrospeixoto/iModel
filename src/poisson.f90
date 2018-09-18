@@ -497,7 +497,8 @@ contains
       !Laplacian on barycenter
       !p=mesh%hx(i)%b%p
       !This is the laqplacian of functions defined in routine f(p)
-      g%f(i)=lap_exact(p)
+      ! The minus happens as we are solving -Lap(u)=g
+      g%f(i)=-lap_exact(p)
       !Since lap_extact was built from manufactured solution, the exact solution must be f(p)
       u_exact%f(i)=f(p)
       !print "(i8, 4f16.8)", i, lap_ex%f(i), p
@@ -569,17 +570,18 @@ contains
 
   end subroutine poisson_error
 
-  subroutine sor(mesh, f, u)
+  subroutine sor(mesh, g, u)
     !------------------------------------------------------------
     !SOR
     ! Relaxation Scheme - Weighted Gauss-Seidel (SOR)
     !
     !  return: "u" that approximates the solution of
-    !         for equation -Lap(u)=f
+    !         for equation -Lap(u)=g
     !------------------------------------------------------------
     type(grid_structure):: mesh  !Mesh
     type(scalar_field):: u     !Approximate value of the function on each grid point
-    type(scalar_field):: f       !Independent term of equation
+    type(scalar_field):: g       !Independent term of equation
+    type(scalar_field):: lapu       !Independent term of equation
 
     !Counters
     integer:: k
@@ -590,8 +592,9 @@ contains
     real (r8):: lchx       !Distance between two neighboring centers
     real (r8):: lapoffdiag
     real (r8):: lapdiag
+    real (r8):: res
 
-
+    u%f=0.0
     !For each iteration
     do k=1,numit
 
@@ -601,7 +604,7 @@ contains
         lapoffdiag=0_r8
         lapdiag=0_r8
         ledhx=0_r8
-        Lchx=0_r8
+        lchx=0_r8
 
         !For each grid neighboring of i
         do j=1,mesh%v(i)%nnb
@@ -616,17 +619,19 @@ contains
           lapoffdiag=lapoffdiag+(ledhx/lchx)*(u%f(mesh%v(i)%nb(j)))
         enddo
 
-        lapoffdiag=lapoffdiag/mesh%hx(i)%areag
-        lapdiag=lapdiag/mesh%hx(i)%areag
+        lapoffdiag=lapoffdiag!/mesh%hx(i)%areag
+        lapdiag=lapdiag!/mesh%hx(i)%areag
 
         !Solution of  - lap u = f
-        u%f(i)=(1-w)*u%f(i)+w*((lapoffdiag+f%f(i))/(lapdiag))
+        u%f(i)=(1-w)*u%f(i)+w*((lapoffdiag+mesh%hx(i)%areag*g%f(i))/(lapdiag))
 
         !para o problema -lap f+f =g
         !fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
 
       enddo
-
+      call lap_u(mesh, u, lapu)
+      res=maxval(abs(g%f+lapu%f))
+      print*, "iter:", k, "residue: ", res
     enddo
 
     return
