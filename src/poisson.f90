@@ -233,6 +233,406 @@ contains
   end subroutine poisson_main
 
 
+
+  !======================================================================
+  !    LAPLACIAN TESTS
+  !======================================================================
+  subroutine laplacian_truncation(mesh)
+
+    !Mesh
+    type(grid_structure) :: mesh
+
+
+    !Scalar fields
+    type(scalar_field):: u !function to test
+    type(scalar_field):: lap_ex !exact laplacian
+    type(scalar_field):: lap, lapu !approximate laplacian
+    type(scalar_field):: error !error
+    type(scalar_field):: ergrad !error in gradient
+    type(scalar_field):: eddif !distance between edge midpoints
+
+    !Counters
+    integer:: i
+    integer:: j
+    integer:: k
+
+    !Errors
+    logical:: ifile
+    integer:: iunit
+    real (r8)::  error2
+    real (r8):: errormax
+    real (r8):: errorgrad2
+    real (r8):: errorgradsup
+    real (r8):: maxeddif
+    character (len=256):: filename
+
+    !Aux
+    real(r8):: p(1:3)
+    real(r8):: gradex
+    real(r8):: gradest
+
+    print*
+    print*,"Laplacian Truncation Analysis "
+    print*
+
+
+    !Scalars on hexagon centers (nodes) - Exact
+    lap_ex%pos=0
+    lap_ex%n=mesh%nv
+    lap_ex%name="lap_ex"
+    allocate(lap_ex%f(1:lap_ex%n))
+    do i=1, mesh%nv
+      !Laplacian on node
+      p=mesh%v(i)%p
+      !lap_ex%f(i)=lap_exact(p)
+
+      !Laplacian on barycenter
+      !p=mesh%hx(i)%b%p
+      lap_ex%f(i)=lap_exact(p)
+       !print "(i8, 4f16.8)", i, lap_ex%f(i), p
+    end do
+
+    !Edge displacement
+    eddif%n=mesh%nv
+    eddif%name="edgedif"
+    eddif%pos=0
+    allocate(eddif%f(1:mesh%nv))
+    do i=1, mesh%nv
+      eddif%f(i)=0._r8
+      do j=1,mesh%v(i)%nnb
+        k=mesh%v(i)%ed(j)
+        eddif%f(i)=max(eddif%f(i), (arclen(mesh%ed(k)%c%p, mesh%edhx(k)%c%p)/ &
+          mesh%edhx(k)%leng))
+      end do
+       !eddif%f(i)=eddif%f(i)/mesh%v(i)%nnb
+    end do
+
+    !Edge intersection maximum difference
+    maxeddif=maxval(abs(eddif%f(1:eddif%n)))
+
+    !Gradient error
+    ergrad%n=mesh%nv
+    ergrad%name="ergrad"
+    ergrad%pos=0
+    allocate(ergrad%f(1:mesh%nv))
+    do i=1, mesh%nv
+      ergrad%f(i)=0._r8
+    end do
+
+    !Laplacian error
+    error%n=mesh%nv
+    error%name="erlap"
+    error%pos=0
+    allocate(error%f(1:mesh%nv))
+
+    !Test function - Scalars on hexagon centers (nodes)
+    u%pos=0
+    u%n=mesh%nv
+    u%name="func"
+    allocate(u%f(1:u%n))
+    do i=1, mesh%nv
+      !Function on node
+      p=mesh%v(i)%p
+      u%f(i)=f(p)
+    end do
+
+    !Calculate Numerical Laplacian
+    lap%pos=0
+    lap%n=mesh%nv
+    lap%name="lap_est"
+    allocate(lap%f(1:lap%n))
+    do i=1, mesh%nv
+      lap%f(i)=0._r8
+      ergrad%f(i)=0._r8
+      do j=1, mesh%v(i)%nnb
+        !Edge index
+        k=mesh%v(i)%ed(j)
+        !Hexagonal edge midpoint
+        p=mesh%edhx(k)%c%p
+        !ExactGrad=ExactGradVector*NormalVectorEdge*CorrectionOutHx
+        gradex=dot_product(df(p),mesh%edhx(k)%nr)*mesh%hx(i)%nr(j)
+        !Estimated Gradient Normal component
+        gradest=(u%f(mesh%v(i)%nb(j))-u%f(i))/mesh%ed(k)%leng
+        !arclen(p, mesh%v(i)%p) + &
+        !arclen(p, mesh%v(mesh%v(i)%nb(j))%p)
+
+        !Maximum gradient error for cell
+        ergrad%f(i)=max(abs(gradest-gradex), ergrad%f(i))
+        !Updade Laplacian
+        lap%f(i)=lap%f(i)+gradest*mesh%edhx(k)%leng
+      end do
+      lap%f(i)=lap%f(i)/mesh%hx(i)%areag
+      !Error in laplacian
+      error%f(i)=lap_ex%f(i)-lap%f(i)
+       !print"(i4, 3f16.8)", i, lap%f(i), lap_ex%f(i), error%f(i)
+    end do
+
+    !Sanity check
+    !call lap_u(mesh, u, lapu)
+    !print*, "Sanity check:", sum(lapu%f-lap%f)
+
+    !Global Errors
+    error2=error_norm_2(lap%f, lap_ex%f, error%n)
+    errormax=error_norm_max(lap%f, lap_ex%f, error%n)
+    print*, "Error Lap (max, L2): ", errormax, error2
+
+    !Global Errors for gradients
+    errorgrad2=dsqrt(dot_product(ergrad%f,ergrad%f)/ergrad%n)
+    errorgradsup=maxval(abs(ergrad%f(1:ergrad%n)))
+    print*, "Error GRAD (max, L2): ", errorgradsup, errorgrad2
+    print*
+
+    ! Save error estimates
+    !-------------------------------------------------------
+
+    !For hexagonal methods
+    filename=trim(datadir)//"lap_errors_"//trim(mesh%kind)// &
+      "_"//trim(mesh%pos)//"_"//trim(mesh%optm)//".txt"
+    call getunit(iunit)
+
+    inquire(file=filename, exist=ifile)
+    if(ifile)then
+      open(iunit,file=filename, status='old', position='append')
+    else
+      open(iunit,file=filename, status='replace')
+      write(iunit, '(a)') &
+        " n    distance testfunc errormax error2 errorgradsup errorgrad2 maxeddif"
+    end if
+
+    write(iunit, '(i8, f18.8, i8, 5f22.12)') mesh%nv, mesh%meanvdist*rad2deg, &
+      testfunc, errormax, error2, errorgradsup, errorgrad2, maxeddif
+
+    close(iunit)
+
+    ! Plot fields
+    !-------------------------
+    if(plots) then
+      print*, "Plotting variables ... "
+
+      lap_ex%name=trim(simulname)//"_exact"
+      call plot_scalarfield(lap_ex, mesh)
+
+      lap%name=trim(simulname)//"_est"
+      call plot_scalarfield(lap, mesh)
+
+      error%name=trim(simulname)//"_error"
+      call plot_scalarfield(error, mesh)
+
+      eddif%name=trim(simulname)//"_eddif"
+      call plot_scalarfield(eddif, mesh)
+
+      ergrad%name=trim(simulname)//"_ergrad"
+      call plot_scalarfield(ergrad, mesh)
+
+    end if
+
+    return
+
+  end subroutine laplacian_truncation
+
+  !======================================================================
+  !    POISSON TESTS
+  !======================================================================
+
+  !------------------------------------------------------------------------
+  !  poisson_error
+  !   solve equation -Lap(u)=g and calculate errors
+  !
+  !-----------------------------------------------------------------------
+  subroutine poisson_error(mesh)
+
+    !Mesh
+    type(grid_structure) :: mesh
+
+
+    !Scalar fields
+    type(scalar_field):: g
+    type(scalar_field):: u_exact
+    type(scalar_field):: u
+    type(scalar_field):: error
+    type(scalar_field):: ergrad
+    type(scalar_field):: eddif
+
+    !Counters
+    integer:: i
+    integer:: j
+    integer:: k
+
+    !Errors
+    logical:: ifile
+    integer:: iunit
+    real (r8)::  error2
+    real (r8):: errormax
+    real (r8):: errorgrad2
+    real (r8):: errorgradsup
+    real (r8):: maxeddif
+    character (len=256):: filename
+
+    !Aux
+    real(r8):: p(1:3)
+    real(r8):: gradex
+    real(r8):: gradest
+
+    print*
+    print*,"Poisson Error Analysis "
+    print*
+
+    !Define variable for equation -Lap(u)=g
+    !Scalars on hexagon centers (nodes) - Exact
+    u_exact%pos=0
+    u_exact%n=mesh%nv
+    u_exact%name="u_exact"
+    allocate(u_exact%f(1:u_exact%n))
+    !Test function - Scalars on hexagon centers (nodes)
+    ! Right hand side of equation - this is exact
+    g%pos=0
+    g%n=mesh%nv
+    g%name="g"
+    allocate(g%f(1:g%n))
+    do i=1, mesh%nv
+      !Laplacian on node
+      p=mesh%v(i)%p
+      !lap_ex%f(i)=lap_exact(p)
+
+      !Laplacian on barycenter
+      !p=mesh%hx(i)%b%p
+      !This is the laqplacian of functions defined in routine f(p)
+      g%f(i)=lap_exact(p)
+      !Since lap_extact was built from manufactured solution, the exact solution must be f(p)
+      u_exact%f(i)=f(p)
+      !print "(i8, 4f16.8)", i, lap_ex%f(i), p
+    end do
+
+    !Calculate Numerical Laplacian
+    u%pos=0
+    u%n=mesh%nv
+    u%name="u"
+    allocate(u%f(1:u%n))
+
+    !Solve poisson equation -Lap(u)=g
+    call sor(mesh, g, u)
+
+    !Poisson solution error
+    error%n=mesh%nv
+    error%name="u_err"
+    error%pos=0
+    allocate(error%f(1:mesh%nv))
+
+    !Calculate errors
+    error%f=u%f-u_exact%f
+
+    !Global Errors
+    error2=error_norm_2(u%f, u_exact%f, error%n)
+    errormax=error_norm_max(u%f, u_exact%f, error%n)
+    print*, "Error Poisson (max, L2): ", errormax, error2
+
+
+    ! Save error estimates
+    !-------------------------------------------------------
+
+    !For hexagonal methods
+    filename=trim(datadir)//"poisson_errors_"//trim(mesh%kind)// &
+      "_"//trim(mesh%pos)//"_"//trim(mesh%optm)//".txt"
+    call getunit(iunit)
+
+    inquire(file=filename, exist=ifile)
+    if(ifile)then
+      open(iunit,file=filename, status='old', position='append')
+    else
+      open(iunit,file=filename, status='replace')
+      write(iunit, '(a)') &
+        " n    distance  testfunc errormax error2"
+    end if
+
+    write(iunit, '(i8, f18.8, i8, 5f22.12)') mesh%nv, mesh%meanvdist*rad2deg, &
+      testfunc, errormax, error2
+
+    close(iunit)
+
+    ! Plot fields
+    !-------------------------
+    if(plots) then
+      print*, "Plotting variables ... "
+
+      u_exact%name=trim(simulname)//"_exact"
+      call plot_scalarfield(u_exact, mesh)
+
+      u%name=trim(simulname)//"_est"
+      call plot_scalarfield(u, mesh)
+
+      error%name=trim(simulname)//"_error"
+      call plot_scalarfield(error, mesh)
+
+    end if
+
+    return
+
+  end subroutine poisson_error
+
+  subroutine sor(mesh, f, u)
+    !------------------------------------------------------------
+    !SOR
+    ! Relaxation Scheme - Weighted Gauss-Seidel (SOR)
+    !
+    !  return: "u" that approximates the solution of
+    !         for equation -Lap(u)=f
+    !------------------------------------------------------------
+    type(grid_structure):: mesh  !Mesh
+    type(scalar_field):: u     !Approximate value of the function on each grid point
+    type(scalar_field):: f       !Independent term of equation
+
+    !Counters
+    integer:: k
+    integer:: i
+    integer:: j
+
+    real (r8):: ledhx     !Edge length
+    real (r8):: lchx       !Distance between two neighboring centers
+    real (r8):: lapoffdiag
+    real (r8):: lapdiag
+
+
+    !For each iteration
+    do k=1,numit
+
+      !For each grid point
+      do i=1,mesh%nv
+
+        lapoffdiag=0_r8
+        lapdiag=0_r8
+        ledhx=0_r8
+        Lchx=0_r8
+
+        !For each grid neighboring of i
+        do j=1,mesh%v(i)%nnb
+
+          !Edge length
+          ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
+
+          !Distance between two neighboring
+          lchx=mesh%ed(mesh%v(i)%ed(j))%leng
+
+          lapdiag=lapdiag+(ledhx/lchx)
+          lapoffdiag=lapoffdiag+(ledhx/lchx)*(u%f(mesh%v(i)%nb(j)))
+        enddo
+
+        lapoffdiag=lapoffdiag/mesh%hx(i)%areag
+        lapdiag=lapdiag/mesh%hx(i)%areag
+
+        !Solution of  - lap u = f
+        u%f(i)=(1-w)*u%f(i)+w*((lapoffdiag+f%f(i))/(lapdiag))
+
+        !para o problema -lap f+f =g
+        !fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
+
+      enddo
+
+    enddo
+
+    return
+  end subroutine sor
+
+
   !-----------------------------------------------------------------------------------------
   !    FUNCTIONS FOR TESTS
   !-----------------------------------------------------------------------------------------
@@ -538,7 +938,7 @@ contains
     !Converte para coordenadas esféricas
     call cart2sph (p(1), p(2), p(3), lon, lat)
 
-    !TESTE 1 
+    !TESTE 1
     !lap_ext= (((3*dsin(lon)+2*dcos(lon))*(1-dcos(lat)**2+dsin(lat)**2))/6._r8*dcos(lat)) &
     !- 4._r8*dsin(lat)/3._r8
 
@@ -580,7 +980,7 @@ contains
     !TESTE 6
     !lap_ext=(-9*dsin(3*lon)*((dcos(3*lat))**4)/dcos(lat)**2) &
     ! -6*dsin(3*lon)*(dcos(lat))**2*(1-2*dcos(2*lat))**2*(2*dcos(2*lat) &
-    !-2*dcos(4*lat)+13*dcos(6*lat)-7)   
+    !-2*dcos(4*lat)+13*dcos(6*lat)-7)
 
 
     !TESTE 7
@@ -594,412 +994,6 @@ contains
   end function lap_ext
 
 
-
-
-  !======================================================================
-  !    LAPLACIAN TESTS
-  !======================================================================
-  subroutine laplacian_truncation(mesh)
-
-    !Mesh
-    type(grid_structure) :: mesh
-
-
-    !Scalar fields
-    type(scalar_field):: func
-    type(scalar_field):: lap_ex
-    type(scalar_field):: lap
-    type(scalar_field):: error
-    type(scalar_field):: ergrad
-    type(scalar_field):: eddif
-
-    !Counters
-    integer:: i
-    integer:: j
-    integer:: k
-
-    !Errors
-    logical:: ifile
-    integer:: iunit
-    real (r8)::  error2
-    real (r8):: errormax
-    real (r8):: errorgrad2
-    real (r8):: errorgradsup
-    real (r8):: maxeddif
-    character (len=256):: filename
-
-    !Aux
-    real(r8):: p(1:3)
-    real(r8):: gradex
-    real(r8):: gradest
-
-    print*
-    print*,"Laplacian Truncation Analysis "
-    print*
-
-
-    !Scalars on hexagon centers (nodes) - Exact
-    lap_ex%pos=0
-    lap_ex%n=mesh%nv
-    lap_ex%name="lap_ex"
-    allocate(lap_ex%f(1:lap_ex%n))
-    do i=1, mesh%nv
-      !Laplacian on node
-      p=mesh%v(i)%p
-      !lap_ex%f(i)=lap_exact(p)
-
-      !Laplacian on barycenter
-      !p=mesh%hx(i)%b%p
-      lap_ex%f(i)=lap_exact(p)
-       !print "(i8, 4f16.8)", i, lap_ex%f(i), p
-    end do
-
-    !Edge displacement
-    eddif%n=mesh%nv
-    eddif%name="edgedif"
-    eddif%pos=0
-    allocate(eddif%f(1:mesh%nv))
-    do i=1, mesh%nv
-      eddif%f(i)=0._r8
-      do j=1,mesh%v(i)%nnb
-        k=mesh%v(i)%ed(j)
-        eddif%f(i)=max(eddif%f(i), (arclen(mesh%ed(k)%c%p, mesh%edhx(k)%c%p)/ &
-          mesh%edhx(k)%leng))
-      end do
-       !eddif%f(i)=eddif%f(i)/mesh%v(i)%nnb
-    end do
-
-    !Edge intersection maximum difference
-    maxeddif=maxval(abs(eddif%f(1:eddif%n)))
-
-    !Gradient error
-    ergrad%n=mesh%nv
-    ergrad%name="ergrad"
-    ergrad%pos=0
-    allocate(ergrad%f(1:mesh%nv))
-    do i=1, mesh%nv
-      ergrad%f(i)=0._r8
-    end do
-
-    !Laplacian error
-    error%n=mesh%nv
-    error%name="erlap"
-    error%pos=0
-    allocate(error%f(1:mesh%nv))
-
-    !Test function - Scalars on hexagon centers (nodes)
-    func%pos=0
-    func%n=mesh%nv
-    func%name="func"
-    allocate(func%f(1:func%n))
-    do i=1, mesh%nv
-      !Function on node
-      p=mesh%v(i)%p
-      func%f(i)=f(p)
-    end do
-
-    !Calculate Numerical Laplacian
-    lap%pos=0
-    lap%n=mesh%nv
-    lap%name="lap_est"
-    allocate(lap%f(1:lap%n))
-    do i=1, mesh%nv
-      lap%f(i)=0._r8
-      ergrad%f(i)=0._r8
-      do j=1, mesh%v(i)%nnb
-        !Edge index
-        k=mesh%v(i)%ed(j)
-        !Hexagonal edge midpoint
-        p=mesh%edhx(k)%c%p
-        !ExactGrad=ExactGradVector*NormalVectorEdge*CorrectionOutHx
-        gradex=dot_product(df(p),mesh%edhx(k)%nr)*mesh%hx(i)%nr(j)
-        !Estimated Gradient Normal component
-        gradest=(func%f(mesh%v(i)%nb(j))-func%f(i))/mesh%ed(k)%leng
-        !arclen(p, mesh%v(i)%p) + &
-        !arclen(p, mesh%v(mesh%v(i)%nb(j))%p)
-
-        !Maximum gradient error for cell
-        ergrad%f(i)=max(abs(gradest-gradex), ergrad%f(i))
-        !Updade Laplacian
-        lap%f(i)=lap%f(i)+gradest*mesh%edhx(k)%leng
-      end do
-      lap%f(i)=lap%f(i)/mesh%hx(i)%areag
-      !Error in laplacian
-      error%f(i)=lap_ex%f(i)-lap%f(i)
-       !print"(i4, 3f16.8)", i, lap%f(i), lap_ex%f(i), error%f(i)
-    end do
-
-    !Global Errors
-
-    error2=error_norm_2(lap%f, lap_ex%f, error%n)
-    errormax=error_norm_max(lap%f, lap_ex%f, error%n)
-    print*, "Error Lap (max, L2): ", errormax, error2
-
-    !Global Errors for gradients
-    errorgrad2=dsqrt(dot_product(ergrad%f,ergrad%f)/ergrad%n)
-    errorgradsup=maxval(abs(ergrad%f(1:ergrad%n)))
-    print*, "Error GRAD (max, L2): ", errorgradsup, errorgrad2
-    print*
-
-    ! Save error estimates
-    !-------------------------------------------------------
-
-    !For hexagonal methods
-    filename=trim(datadir)//"lap_errors_"//trim(mesh%kind)// &
-      "_"//trim(mesh%pos)//"_"//trim(mesh%optm)//".txt"
-    call getunit(iunit)
-
-    inquire(file=filename, exist=ifile)
-    if(ifile)then
-      open(iunit,file=filename, status='old', position='append')
-    else
-      open(iunit,file=filename, status='replace')
-      write(iunit, '(a)') &
-        " n    distance testfunc errormax error2 errorgradsup errorgrad2 maxeddif"
-    end if
-
-    write(iunit, '(i8, f18.8, i8, 5f22.12)') mesh%nv, mesh%meanvdist*rad2deg, &
-      testfunc, errormax, error2, errorgradsup, errorgrad2, maxeddif
-
-    close(iunit)
-
-    ! Plot fields
-    !-------------------------
-    if(plots) then
-      print*, "Plotting variables ... "
-
-      lap_ex%name=trim(simulname)//"_exact"
-      call plot_scalarfield(lap_ex, mesh)
-
-      lap%name=trim(simulname)//"_est"
-      call plot_scalarfield(lap, mesh)
-
-      error%name=trim(simulname)//"_error"
-      call plot_scalarfield(error, mesh)
-
-      eddif%name=trim(simulname)//"_eddif"
-      call plot_scalarfield(eddif, mesh)
-
-      ergrad%name=trim(simulname)//"_ergrad"
-      call plot_scalarfield(ergrad, mesh)
-
-    end if
-
-    return
-
-  end subroutine laplacian_truncation
-
-  !======================================================================
-  !    POISSON TESTS
-  !======================================================================
-  subroutine poisson_error(mesh)
-
-    !Mesh
-    type(grid_structure) :: mesh
-
-
-    !Scalar fields
-    type(scalar_field):: func
-    type(scalar_field):: lap_ex
-    type(scalar_field):: lap
-    type(scalar_field):: error
-    type(scalar_field):: ergrad
-    type(scalar_field):: eddif
-
-    !Counters
-    integer:: i
-    integer:: j
-    integer:: k
-
-    !Errors
-    logical:: ifile
-    integer:: iunit
-    real (r8)::  error2
-    real (r8):: errormax
-    real (r8):: errorgrad2
-    real (r8):: errorgradsup
-    real (r8):: maxeddif
-    character (len=256):: filename
-
-    !Aux
-    real(r8):: p(1:3)
-    real(r8):: gradex
-    real(r8):: gradest
-
-    print*
-    print*,"Poisson Error Analysis "
-    print*
-
-
-    !Scalars on hexagon centers (nodes) - Exact
-    lap_ex%pos=0
-    lap_ex%n=mesh%nv
-    lap_ex%name="lap_ex"
-    allocate(lap_ex%f(1:lap_ex%n))
-    do i=1, mesh%nv
-      !Laplacian on node
-      p=mesh%v(i)%p
-      !lap_ex%f(i)=lap_exact(p)
-
-      !Laplacian on barycenter
-      !p=mesh%hx(i)%b%p
-      lap_ex%f(i)=lap_exact(p)
-       !print "(i8, 4f16.8)", i, lap_ex%f(i), p
-    end do
-
-    !Poisson solution error
-    error%n=mesh%nv
-    error%name="erpois"
-    error%pos=0
-    allocate(error%f(1:mesh%nv))
-
-    !Test function - Scalars on hexagon centers (nodes)
-    func%pos=0
-    func%n=mesh%nv
-    func%name="func"
-    allocate(func%f(1:func%n))
-    do i=1, mesh%nv
-      !Function on node
-      p=mesh%v(i)%p
-      func%f(i)=f(p)
-    end do
-
-    !Calculate Numerical Laplacian
-    lap%pos=0
-    lap%n=mesh%nv
-    lap%name="lap_est"
-    allocate(lap%f(1:lap%n))
-    do i=1, mesh%nv
-      lap%f(i)=0._r8
-      do j=1, mesh%v(i)%nnb
-        !Edge index
-        k=mesh%v(i)%ed(j)
-        !Hexagonal edge midpoint
-        p=mesh%edhx(k)%c%p
-
-
-        !arclen(p, mesh%v(i)%p) + &
-        !arclen(p, mesh%v(mesh%v(i)%nb(j))%p)
-
-        !Updade Laplacian
-        !lap%f(i)=lap%f(i)+gradest*mesh%edhx(k)%leng
-      end do
-      lap%f(i)=lap%f(i)/mesh%hx(i)%areag
-      !Error in laplacian
-      error%f(i)=lap_ex%f(i)-lap%f(i)
-       !print"(i4, 3f16.8)", i, lap%f(i), lap_ex%f(i), error%f(i)
-    end do
-
-    !Global Errors
-    error2=error_norm_2(lap%f, lap_ex%f, error%n)
-    errormax=error_norm_max(lap%f, lap_ex%f, error%n)
-    print*, "Error Lap (max, L2): ", errormax, error2
-
-
-    ! Save error estimates
-    !-------------------------------------------------------
-
-    !For hexagonal methods
-    filename=trim(datadir)//"lap_errors_"//trim(mesh%kind)// &
-      "_"//trim(mesh%pos)//"_"//trim(mesh%optm)//".txt"
-    call getunit(iunit)
-
-    inquire(file=filename, exist=ifile)
-    if(ifile)then
-      open(iunit,file=filename, status='old', position='append')
-    else
-      open(iunit,file=filename, status='replace')
-      write(iunit, '(a)') &
-        " n    distance  testfunc errormax error2"
-    end if
-
-    write(iunit, '(i8, f18.8, i8, 5f22.12)') mesh%nv, mesh%meanvdist*rad2deg, &
-      testfunc, errormax, error2
-
-    close(iunit)
-
-    ! Plot fields
-    !-------------------------
-    if(plots) then
-      print*, "Plotting variables ... "
-
-      lap_ex%name=trim(simulname)//"_exact"
-      call plot_scalarfield(lap_ex, mesh)
-
-      lap%name=trim(simulname)//"_est"
-      call plot_scalarfield(lap, mesh)
-
-      error%name=trim(simulname)//"_error"
-      call plot_scalarfield(error, mesh)
-
-    end if
-
-    return
-
-  end subroutine poisson_error
-
-  subroutine sor(mesh, g, fap)
-    !------------------------------------------------------------
-    !RELAXAC_MULT_CELL
-    ! Relaxation Scheme - Weighted Gauss-Seidel
-    !
-    !  return: "fap" that approximates u solution of
-    !         for equation -Lap(u)=g
-    !------------------------------------------------------------
-    type(grid_structure)::mesh  !Mesh
-    type(scalar_field)::fap     !Approximate value of the function on each grid point
-    type(scalar_field)::g       !Independent term of equation
-
-    !Counters
-    integer::k
-    integer::i
-    integer::j
-
-    real (r8)::ledhx     !Edge length
-    real (r8)::lchx       !Distance between two neighboring centers
-    real (r8)::laptmp
-    real (r8)::laptmp1
-
-
-    !For each iteration
-    do k=1,numit
-
-      !For each grid point
-      do i=1,mesh%nv
-
-        laptmp=0_r8
-        laptmp1=0_r8
-        ledhx=0_r8
-        Lchx=0_r8
-
-        !For each grid neighboring of i
-        do j=1,mesh%v(i)%nnb
-
-          !Edge length
-          ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
-
-          !Distance between two neighboring
-          lchx=mesh%ed(mesh%v(i)%ed(j))%leng
-
-          laptmp1=laptmp1+(ledhx/Lchx)
-          laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j)))
-        enddo
-
-        laptmp=laptmp/mesh%hx(i)%areag
-        laptmp1=laptmp1/mesh%hx(i)%areag
-
-        !para o problema lap f =g
-        !fap%f(i)=(1-w)*fap%f(i)+w*((laptmp-g%f(i))/(laptmp1))
-
-        !para o problema -lap f+f =g
-        fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
-
-      enddo
-
-    enddo
-
-    return
-  end subroutine sor
 
 
   subroutine relaxac(mesh)
@@ -1109,6 +1103,55 @@ contains
   !==========================================================================
   ! Subroutines for relaxation, interpolation and transfer residue
   !==========================================================================
+
+  subroutine lap_u(mesh, u, lapu)
+    !------------------------------------------------------------
+    !LAP_U
+    !calculation of the Laplacian each point of mesh.
+    !------------------------------------------------------------
+    !mesh
+    type(grid_structure), intent(in)::mesh
+    !value function
+    type(scalar_field), intent(in):: u
+    !Approximate value of the laplacian on each grid point
+    type(scalar_field), intent(out)::lapu
+
+    !counter
+    integer::i
+    integer::j
+    integer::k
+
+    !number points of mesh
+    integer::n
+
+    real(r8):: p(1:3)
+    real (r8):: ledhx    !Edge length
+    real (r8):: lchx      !Distance between two neighboring
+    real (r8):: laptmp
+    real (r8):: gradest
+
+    allocate(lapu%f(1:u%n))
+    lapu=u
+
+    !Calculate Numerical Laplacian
+    do i=1, mesh%nv
+      lapu%f(i)=0._r8
+      do j=1, mesh%v(i)%nnb
+        !Edge index
+        k=mesh%v(i)%ed(j)
+        !Hexagonal edge midpoint
+        p=mesh%edhx(k)%c%p
+        !Estimated Gradient Normal component
+        gradest=(u%f(mesh%v(i)%nb(j))-u%f(i))/mesh%ed(k)%leng
+        !Updade Laplacian
+        lapu%f(i)=lapu%f(i)+gradest*mesh%edhx(k)%leng
+      end do
+      lapu%f(i)=lapu%f(i)/mesh%hx(i)%areag
+    end do
+
+    return
+  end subroutine lap_u
+
 
   subroutine lap_cell(mesh,lapc,fap)
     !------------------------------------------------------------
