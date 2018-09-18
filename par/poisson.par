@@ -1,5 +1,5 @@
 !Experiment parameters
-!Test to be done (1-truncation, 2- convergence, 3-gradient, 4-EV analysis) 
+!Test to be done (1-truncation, 2- convergence, 3-EV analysis) 
 2
 !Scalar/vector field used
 4

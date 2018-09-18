@@ -6932,7 +6932,8 @@ contains
     print*,"  Numerical Analysis on a Geodesical Icosahedral Sphere    "
     print*,"                                                           "
     print*
-    print*,"  Pedro Peixoto - Jul 2012                                 "
+    print*,"  Pedro Peixoto and collaborators                          "
+    print*,"    Oct  2018                                              "
     print*,"-----------------------------------------------------------"
     print*
   end subroutine printheader
