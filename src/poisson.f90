@@ -513,6 +513,10 @@ contains
     !Solve poisson equation -Lap(u)=g
     call sor(mesh, g, u)
 
+    !This solution does not necessarily has the correct average
+    ! adjust to compare to analytic solution
+    u%f=u%f+sum(u_exact%f)/mesh%nv
+
     !Poisson solution error
     error%n=mesh%nv
     error%name="u_err"
@@ -592,8 +596,9 @@ contains
     real (r8):: lchx       !Distance between two neighboring centers
     real (r8):: lapoffdiag
     real (r8):: lapdiag
-    real (r8):: res
+    real (r8):: res, res_old
 
+    res_old=0.0
     u%f=0.0
     !For each iteration
     do k=1,numit
@@ -631,8 +636,15 @@ contains
       enddo
       call lap_u(mesh, u, lapu)
       res=maxval(abs(g%f+lapu%f))
-      print*, "iter:", k, "residue: ", res
+      if ( mod(k, int(mesh%nv/10)) == 0 ) print*, "iter:", k, "residue: ", res
+      if ( res < tol .or. abs(res_old-res)<tol ) then
+        print*, "Tolerance achieved"
+        print*, "Iterations: ", k, " Residue: ", res
+        exit
+      end if
+      res_old=res
     enddo
+    print*, "Stopped due to max number of iterations"
 
     return
   end subroutine sor
