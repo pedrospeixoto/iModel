@@ -141,7 +141,7 @@ module datastruct
      integer (i4), dimension(1:2) :: v
 
      !Triangles/hexagons sharing this edge 
-     ! In the case of trinagles, only their index is stored
+     ! In the case of triangles, only their index is stored
      ! In the case of hexagons, vertice indexes are stored
      integer (i4), dimension(1:2) :: sh
 
@@ -151,6 +151,13 @@ module datastruct
 
      !Geodesical length considering the unit sphere
      real (r8) :: leng
+
+     !Area of edge volume by tiles -- not automatic loaded!!
+     ! d_e - geodesic length of voronoi edge e
+     ! l_e - geodesic length of triangle edge e
+     ! A_t= d_e*l_e
+     ! NOT saved with mesh
+     real (r8) :: areat
 
   end type edge_structure
 
@@ -178,6 +185,13 @@ module datastruct
 
      !Area of geodesical triangle of unit sphere
      real (r8) :: areag
+
+     !Area by tiles
+     ! d_e - geodesic distance from circuncenter to tr edge midpoint
+     ! l_e - geodesic length of edge e
+     ! A_t= sum_edges d_e*l_e/2
+     ! NOT saved with mesh
+     real (r8) :: areat
 
      !Generating vertices (index only)
      !  Counter clockwise ordering
@@ -262,6 +276,13 @@ module datastruct
 
      !Area of geodesical polygon
      real (r8) :: areag
+
+     !Area by tiles
+     ! d_e - geodesic length of voronoi edge e
+     ! l_e - geodesic length of triangle edge e
+     ! A_t= sum_edges d_e*l_e/4
+     ! NOT saved with mesh
+     real (r8) :: areat
 
      !Alignment index
      real (r8) :: align

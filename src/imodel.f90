@@ -26,6 +26,7 @@ program imodel
        laplacian_test, &
        rotational_test, &
        meshquality, &
+       meshquality_tiledareas, &
        test_geo2reg, &
        scalar_interpolation_test, &
        test_trsearch, &
@@ -89,6 +90,7 @@ program imodel
      call test_trsearch(mesh)
   case(3) !Mesh distortion tests
      call meshquality(mesh)
+     call meshquality_tiledareas(mesh)
   case(4) !Divergence Tests
      call divergence_test(mesh)
   case(5) !Divergence Tests

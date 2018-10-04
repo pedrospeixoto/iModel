@@ -4983,6 +4983,50 @@ contains
     return
   end subroutine trhx_intersec_areas
 
+
+  subroutine calc_tiled_areas(mesh)
+    !-------------------------------------------------
+    !  SPHHXAREA
+    ! Calculates the area of
+    !    a spherical voronoi/hexagonal/pentagonal cell
+    !    on the unit sphere
+    !-------------------------------------------------
+    type(grid_structure), intent(inout) :: mesh
+
+    real (r8):: d
+
+    integer(i4):: i, j, ed
+    integer(i4):: nb
+
+    !for all edges calculate tiled edge volume area
+    do i=1,mesh%ne
+      mesh%ed(i)%areat=mesh%ed(i)%leng*mesh%edhx(i)%leng
+      mesh%edhx(i)%areat=mesh%ed(i)%areat
+    end do
+
+    !for all triangle calculate tiled triangle area
+    do i=1,mesh%nt
+      mesh%tr(i)%areat=0.0
+      do j=1,3
+        ed=mesh%tr(i)%ed(j)
+        d=arclen(mesh%tr(i)%c%p, mesh%ed(ed)%c%p)
+        mesh%tr(i)%areat=mesh%tr(i)%areat + d*mesh%ed(ed)%leng/2.0
+      end do
+    end do
+
+    !for all hx/voronoi cells calculate tiled area
+    do i=1,mesh%nv
+      mesh%hx(i)%areat=0.0
+      do j=1,mesh%v(i)%nnb
+        ed=mesh%v(i)%ed(j)
+        mesh%hx(i)%areat=mesh%hx(i)%areat + mesh%ed(ed)%areat/4.0
+      end do
+    end do
+
+    return
+  end subroutine calc_tiled_areas
+
+
   function bar_coord_tr(p, tr, mesh)
     !----------------------------------------------------------
     !	BARYCENTRIC COORDINATES for a Triangle in mesh

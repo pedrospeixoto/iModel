@@ -38,6 +38,7 @@ module simulpack
        arcdistll, &
        arcintersec, &
        arclen, &
+       calc_tiled_areas, &
        cart2sph, &
        choleskydecomp, &
        choleskysolve, &
@@ -817,6 +818,127 @@ contains
     return
 
   end subroutine meshquality
+
+ subroutine meshquality_tiledareas(mesh)
+    !------------------------------------------------
+    ! Mesh distorition testing routine
+    !------------------------------------------------
+    !Mesh
+    type(grid_structure) :: mesh
+
+    !Mesh properties variables
+    ! tr=triangle
+    ! hx=Voronoi cell (hexagons, pentagons)
+    ! ed=edge
+    type(scalar_field):: areatr
+    type(scalar_field):: areahx
+
+
+    !Counters
+    integer (i4):: i
+    integer (i4):: j
+
+    !Errors
+    logical:: ifile
+    integer:: iunit
+    integer:: izero
+    character (len=256):: filename
+
+    !Min, max, mean of arrays
+    real(r8):: min_trarea
+    real(r8):: max_trarea
+    real(r8):: mean_trarea
+    real(r8):: min_hxarea
+    real(r8):: max_hxarea
+    real(r8):: mean_hxarea
+
+    print*
+    print*,"Mesh tiled area testing "
+    print*
+
+    !-------------------------------------------
+    !  Read parameters from file "simul.par"
+    !------------------------------------------
+
+    call getsimulpars(mesh)
+    call calc_tiled_areas(mesh)
+
+    ! AREAS
+    !----------------------
+
+    !Store triangle areas in plotable variable
+    areatr%n=mesh%nt
+    areatr%pos=1
+    allocate(areatr%f(1:areatr%n))
+    min_trarea=100000000.0
+    max_trarea=0.0
+    mean_trarea=0.0
+    do i=1,mesh%nt
+       areatr%f(i)=mesh%tr(i)%areat !/mesh%maxtrarea
+       min_trarea=min(min_trarea, areatr%f(i))
+       max_trarea=max(max_trarea, areatr%f(i))
+       mean_trarea=mean_trarea+areatr%f(i)
+    end do
+    mean_trarea=mean_trarea/mesh%nt
+
+    !Store hexagon areas in plotable variable
+    areahx%n=mesh%nv
+    areahx%pos=0
+    allocate(areahx%f(1:areahx%n))
+    min_hxarea=100000000.0
+    max_hxarea=0.0
+    mean_hxarea=0.0
+    do i=1,mesh%nv
+       areahx%f(i)=mesh%hx(i)%areat !/mesh%maxhxarea
+       min_hxarea=min(min_hxarea, areahx%f(i))
+       max_hxarea=max(max_hxarea, areahx%f(i))
+       mean_hxarea=mean_hxarea+areahx%f(i)
+       !print*, i, areahx%f(i)
+    end do
+    mean_hxarea=mean_hxarea/mesh%nv
+
+    ! Save indexes
+    !-------------------------------------------------------
+
+    !Mesh Caracteristics for tiled areas mesh
+    filename=trim(datadir)//trim(simulname)//"_indexes_tiledare.txt"
+    call getunit(iunit)
+
+    inquire(file=filename, exist=ifile)
+    if(ifile)then
+       open(iunit,file=filename, status='old', position='append')
+    else
+       open(iunit,file=filename, status='replace')
+       write(iunit, '(a)') &
+            "      nv                    name                 "//&
+            "      minarea_tr         maxarea_tr  meanarea_tr "//&
+            "      minarea_hx         maxarea_hx  meanarea_hx "
+    end if
+
+    write(iunit, '(i8, a36, 18f16.12, i8, 3f20.12)') mesh%nv,  trim(mesh%name), &
+         min_trarea, max_trarea, mean_trarea, &
+         min_hxarea, max_hxarea, mean_hxarea
+
+    close(iunit)
+    print*, "Results in : ", trim(filename)
+
+    ! Plot fields
+    !-------------------------
+    !plots=.true.
+    if(plots) then
+       print*, "Plotting variables ... "
+
+       areahx%name=trim(simulname)//"_tareahx"
+       call plot_scalarfield(areahx, mesh)
+
+       areatr%name=trim(simulname)//"_tareatr"
+       call plot_scalarfield(areatr, mesh)
+
+    end if
+
+    return
+
+  end subroutine meshquality_tiledareas
 
 
   !======================================================================
