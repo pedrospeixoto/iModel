@@ -901,7 +901,7 @@ contains
     !-------------------------------------------------------
 
     !Mesh Caracteristics for tiled areas mesh
-    filename=trim(datadir)//trim(simulname)//"_indexes_tiledare.txt"
+    filename=trim(datadir)//trim(simulname)//"_indexes_tiled_areas.txt"
     call getunit(iunit)
 
     inquire(file=filename, exist=ifile)

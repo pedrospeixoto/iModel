@@ -15,8 +15,10 @@ trsk
 trsk
 !Gradient discrete method
 trsk
-!Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors
-4 1 100
+!Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
+tile
+!Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
+0 1 1
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32, 33, 34

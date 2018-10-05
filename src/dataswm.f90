@@ -111,11 +111,20 @@ module dataswm
   logical :: useGradmtdTrisk !Simple diference
   logical :: useGradmtdBary  !Linear barycentric gradient
 
+  !Areas to be used
+  ! geo - geodesic areas (areag)
+  ! tile - tiled areas  (areat)
+  ! plan  - plannar areas (areap)
+  character (len=6)::  areamtd
+  logical :: useGeoAreas
+  logical :: useTiledAreas
+  logical :: usePlannarAreas
+
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
   logical:: plots   !Logical for plots or not
   integer (i4):: nplots !Number of time to plot
-  integer (i4):: nprints !Number of time to plot
+  integer (i4):: nprints !Number of time to print
   integer (i4):: iploterrors !Logical for plots of errors 0 or 1!
   logical:: ploterrors   !Logical for plots of errors
 
@@ -349,6 +358,8 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  gradmtd
     read(fileunit,*)  buffer
+    read(fileunit,*)  areamtd
+    read(fileunit,*)  buffer
     read(fileunit,*)  nplots, nprints, iploterrors
     read(fileunit,*)  buffer
     read(fileunit,*)  difus
@@ -424,6 +435,15 @@ contains
     if((.not.useGradmtdTrisk).and.(.not.useGradmtdBary))then
        print*, "Unknown gradient discretization method", gradmtd
        stop
+    end if
+
+    !Check areamtd
+    useGeoAreas=trim(areamtd(1:3))=="geo"
+    useTiledAreas=trim(areamtd(1:4))=="tile"
+    usePlannarAreas=.false. !trim(areamtd(1:4))=="plan" !not implmented
+    if((.not.useGeoAreas).and.(.not.useTiledAreas).and.(.not.usePlannarAreas))then
+       print*, "Area not well specified, using geodesic areas", areamtd
+       useGeoAreas=.true.
     end if
 
     !Pontential Vorticity correction
@@ -509,12 +529,13 @@ contains
     print*, "Vector recon method     : ", reconmtd
     print*, "Coriolis recon method   : ", coriolis_reconmtd
     print*, "Gradient method         : ", gradmtd
+    print*, "Area method             : ", areamtd
     print*, "Hollingsworth parameter : ", hollgw
     print*, "PV stabilization mtd    : ", pv_stab
     if(noPV)then
-        print*, "Using level model (no PV)  : ", noPV
+        print*, "Using level model (no PV)  : "
     else
-        print*, "Using layer model (with PV)  : ", noPV
+        print*, "Using layer model (with PV)  : "
     end if
     print*
     swmname=trim(swmname)//"_"//trim(adjustl(trim(stag)))
@@ -527,6 +548,7 @@ contains
     swmname=trim(swmname)//"_crec"//trim(adjustl(trim(coriolis_reconmtd)))
     swmname=trim(swmname)//"_sint"//trim(adjustl(trim(sinterpol)))
     swmname=trim(swmname)//"_grd"//trim(adjustl(trim(gradmtd)))
+    swmname=trim(swmname)//"_area"//trim(adjustl(trim(areamtd)))
     if((.not.useOrigPV))then
        write(atmp,'(f5.2)') real(pvspar)
        swmname=trim(swmname)//"_pvs"//trim(adjustl(trim(pv_stab)))

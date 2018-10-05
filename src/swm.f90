@@ -6,7 +6,7 @@ module swm
   !  on the sphere using Voronoi grids
   !
   ! Pedro da Silva Peixoto (pedrosp@ime.usp.br)
-  ! Sept 2015
+  ! Oct 2018
   !
   !=============================================================================
 
@@ -30,6 +30,7 @@ module swm
        arcdistll, &
        arclen, &
        bar_coord_tr, &
+       calc_tiled_areas, &
        convert_vec_sph2cart, &
        cross_product, &
        error_norm_2, &
@@ -84,11 +85,11 @@ contains
     !  Main test routine tests routine
     !-----------------------------------------
     !Grid structure (incomming)
-    type(grid_structure), intent(in) :: meshtmp
+    type(grid_structure) :: meshtmp
 
     !Right hand side of mass equation (number of cell equations)
     !real(r8)::masseq(1:meshtmp%nv)
-	!real(r8)::masseq(1:meshtmp%nv)
+    !real(r8)::masseq(1:meshtmp%nv)
 
     !Right hand side of momentum equation (number of edge equations)
     !real(r8)::momeq(1:meshtmp%ne)
@@ -119,9 +120,9 @@ contains
     real(r8)::time
 
     !logical :: nonlin_pert=.true.
-	real(r8):: nonlin_alpha=1.0
-	real(r8):: u00=1.0
-	real(r8), dimension(:), allocatable:: h_force, u_force
+    real(r8):: nonlin_alpha=1.0
+    real(r8):: u00=1.0
+    real(r8), dimension(:), allocatable:: h_force, u_force
 
     !Check for blow ups
     integer(i4)::blowup=0
@@ -186,37 +187,37 @@ contains
        !h%f(1:h%n) = h_old%f(1:h%n) + dt * masseq(1:h%n)
        call ode_rk4 (time, h_old, u_old, h, u, dt)
 
-	   !Linear analysis for Hollingsworth problem
-	   if(testcase==34 .or. testcase==35)then
-		!Set forcing
-		if(k==1)then
-			u_force=u_exact%f-u%f
-			h_force=h_exact%f-h%f
+       !Linear analysis for Hollingsworth problem
+       if(testcase==34 .or. testcase==35)then
+          !Set forcing
+          if(k==1)then
+             u_force=u_exact%f-u%f
+             h_force=h_exact%f-h%f
 
-			!Add perturbation to h
-			i=18
-			h%f(i)=h%f(i)+h%f(i)/100.0
-			h%f(mesh%v(i)%nb(1))=h%f(mesh%v(i)%nb(1))+h%f(mesh%v(i)%nb(1))/1000.0
-			h%f(mesh%v(i)%nb(2))=h%f(mesh%v(i)%nb(2))+h%f(mesh%v(i)%nb(2))/1000.0
-			h%f(mesh%v(i)%nb(3))=h%f(mesh%v(i)%nb(3))+h%f(mesh%v(i)%nb(3))/1000.0
-			!call plotfields(0, 1.0_r8)
-			!print*, mesh%v(i)%lat
-		end if
-		u%f=u%f+u_force
-		h%f=h%f+h_force
+             !Add perturbation to h
+             i=18
+             h%f(i)=h%f(i)+h%f(i)/100.0
+             h%f(mesh%v(i)%nb(1))=h%f(mesh%v(i)%nb(1))+h%f(mesh%v(i)%nb(1))/1000.0
+             h%f(mesh%v(i)%nb(2))=h%f(mesh%v(i)%nb(2))+h%f(mesh%v(i)%nb(2))/1000.0
+             h%f(mesh%v(i)%nb(3))=h%f(mesh%v(i)%nb(3))+h%f(mesh%v(i)%nb(3))/1000.0
+             !call plotfields(0, 1.0_r8)
+             !print*, mesh%v(i)%lat
+          end if
+          u%f=u%f+u_force
+          h%f=h%f+h_force
 
-		call error_calc(h, h_exact, h_error, errormaxrel_h, error2_h, errormax_h)
-		call error_calc(u, u_exact, u_error, errormaxrel_u, error2_u, errormax_u)
+          call error_calc(h, h_exact, h_error, errormaxrel_h, error2_h, errormax_h)
+          call error_calc(u, u_exact, u_error, errormaxrel_u, error2_u, errormax_u)
 
-		!alpha*max|u_pert|=u00
-		!alpha exp(lambda t) ==> how does alpha behave? alpha=nonlin_alpha
-		!nonlin_alpha=0.0001/errormax_u
-        nonlin_alpha=0.000001/error2_u
+          !alpha*max|u_pert|=u00
+          !alpha exp(lambda t) ==> how does alpha behave? alpha=nonlin_alpha
+          !nonlin_alpha=0.0001/errormax_u
+          nonlin_alpha=0.000001/error2_u
 
-		!Rebuild the total h and u with
-		h%f=h_exact%f+nonlin_alpha*(h%f-h_exact%f)
-		u%f=u_exact%f+nonlin_alpha*(u%f-u_exact%f)
-	   end if
+          !Rebuild the total h and u with
+          h%f=h_exact%f+nonlin_alpha*(h%f-h_exact%f)
+          u%f=u_exact%f+nonlin_alpha*(u%f-u_exact%f)
+       end if
 
        if(RefSolRead)then
           call read_refdata_endgame(time)
@@ -226,6 +227,7 @@ contains
        else
           useRefSol=.false.
        end if
+
        !print*, time, useRefSol
        if( useRefSol  )then
           !Calculate total mass
@@ -241,7 +243,7 @@ contains
           RMSdiv=dsqrt(sumfsq_areas(divu))
           maxdiv=maxval(abs(divu%f))
           max_gradke=0.0_r8
-    	  do l=1, mesh%ne
+    	    do l=1, mesh%ne
           !print*, l
           !Calculate gradient of Ke on edges
              if(useStagHC)then
@@ -280,6 +282,7 @@ contains
                   (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, nonlin_alpha)
           end if
 
+        !No reference or analytic solution
        elseif( k<=2 .or. k==ntime  .or. mod(k,nprints)==0 )then
           !Calculate total mass
           Tmass=sumf_areas(h)
@@ -441,12 +444,12 @@ contains
     ! Kinectic Energy calculation on Triangles
     !---------------------------------------------------
     if(useReconmtdGass)then
-      call error_calc(Kin_energy_tr, Kin_energy_tr_exact, Kin_energy_tr_error, errormaxrel, error2rel, errormax)
-      print '(a16, i12,  3e18.8)', " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax
-      write(errorsunit,trim(fmt)) " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax, &
-         trim(swmname)//" "//trim(mesh%name)
-         !print*, Kin_energy_tr%f(1:10)
-         !print*, Kin_energy_tr_exact%f(1:10)
+       call error_calc(Kin_energy_tr, Kin_energy_tr_exact, Kin_energy_tr_error, errormaxrel, error2rel, errormax)
+       print '(a16, i12,  3e18.8)', " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax
+       write(errorsunit,trim(fmt)) " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax, &
+            trim(swmname)//" "//trim(mesh%name)
+       !print*, Kin_energy_tr%f(1:10)
+       !print*, Kin_energy_tr_exact%f(1:10)
     end if
 
     !---------------------------------------------------
@@ -949,6 +952,11 @@ contains
     !Calculate trisk weights - required if any "trsk" flag set
     call calc_trisk_weights(mesh)
 
+    !Calculate tiled areas
+    if(useTiledAreas)then
+      call calc_tiled_areas(mesh)
+    end if
+
     !Calculate Wachspress coordinates - necessary only to have pv in hexagons
     !  not in use any more
     if(useSinterpolBary .and. test_lterror==1)then
@@ -1245,7 +1253,7 @@ contains
           !Exact PV
           q_tr_exact%f(k)=eta_ct*dsin(mesh%tr(k)%c%lat)/(h0-h_ct*dsin(mesh%tr(k)%c%lat)**2)
           if(test_lterror==1)then
-            !Kin energy
+             !Kin energy
              Kin_energy_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
              !Grad of PV
              vtmp=eta_ct*dcos(mesh%tr(k)%c%lat)*(h0+h_ct*dsin(mesh%tr(k)%c%lat)**2) &
@@ -1872,7 +1880,7 @@ contains
           !if(testcase==32)then !Only put bottom topograpy in tc32 - geostrophic balanced flow
           bt%f(i)=h0-h_ct*dsin(mesh%v(i)%lat)**2
           if(fsphere==2)then
-            bt%f(i)=bt%f(i)-(erad/grav)*fcte*dsin(mesh%v(i)%lat)
+             bt%f(i)=bt%f(i)-(erad/grav)*fcte*dsin(mesh%v(i)%lat)
           end if
           !elseif(testcase==33)then
           !   bt%f(i)=h0-((u0**2)/2._r8)*gravi*dsin(mesh%v(i)%lat)**2
@@ -1958,7 +1966,7 @@ contains
        if(test_lterror==1)then
           !Loop over triangles
           do k=1, mesh%nt
-            !Kin energy
+             !Kin energy
              Kin_energy_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
              !Absolute vorticity
              eta_exact%f(k)=eta_ct*dsin(mesh%tr(k)%c%lat)
@@ -2416,7 +2424,7 @@ contains
 
 
     !---------------------------------------------------------------
-    !Calculate fields at trinagles
+    !Calculate fields at triangles
     !   vorticity, PV, h_tr, vhq_tr at triangle cc
     !---------------------------------------------------------------
 
@@ -2426,7 +2434,7 @@ contains
     !$omp shared(mesh, h, u, uh, h_tr, vhq_tr) &
     !$omp shared(eta, q_tr , useReconmtdGass, kin_energy_tr ) &
     !$omp shared(useSinterpolTrisk, useSinterpolBary, useCoriolisMtdDtred) &
-    !$omp shared(useStagHTC, useStagHC) &
+    !$omp shared(useStagHTC, useStagHC, useTiledAreas) &
     !$omp shared(testcase, test_lterror, fsphere, fcte) &
     !$omp private(l, signcor, ed, cell_area, ed_area) &
     !$omp schedule(static)
@@ -2450,7 +2458,11 @@ contains
           end if
        end do
        !This is the relative vort.
-       eta%f(k)=eta%f(k)/mesh%tr(k)%areag/erad
+       if(useTiledAreas)then
+        eta%f(k)=eta%f(k)/mesh%tr(k)%areat/erad
+       else
+        eta%f(k)=eta%f(k)/mesh%tr(k)%areag/erad
+       endif
        !Add coriolis term - this is the absolute vorticity
        if(fsphere==0)then !variable f
           eta%f(k)=eta%f(k) +2.*Omega*dsin(mesh%tr(k)%c%lat)
@@ -2469,7 +2481,14 @@ contains
           do i=1,3 !for each tr vertex
              h_tr%f(k)=h_tr%f(k)+mesh%tr(k)%trhx_area(i)*h%f(mesh%tr(k)%v(i))
           end do
-          h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
+          if(useTiledAreas)then
+            h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areat
+            !print*, "caution: is this interpolation doing the right thing? (area weighted interp with TRSK and tiled areas)"
+            !stop
+          else
+            h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
+          endif
+
        elseif(useSinterpolBary)then
           !Get barycentric coords
           !b=bar_coord_tr(mesh%tr(k)%c%p, k, mesh)
@@ -2523,9 +2542,9 @@ contains
           do l=1, 3
              ed=mesh%tr(k)%ed(l)
              !Gassmann
-             !ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
+             ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
              !Dubos
-             ed_area=0.5*mesh%ed(ed)%leng*arclen(mesh%ed(ed)%c%p,mesh%tr(k)%c%p)
+             !ed_area=0.5*mesh%ed(ed)%leng*arclen(mesh%ed(ed)%c%p,mesh%tr(k)%c%p)
              cell_area=cell_area+ed_area
              Kin_energy_tr%f(k)=Kin_energy_tr%f(k)+ed_area*u%f(ed)**2
           end do
@@ -2914,13 +2933,13 @@ contains
                    signcor=dsign(1._r8,-1._r8*mesh%hx(node)%nr(j)*mesh%hx(node)%tg(edcelli))
                 endif
                 if(noPV)then
-                    qtmp=0.5_r8*(eta_ed%f(l)+eta_ed%f(k))
-                    uhq_perp%f(l)= uhq_perp%f(l)+ &
-                         u%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+                   qtmp=0.5_r8*(eta_ed%f(l)+eta_ed%f(k))
+                   uhq_perp%f(l)= uhq_perp%f(l)+ &
+                        u%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
                 else
-                    qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(k))
-                    uhq_perp%f(l)= uhq_perp%f(l)+ &
-                         uh%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+                   qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(k))
+                   uhq_perp%f(l)= uhq_perp%f(l)+ &
+                        uh%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
                 endif
              end do
           end do
@@ -3110,7 +3129,7 @@ contains
     end if
 
     if(testcase<=1)then
-       		momeq(1:mesh%ne)=0.
+       momeq(1:mesh%ne)=0.
     end if
 
     return
@@ -3285,7 +3304,8 @@ contains
 
     !Plot Fields
     !print*, k, ploterrors, useRefSol, (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol)
-    if( (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol))then
+    !if( (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol))then
+    if( (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol .and. mod(k,plotsteps)==0))then
 
        if(test_lterror/=1)then
           !Scalar field plots
@@ -3625,7 +3645,7 @@ contains
     !File for errors
     filename=trim(datadir)//trim(swmname)//"_mass_energy_"//trim(mesh%name)//".txt"
     buffer="        n        mvdist  tcase       k       nt        dt(s)       "//&
-    "          cfl                 time(dys)             mass               Penergy    "//&
+         "          cfl                 time(dys)             mass               Penergy    "//&
          "          Kenergy            Tenergy            Availenergy           RMSdiv"
 
     inquire(file=filename, opened=iopen)
