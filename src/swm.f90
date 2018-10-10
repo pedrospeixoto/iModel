@@ -2366,6 +2366,9 @@ contains
     real(r8):: vectmp(1:3)
     real(r8):: vectmp1(1:3)
     real(r8):: vectmp2(1:3)
+    real(r8):: p1(1:3)
+    real(r8):: p2(1:3)
+    real(r8):: p3(1:3)
     real(r8):: nvectmp
     real(r8):: d1
     real(r8):: d2
@@ -2431,12 +2434,13 @@ contains
     !OPENMP PARALLEL DO
     !$omp parallel do &
     !$omp default(none) &
-    !$omp shared(mesh, h, u, uh, h_tr, vhq_tr) &
+    !$omp shared(mesh, h, h_ed, u, uh, h_tr, vhq_tr) &
     !$omp shared(eta, q_tr , useReconmtdGass, kin_energy_tr ) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary, useCoriolisMtdDtred) &
+    !$omp shared(useSinterpolTrisk, useSinterpolBary, useSinterpolGass, useCoriolisMtdDtred) &
     !$omp shared(useStagHTC, useStagHC, useTiledAreas) &
     !$omp shared(testcase, test_lterror, fsphere, fcte) &
     !$omp private(l, signcor, ed, cell_area, ed_area) &
+    !$omp private(p1, p2, p3) &
     !$omp schedule(static)
     do k=1, mesh%nt
        !print*, k, omp_get_thread_num()
@@ -2481,23 +2485,43 @@ contains
           do i=1,3 !for each tr vertex
              h_tr%f(k)=h_tr%f(k)+mesh%tr(k)%trhx_area(i)*h%f(mesh%tr(k)%v(i))
           end do
-          if(useTiledAreas)then
-            h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areat
+          h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
+          !if(useTiledAreas)then
+            !Gassmann's calculation of h to tr cc
+          !  h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areat
             !print*, "caution: is this interpolation doing the right thing? (area weighted interp with TRSK and tiled areas)"
             !stop
-          else
-            h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
-          endif
+          !else
 
        elseif(useSinterpolBary)then
           !Get barycentric coords
           !b=bar_coord_tr(mesh%tr(k)%c%p, k, mesh)
           !Interpolate
-          h_tr%f(k) = 0._r8
           do i=1,3
              h_tr%f(k)=h_tr%f(k)+ mesh%tr(k)%c%b(i)*h%f(mesh%tr(k)%v(i))
           end do
           !h_tr%f(k)=scinterpol_linear_trv(mesh%tr(k)%c%p, h, mesh)
+
+       elseif(useSinterpolGass)then
+          !Use area weighted interpolation based on edge values - 1st order
+          do i=1,3 !for each tr edge
+              !Calculate weight
+              ed=mesh%tr(k)%ed(i)
+              if(useTiledAreas)then ! Dist(trcc,tredmidpoint)*tred_length/2
+                ed_area=0.5*arclen(mesh%tr(k)%c%p, mesh%ed(ed)%c%p)*mesh%ed(ed)%leng
+              else !Use geodesic areas !Area of tr formed by trcc and two endpoints of edge
+                p1=mesh%tr(k)%c%p
+                p2=mesh%v(mesh%ed(ed)%v(1))%p
+                p3=mesh%v(mesh%ed(ed)%v(2))%p
+                ed_area=sphtriarea(p1, p2, p3)
+              endif
+             h_tr%f(k)=h_tr%f(k)+ed_area*h_ed%f(ed)
+          end do
+          if(useTiledAreas)then
+            h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areat
+          else
+            h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
+          end if
        end if
 
        !Calculate the potential vorticity
@@ -2577,6 +2601,7 @@ contains
           eta_ed%f(l)=(d2*eta%f(mesh%ed(l)%sh(1))+d1*eta%f(mesh%ed(l)%sh(2)))/(d1+d2)
        end if
     end do
+
 
     !------------------------------------------------------------
     ! Calculate Grad of PV, if needed
@@ -2663,7 +2688,7 @@ contains
     !$omp shared(mesh, h, hbt, u, uh, divuh, masseq, kin_energy, ghbK) &
     !$omp shared(bt, v_hx, vh_hx, q_hx, q_tr, vhq_hx, wachc_tr2v) &
     !$omp shared(testcase, fsphere, gasscoef) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary, useCoriolisMtdDtred) &
+    !$omp shared(useSinterpolTrisk, useSinterpolBary, useTiledAreas, useCoriolisMtdDtred) &
     !$omp shared(useStagHTC, useStagHC, useReconmtdTrisk,useReconmtdPerhx ) &
     !$omp shared(test_lterror, hollgw, useReconmtdGass, useReconmtdMelv, kin_energy_tr ) &
     !$omp private(j, signcor, vectmp, ed, cell_area, ed_area, k) &
@@ -2689,7 +2714,11 @@ contains
           divuh%f(i)=divuh%f(i)+signcor*uh%f(l)*mesh%edhx(l)%leng
           !divu%f(i)=divu%f(i)+signcor*u%f(l)*mesh%edhx(l)%leng
        end do
-       divuh%f(i)=divuh%f(i)/mesh%hx(i)%areag/erad
+       if(useTiledAreas)then
+        divuh%f(i)=divuh%f(i)/mesh%hx(i)%areat/erad
+       else
+        divuh%f(i)=divuh%f(i)/mesh%hx(i)%areag/erad
+       end if
        !divu%f(i)=divu%f(i)/mesh%hx(i)%areag/erad
        !divuh%f(i)=div_cell_Cgrid(i,uh,mesh)/erad
 
@@ -2713,13 +2742,16 @@ contains
                   signcor*(u%f(ed))*(mesh%edhx(ed)%c%p-mesh%v(i)%p)*mesh%edhx(ed)%leng
           end do
        end if
-       v_hx%p(i)%v=vectmp/mesh%hx(i)%areag
+       if(useTiledAreas)then
+         v_hx%p(i)%v=vectmp/mesh%hx(i)%areat
+       else
+         v_hx%p(i)%v=vectmp/mesh%hx(i)%areag
+       end if
        v_hx%p(i)%v=proj_vec_sphere(v_hx%p(i)%v, mesh%v(i)%p)
 
 
        !Calculate K energy
 
-       !print*, "hi1"
        if(useReconmtdTrisk .or. useReconmtdGass)then
           Kin_energy%f(i)=0._r8
           cell_area=0._r8
@@ -2758,8 +2790,7 @@ contains
              Kin_energy%f(i)=dot_product( vectmp,  v_hx%p(i)%v)/h%f(i)/2._r8
           end if
        end if
-       !print*
-       !print*, i, Kin_energy%f(i)
+
        !Calculate K energy a la A. Gassman
        if(useReconmtdGass)then
           !Kin_energy_tr%f(k)=0._r8
@@ -2772,9 +2803,11 @@ contains
           end do
           !print*, Kin_energy%f(i)
        end if
+
+       !Add bottom topography to depth
        hbt%f(i)=h%f(i)+bt%f(i)
 
-       !Calculate g(h+b)+K at cell centers
+       !Calculate g(h+b)+K at cell centers (Bernoulli potential)
        ghbK%f(i)=grav*(hbt%f(i))+Kin_energy%f(i)
 
        if(test_lterror==1)then

@@ -12,7 +12,7 @@ trsk 1.0
 !Coriolis vec reconstruction method
 trsk
 !Scalar interpolations
-trsk
+gass
 !Gradient discrete method
 trsk
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
@@ -68,6 +68,7 @@ hyb   : Hybrid scheme mixing pered and trsk (not in use anymore, since no advant
 !Scalar interpolations
 bary : barycentric coordinates (required for Peixoto 2015 scheme)
 trsk : simple average
+gass : average to edges, simple average to tr centers
 
 !Gradient discrete method
 bary : uses 3 values and bary coordinates ( not in use anymore - avoid)

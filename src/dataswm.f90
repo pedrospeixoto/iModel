@@ -103,6 +103,7 @@ module dataswm
   character (len=6)::  sinterpol
   logical :: useSinterpolTrisk !Trisk interpolation methods (area averaging)
   logical :: useSinterpolBary  !Linear barycentric interpolation
+  logical :: useSinterpolGass  !Area averaging based on interpolated valeus at edge (Gassmann's way)
 
   !Scalar interpolations
   ! trsk - use trisk interpolations (simple area/length averages)
@@ -388,7 +389,8 @@ contains
     !Check scalar interpol
     useSinterpolTrisk=trim(sinterpol)=="trsk"
     useSinterpolBary=trim(sinterpol)=="bary"
-    if((.not.useSinterpolTrisk).and.(.not.useSinterpolBary))then
+    useSinterpolGass=trim(sinterpol)=="gass"
+    if((.not.useSinterpolTrisk).and.(.not.useSinterpolBary).and.(.not.useSinterpolGass))then
        print*, "Unknown interpolation", sinterpol
        stop
     end if
