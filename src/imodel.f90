@@ -28,6 +28,7 @@ program imodel
        meshquality, &
        meshquality_tiledareas, &
        test_geo2reg, &
+       test_edgeconnections, &
        scalar_interpolation_test, &
        test_trsearch, &
        vector_interpolation_test, &
@@ -88,6 +89,7 @@ program imodel
      call test_geo2reg(mesh)
   case(2) !Test Search methods
      call test_trsearch(mesh)
+     call test_edgeconnections(mesh)
   case(3) !Mesh distortion tests
      call meshquality(mesh)
      call meshquality_tiledareas(mesh)

@@ -493,6 +493,15 @@ contains
          trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
+    ! Potential vorticity at rhombi
+    !---------------------------------------------------
+    q_rhb_exact%f=q_ed_exact%f
+    call error_calc(q_rhb, q_rhb_exact, q_rhb_error, errormaxrel, error2rel, errormax)
+    print '(a16, i12,  3e18.8)', " PV_rhb ", mesh%nv,  errormaxrel, error2rel, errormax
+    write(errorsunit,trim(fmt)) " PV_rhb ", mesh%nv,  errormaxrel, error2rel, errormax, &
+         trim(swmname)//" "//trim(mesh%name)
+
+    !---------------------------------------------------
     ! Gradient of ghbK - Kenergy calculated
     !---------------------------------------------------
     call error_calc(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, errormaxrel, error2rel, errormax)
@@ -4095,7 +4104,7 @@ contains
     !Maximum error
     refmax=maxval(abs(fref%f(1:fref%n)))
     if(refmax>0)then
-       !print*, "using rel:", trim(f%name)
+       !print*, "using rel:", trim(f%name), refmax, maxval(fdif%f), maxval(fref%f), maxval(f%f)
        errormax=maxval(abs(fdif%f(1:fdif%n)))
        errormaxrel=errormax/refmax
     else

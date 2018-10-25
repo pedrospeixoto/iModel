@@ -4074,6 +4074,126 @@ contains
     return
   end function getedindexonhx
 
+  function getedgeintriangle(ed1, ed2, mesh)
+    !----------------------------------------------------------------------
+    ! getedgeintriangle
+    !   Given 2 edges indexes (global)
+    !   If the edges belong to same triangle,
+    !       returns the global index of the 3rd edge of the triangle
+    !   Else
+    !       returns 0
+    !   To be used only after mesh is fully structured
+    !----------------------------------------------------------------------
+    integer (i4), intent(in) :: ed1
+    integer (i4), intent(in) :: ed2
+    type(grid_structure), intent(in) :: mesh
+
+    integer (i4):: getedgeintriangle
+
+    integer (i4):: i, tr1, tr2, tr, ed
+
+    getedgeintriangle=0 !index of edge
+    tr1=mesh%ed(ed1)%sh(1)
+    tr2=mesh%ed(ed1)%sh(2)
+    tr=0
+    do i=1, 3
+        !Check if edges are on the same triangle
+       if(ed2==mesh%tr(tr1)%ed(i))then
+          tr=tr1
+          exit
+       endif
+       if(ed2==mesh%tr(tr2)%ed(i))then
+          tr=tr2
+          exit
+       endif
+    end do
+    if (tr==0)then !Edges are ot in the same triangle
+      return
+    endif
+    !Get the 3rd edge
+    do i=1,3
+       ed=mesh%tr(tr)%ed(i)
+       if(ed /= ed1 .and. ed /= ed2)then
+         getedgeintriangle=ed
+       endif
+    end do
+    return
+
+  end function getedgeintriangle
+
+  function gethxedgeconnection(ed1, ed2, mesh)
+    !----------------------------------------------------------------------
+    ! gethxedgedistancelevel
+    !   Given 2 edges indexes (global)
+    !   Return, considering the connectivity of the voronoi grid (voronoi edges)
+    !     0 if ed1=ed2
+    !     ed3 if ed1 is conected to ed2, where ed3 is the third edge of the
+    !           triangle formed by ed1, ed2, ed3
+    !     edinter if ed1 is further than 1 edge away from ed2, where edinter is the
+    !         edge index of the intermediate edge that connects ed1 and ed2
+    !     -1 if ed1 is further away from ed2
+    !
+    !   To be used only after mesh is fully structured
+    !----------------------------------------------------------------------
+    integer (i4), intent(in) :: ed1
+    integer (i4), intent(in) :: ed2
+    type(grid_structure), intent(in) :: mesh
+
+    integer (i4):: gethxedgeconnection
+
+    integer (i4):: i, j, l, tr2, tr(1:2), ed, edref, edtmp
+
+    edref=ed2
+    ed=ed1
+
+    if(ed==edref)then
+      gethxedgeconnection=0
+      return
+    end if
+
+    gethxedgeconnection=getedgeintriangle(ed1, ed2, mesh)
+
+    if (gethxedgeconnection > 0 )then
+    !ed1 and ed2 are in the same triangle, thus they are connected
+    ! return the ed3 (the third edge on the triangle)
+      return
+    endif
+
+    !If we got to this point, then ed1 and ed2 are not connected, so
+    !  Loop over all edges that are connected to edref and then loop over all
+    !    edges connected to these edges
+
+    !Vertices (edge endpoints) - which are triangle centers
+    do j=1,2
+      tr(j)=mesh%edhx(edref)%v(j)
+      do i=1, 3
+        edtmp = mesh%tr(tr(j))%ed(i)
+        if (edref == edtmp) cycle
+        if(mesh%edhx(edtmp)%v(1)==tr(j)) then
+          tr2=mesh%edhx(edtmp)%v(2)
+        else
+          tr2=mesh%edhx(edtmp)%v(1)
+        end if
+        ! tr2 now contains a triangle index of the edge (edtmp) the connects to edref
+        !Check if ed is part of this triangle
+        do l=1,3
+          if(ed==mesh%tr(tr2)%ed(l))then
+            gethxedgeconnection=edtmp !this the edge that makes the connection
+            return
+          endif
+        end do
+      end do
+    end do
+
+    !If we get to this point, gethxedgeconnection should have a value of zero,
+    !  but we set it to -1 indicating that ed1 and ed2 are far from each other
+    gethxedgeconnection=-1
+
+    return
+
+  end function gethxedgeconnection
+
+
   !========================================================================
   !    GEOMETRIC TOOLS FOR THE SPHERE
   !========================================================================

@@ -53,6 +53,7 @@ module simulpack
        getnearnodes, &
        gettr, &
        getunit, &
+       gethxedgeconnection, &
        hxtr_intersec_areas, &
        modint, &
        norm, &
@@ -3900,6 +3901,42 @@ contains
     end do
     return
   end subroutine natneibinterptest
+
+  subroutine test_edgeconnections(mesh)
+    !-----------------------------------------------
+    !  TEST_EDGECONNECTIONS
+    !   Test triangle search routines
+    !-----------------------------------------------
+    type(grid_structure) :: mesh
+
+    real (r8):: tlon
+    real (r8):: tlat
+    real (r8):: p(1:3)
+    integer:: i, j, connect
+    character (len=60):: filename
+    logical:: ifile
+    integer:: unit
+
+    print*, "Testing edge connection..."
+
+    filename=trim(datadir)//"edgeconnections.txt"
+    call getunit(unit)
+    open(unit,file=filename, status='replace')
+    write(unit, '(a)') "       edge1      edge2     connecting_edge"
+
+    do i=1, mesh%ne
+      do j=1,mesh%ne
+        connect=gethxedgeconnection(i,j,mesh)
+        if(connect>0)then
+          write(unit, *) i, j, connect
+        endif
+      end do
+    end do
+
+    close(unit)
+    print*, "See file: ", filename
+    return
+  end subroutine test_edgeconnections
 
 
 end module simulpack

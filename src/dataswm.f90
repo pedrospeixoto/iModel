@@ -209,6 +209,9 @@ module dataswm
   type(scalar_field):: q_ed  !pv on edges
   type(scalar_field):: q_ed_exact  !pv on edges
   type(scalar_field):: q_ed_error  !pv on edges
+  type(scalar_field):: q_rhb  !pv on rhombi
+  type(scalar_field):: q_rhb_exact  !pv on rhombi
+  type(scalar_field):: q_rhb_error  !pv on rhombi
 
   type(scalar_field):: q_grad_ed  !grad pv on edges
   type(vector_field_cart):: q_grad_tr  !graf pv on hexs
@@ -744,7 +747,6 @@ contains
        allocate(q_hx%f(1:q_hx%n), stat=ist)
        allocate(q_hx_exact%f(1:q_hx%n), stat=ist)
        allocate(q_hx_error%f(1:q_hx%n), stat=ist)
-
     end if
 
     q_ed%n=mesh%ne
@@ -755,6 +757,16 @@ contains
        allocate(q_ed_exact%f(1:q_ed%n), stat=ist)
        allocate(q_ed_error%f(1:q_ed%n), stat=ist)
     end if
+
+    q_rhb%n=mesh%ne
+    q_rhb%pos=edpos
+    q_rhb%name="q_rhb"
+    allocate(q_rhb%f(1:q_rhb%n), stat=ist)
+    if(test_lterror==1)then
+       allocate(q_rhb_exact%f(1:q_rhb%n), stat=ist)
+       allocate(q_rhb_error%f(1:q_rhb%n), stat=ist)
+    end if
+
 
     q_grad_ed%n=mesh%ne
     q_grad_ed%pos=edpos
@@ -928,7 +940,7 @@ contains
     !$OMP SHARED(u_error, u_exact, uh, uhq_perp) &
     !$OMP SHARED(v_hx, v_ed, vhq_hx) &
     !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed) &
-    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed) &
+    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed, q_rhb) &
     !$OMP SHARED(Kin_energy, Kin_energy_tr, ghbK, grad_ghbK, hbt, bt) &
     !$OMP SHARED(divuh, q_tr_exact, q_tr_error, q_grad_ed, divu, lapu ) &
     !$OMP SHARED(massf0, massf1, massf2, massf3) &
@@ -959,6 +971,7 @@ contains
     eta_ed%f=0._r8
     q_tr%f=0._r8
     q_ed%f=0._r8
+    q_rhb%f=0._r8
 
     !Energy
     Kin_energy%f=0._r8
@@ -1007,6 +1020,7 @@ contains
        !$OMP SHARED(q_tr, q_tr_exact, q_tr_error) &
        !$OMP SHARED(q_hx, q_hx_exact, q_hx_error) &
        !$OMP SHARED(q_ed, q_ed_exact, q_ed_error) &
+       !$OMP SHARED(q_rhb, q_rhb_exact, q_rhb_error) &
        !$OMP SHARED( q_grad_tr, q_grad_tr_exact, q_grad_tr_error) &
        !$OMP SHARED(Kin_energy, Kin_energy_exact, Kin_energy_error) &
        !$OMP SHARED(kin_energy_tr_exact, kin_energy_tr, kin_energy_tr_error) &
@@ -1044,6 +1058,8 @@ contains
        q_hx_error=q_hx
        q_ed_exact=q_ed
        q_ed_error=q_ed
+       q_rhb_exact=q_rhb
+       q_rhb_error=q_rhb
        Kin_energy_exact=Kin_energy
        Kin_energy_error=Kin_energy
        Kin_energy_tr_exact=Kin_energy_tr
