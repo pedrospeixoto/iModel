@@ -76,7 +76,8 @@ bin/smeshpack.obj \
 bin/interpack.obj \
 bin/diffoperpack.obj \
 bin/simulpack.obj \
-bin/dataswm.obj \
+bin/swm_data.obj \
+bin/swm_operators.obj \
 bin/swm.obj \
 bin/datastructmult.obj \
 bin/transport.obj \
@@ -168,9 +169,14 @@ bin/eispack.obj: src/eispack.f90
 	mv eispack.mod bin/.
 
 #Shallow water model
-bin/dataswm.obj: src/dataswm.f90 
+bin/swm_data.obj: src/swm_data.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
-	mv dataswm.mod bin/.
+	mv swm_data.mod bin/.
+
+bin/swm_operators.obj: src/swm_operators.f90 
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv swm_operators.mod bin/.
+
 
 bin/swm.obj: src/swm.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)

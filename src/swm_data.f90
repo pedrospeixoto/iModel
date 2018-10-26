@@ -1,9 +1,9 @@
-module dataswm
+module swm_data
   !=============================================================================
   !  Global data for shallow water model
   !
   ! Pedro da Silva Peixoto (pedrosp@ime.usp.br)
-  ! Apr 2015
+  ! Oct 2018
   !=============================================================================
 
   !Use global constants and kinds
@@ -1080,4 +1080,4 @@ contains
 
   end subroutine initialize_globalvars
 
-end module dataswm
+end module swm_data
