@@ -7,7 +7,10 @@ module swm_data
   !=============================================================================
 
   !Use global constants and kinds
-  use constants
+   use constants, only: &
+    i4, &
+    r8, &
+    pardir
 
   !Data structures for geodesic grids
   use datastruct, only: &
@@ -66,24 +69,33 @@ module swm_data
   logical::useRefSol
   logical::RefSolRead, RefSolAnal
 
+  !Method wrapper
+  !none    : no wrapper, use options in details
+  !trsk10  : Original TRSK of Ringler 2010, sets "CellRecon"=trsk, "Coriolis"=trsk, "Scalar interp"=trsk, "Gradient"=trsk
+  !pxt16   : Peixoto 2016 scheme, sets "CellRecon"=perhx, "Coriolis"=pered, "Scalar interp"=bary, "Gradient"=trsk
+  !gass18  : Gassman's modif of TRSK10, sets ? "CellRecon"=trsk, "Coriolis"=trsk, "Scalar interp"=trsk, "Gradient"=trsk
+  character (len=6):: mtdwrapper
+
   !Coriolis Vector reconstruction method
   ! trsk = TRiSK scheme
   ! dtred  = Use dual triangles
   ! pered  = Modified Perot
   ! hyb  = Hybrid Perod and Trisk
+  ! gass = Gassmann's 2018 qj method
   character (len=6)::  coriolis_reconmtd
-  logical :: useCoriolisMtdPered !Modified Perot
-  logical :: useCoriolisMtdTrisk !Trisk
-  logical :: useCoriolisMtdDtred !Dtred
-  logical :: useCoriolisMtdHyb   !Hybrid
-  logical :: useCoriolisMtdExact !Exact - if possible
+  logical :: useCoriolisMtdPered=.false. !Modified Perot
+  logical :: useCoriolisMtdTrisk=.false. !Trisk
+  logical :: useCoriolisMtdDtred=.false. !Dtred
+  logical :: useCoriolisMtdHyb=.false.   !Hybrid
+  logical :: useCoriolisMtdGass=.false.  !Gassman's 2018
+  logical :: useCoriolisMtdExact=.false. !Exact - if possible
 
   !General Vector reconstruction method
   character (len=6)::  reconmtd
-  logical :: useReconmtdPerhx !Perot
-  logical :: useReconmtdTrisk !Trisk
-  logical :: useReconmtdGass !Gassman's version to avoid Hol. instabil
-  logical :: useReconmtdMelv !Melvin's version to avoid Hol. instabil
+  logical :: useReconmtdPerhx=.false. !Perot
+  logical :: useReconmtdTrisk=.false. !Trisk
+  logical :: useReconmtdGass=.false. !Gassman's version to avoid Hol. instabil
+  logical :: useReconmtdMelv=.false. !Melvin's version to avoid Hol. instabil
   real(r8):: gasscoef
 
   !Staggering type
@@ -91,8 +103,8 @@ module swm_data
   ! HTC - velocities on the intersection of Voronoi-Triangle edges
   !            (just normals - relative to Voronoi cells) - edpos=6
   character (len=6)::  stag
-  logical :: useStagHTC
-  logical :: useStagHC
+  logical :: useStagHTC=.false.
+  logical :: useStagHC=.false.
 
   !Edge positioning index
   integer(i4):: edpos
@@ -101,25 +113,25 @@ module swm_data
   ! trsk - use trisk interpolations (simple area/length averages)
   ! bary - use 2nd order barycentric interpolation
   character (len=6)::  sinterpol
-  logical :: useSinterpolTrisk !Trisk interpolation methods (area averaging)
-  logical :: useSinterpolBary  !Linear barycentric interpolation
-  logical :: useSinterpolGass  !Area averaging based on interpolated valeus at edge (Gassmann's way)
+  logical :: useSinterpolTrisk=.false. !Trisk interpolation methods (area averaging)
+  logical :: useSinterpolBary=.false.  !Linear barycentric interpolation
+  logical :: useSinterpolGass=.false.  !Area averaging based on interpolated valeus at edge (Gassmann's way)
 
   !Scalar interpolations
   ! trsk - use trisk interpolations (simple area/length averages)
   ! bary - use 2nd order barycentric interpolation
   character (len=6)::  gradmtd
-  logical :: useGradmtdTrisk !Simple diference
-  logical :: useGradmtdBary  !Linear barycentric gradient
+  logical :: useGradmtdTrisk=.false. !Simple diference
+  logical :: useGradmtdBary=.false.  !Linear barycentric gradient
 
   !Areas to be used
   ! geo - geodesic areas (areag)
   ! tile - tiled areas  (areat)
   ! plan  - plannar areas (areap)
   character (len=6)::  areamtd
-  logical :: useGeoAreas
-  logical :: useTiledAreas
-  logical :: usePlannarAreas
+  logical :: useGeoAreas=.false.
+  logical :: useTiledAreas=.false.
+  logical :: usePlannarAreas=.false.
 
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
@@ -354,6 +366,8 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  stag
     read(fileunit,*)  buffer
+    read(fileunit,*)  mtdwrapper
+    read(fileunit,*)  buffer
     read(fileunit,*)  reconmtd, gasscoef
     read(fileunit,*)  buffer
     read(fileunit,*)  coriolis_reconmtd
@@ -390,9 +404,17 @@ contains
     end if
 
     !Check scalar interpol
-    useSinterpolTrisk=trim(sinterpol)=="trsk"
-    useSinterpolBary=trim(sinterpol)=="bary"
-    useSinterpolGass=trim(sinterpol)=="gass"
+    if (trim(mtdwrapper)=="none") then
+      useSinterpolTrisk=trim(sinterpol)=="trsk"
+      useSinterpolBary=trim(sinterpol)=="bary"
+      useSinterpolGass=trim(sinterpol)=="gass"
+    elseif(trim(mtdwrapper)=="trsk10")then
+      useSinterpolTrisk=.true.
+    elseif(trim(mtdwrapper)=="pxt16")then
+      useSinterpolBary=.true.
+    elseif(trim(mtdwrapper)=="gass18")then
+      useSinterpolGass=.true.
+    endif
     if((.not.useSinterpolTrisk).and.(.not.useSinterpolBary).and.(.not.useSinterpolGass))then
        print*, "Unknown interpolation", sinterpol
        stop
@@ -403,10 +425,11 @@ contains
     useCoriolisMtdDtred=trim(coriolis_reconmtd)=="dtred"
     useCoriolisMtdTrisk=trim(coriolis_reconmtd)=="trsk"
     useCoriolisMtdHyb=trim(coriolis_reconmtd)=="hyb"
+    useCoriolisMtdGass=trim(coriolis_reconmtd)=="gass"
     useCoriolisMtdExact=trim(coriolis_reconmtd)=="exact"
     if((.not. useCoriolisMtdPered).and.(.not. useCoriolisMtdTrisk) &
          .and.(.not. useCoriolisMtdDtred).and.(.not. useCoriolisMtdHyb) &
-         .and.(.not. useCoriolisMtdExact))then
+         .and.(.not.useCoriolisMtdGass).and.(.not. useCoriolisMtdExact))then
        print*, "Unknown Coriolis vector reconstruction method", coriolis_reconmtd
        stop
     end if
@@ -515,7 +538,7 @@ contains
 
     !Set a standart name for files
     write(atmp,'(i8)') int(testcase)
-    swmname="swm_tc"//trim(adjustl(trim(atmp)))
+    swmname="swmnew_tc"//trim(adjustl(trim(atmp)))
 
     !Print information
     print*, "Test Case (Will1994)    : ", testcase

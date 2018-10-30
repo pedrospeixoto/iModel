@@ -1,16 +1,48 @@
 module swm_operators
   !=============================================================================
-  !  Global data for shallow water model
+  !  Global operators for shallow water model
   !
   ! Pedro da Silva Peixoto (pedrosp@ime.usp.br)
   ! Oct 2018
   !=============================================================================
 
    !Use global constants and kinds
-  use constants !Everything
+  use constants, only: &
+    i4, &
+    r8, &
+    erad, &
+    eps, &
+    Omega
 
-  !Global variables for shallow water model
-  use swm_data !Everything
+  use swm_data, only: &
+    usesinterpoltrisk, &
+    usesinterpolgass, &
+    usestaghtc, &
+    usesinterpolbary, &
+    usestaghc, &
+    wachc_tr2v, &
+    usetiledareas, &
+    usecoriolismtddtred, &
+    test_lterror, &
+    fsphere, &
+    fcte, &
+    usereconmtdtrisk, &
+    usereconmtdgass, &
+    usereconmtdperhx, &
+    usereconmtdmelv, &
+    gasscoef, &
+    dt, &
+    usecoriolismtdhyb, &
+    istrskindlow, &
+    usecoriolismtdtrisk, &
+    usecoriolismtdpered, &
+    usecoriolismtdgass, &
+    usecoriolismtdexact, &
+    pvspar, &
+    nopv, &
+    useapvm, &
+    useclust, &
+    uhq_perp_exact
 
   !Use main grid data structures
   use datastruct, only: &
@@ -21,47 +53,11 @@ module swm_operators
 
   !Use routines from the spherical mesh pack
   use smeshpack, only: &
-    alignind, &
-    alignindlimit, &
-    arcdistll, &
     arclen, &
-    bar_coord_tr, &
-    calc_tiled_areas, &
-    convert_vec_sph2cart, &
     cross_product, &
-    error_norm_2, &
-    error_norm_max, &
-    error_norm_max_rel, &
-    getunit, &
     getedindexonhx, &
-    insidetrmesh, &
-    norm, &
-    sph2cart, &
-    trhx_intersec_areas, &
-    cart2sph, &
     proj_vec_sphere, &
     sphtriarea
-
-  !Use interpolation routines
-  use interpack, only: &
-    calc_trisk_weights, &
-    gradcalc, &
-    plot_cart_vectorfield, &
-    plot_scalarfield, &
-    precalcgradpol, &
-    scinterpol_linear_trv, &
-    wachspress_coords_hxv, &
-    scinterpol_wachspress, &
-    trsk_order_index, &
-    vector_interpol, &
-    vector_field_cart, &
-    vrec_remap, &
-    vector_reconstruct
-
-  !Use differential operator routines
-  use diffoperpack, only: &
-    div_cell_Cgrid, &
-    grad_edge_Cgrid
 
   implicit none
 
@@ -115,7 +111,8 @@ contains
        !$omp end parallel do
 
     else
-      print*, "ERROR in scalar_hx2ed: don't know what to use"
+      print*, "ERROR in scalar_hx2ed: don't know what to use to ensure 2nd order"
+      stop
     end if
 
     return
@@ -190,22 +187,25 @@ contains
     !$omp private(j) &
     !$omp schedule(static)
     do i=1,mesh%nv
-        !Calculate PV at cell centers
-        fhx%f(i)=0._r8
-        if(useSinterpolTrisk)then
-          !Weighted average, using areas - 1st order
-          do j=1, mesh%v(i)%nnb
-            fhx%f(i)=fhx%f(i)+&
-              mesh%hx(i)%hxtr_area(j)*ftr%f(mesh%v(i)%tr(j))
-          end do
-        elseif(useSinterpolBary)then
-          !Wachspress coordinates - 2nd order
-          do j=1, wachc_tr2v(i)%n
-            fhx%f(i)=fhx%f(i)+&
-              wachc_tr2v(i)%w(j)*ftr%f(wachc_tr2v(i)%v(j))
-          end do
-           !print*, q_hx%f(i), scinterpol_wachspress(mesh%v(i)%p, q_tr, mesh)
-        end if
+      !Calculate PV at cell centers
+      fhx%f(i)=0._r8
+      if(useSinterpolTrisk)then
+        !Weighted average, using areas - 1st order
+        do j=1, mesh%v(i)%nnb
+          fhx%f(i)=fhx%f(i)+&
+            mesh%hx(i)%hxtr_area(j)*ftr%f(mesh%v(i)%tr(j))
+        end do
+      elseif(useSinterpolBary)then
+        !Wachspress coordinates - 2nd order
+        do j=1, wachc_tr2v(i)%n
+          fhx%f(i)=fhx%f(i)+&
+            wachc_tr2v(i)%w(j)*ftr%f(wachc_tr2v(i)%v(j))
+        end do
+         !print*, q_hx%f(i), scinterpol_wachspress(mesh%v(i)%p, q_tr, mesh)
+      else
+        print*, "ERROR in scalar_tr2hx: don't know what to use."
+        stop
+      end if
     end do
     !$omp end parallel do
 
@@ -258,6 +258,10 @@ contains
       elseif(useSinterpolGass)then
         print*, "Error at scalar_hx2trcc: Gassmann's scheme needs edge values"
         stop
+
+      else
+        print*, "ERROR in scalar_hx2trcc: don't know what to use."
+        stop
       end if
     enddo
     !$omp end parallel do
@@ -266,9 +270,9 @@ contains
 
   end subroutine scalar_hx2trcc
 
-  subroutine scalar_ed2trcc(fed, ftr, mesh)
+  subroutine scalar_edtr2trcc(fed, ftr, mesh)
     !---------------------------------------------------------------
-    !Interpolate from cell edges to triangle centers (constant or linear interpolation)
+    !Interpolate from cell edges to triangle centers (constant approx only, area weighted)
     ! in: fed - scalar field defines at edges
     ! out: ftr - scalar field defined at triangles (must already be allocated)
     !---------------------------------------------------------------
@@ -326,15 +330,14 @@ contains
 
     return
 
-  end subroutine scalar_ed2trcc
+  end subroutine scalar_edtr2trcc
 
   subroutine vector_edhx2tr_perot(ued, vtr, mesh)
     !---------------------------------------------------------------
     !Reconstruct from cell edges to triangle centers (perot)
-    ! in: ued - vector field defined at cell edges with normal components only
+    ! in: ued - scalar field defined at cell edges with normal components only
     ! out: vtr - vector field defined at triangles (must already be allocated)
     !---------------------------------------------------------------
-
     type(grid_structure), intent(in) :: mesh
     type(scalar_field), intent(in):: ued
     type(vector_field_cart), intent(inout) :: vtr
@@ -344,12 +347,12 @@ contains
 
     !Quick check for dimensions
     if(vtr%n/=mesh%nt)then
-      print*, "ERROR in vector_ed2tr_perot: dimensions do not match", mesh%nt, vtr%n
+      print*, "ERROR in vector_edhx2tr_perot: dimensions do not match", mesh%nt, vtr%n
       stop
     end if
 
     if(.not.(useCoriolisMtdDtred .or. test_lterror==1))then
-      print*, "Warning at vector_ed2tr_perot: this should only be required if useCoriolisMtdDtred or test_lterror selected"
+      print*, "Warning at vector_edhx2tr_perot: this should only be required if useCoriolisMtdDtred or test_lterror selected"
     end if
 
     !$omp parallel do &
@@ -405,7 +408,7 @@ contains
 
     !Quick check for dimensions
     if(vtr%n/=mesh%nt)then
-      print*, "ERROR in vector_ed2tr_perot: dimensions do not match", mesh%nt, vtr%n
+      print*, "ERROR in vector_edtr2tr_perot: dimensions do not match", mesh%nt, vtr%n
       stop
     end if
 
@@ -434,7 +437,7 @@ contains
 
   end subroutine vector_edtr2tr_perot
 
- subroutine vector_edhx2hx_perot(ued, vhx, mesh)
+  subroutine vector_edhx2hx_perot(ued, vhx, mesh)
     !---------------------------------------------------------------
     !Reconstruct from cell edges to hexagonal centers (perot)
     ! in: ued - vector field defined at cell edges with normal components only
@@ -643,12 +646,12 @@ contains
 
   end subroutine div_hx
 
-  subroutine diffusion_hx(u, lapu, mesh)
+  subroutine diffusion_hx(divu, eta, lapu, mesh)
     !---------------------------------------------------------------
     !Calculate diffusion (Laplacian) of velocities
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
-    type(scalar_field), intent(in):: u ! velocity at cell edges
+    type(scalar_field), intent(in):: eta, divu ! vorticity and divergence
     type(scalar_field), intent(inout):: lapu !divergence - must be already allocated
 
 
@@ -662,56 +665,56 @@ contains
 
     !Needs verification!!!
 
-      !Add difusion
-      do l=1, mesh%ne
+    !Add difusion
+    do l=1, mesh%ne
 
-        !Calculate normal part
-        lapu_n=0.
-        !Calculate gradient of div for this edge
-        if(useStagHC)then
-          signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
-            mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
-          lapu_n=signcor*(divu%f(mesh%edhx(l)%sh(2))-divu%f(mesh%edhx(l)%sh(1)))
-        elseif(useStagHTC)then
-          ! Obs: the tangent of a triangle edge (which is used as normal
-          !   of the voronoi cell edges) is always defined such
-          !   that it point from its vertex 1 to its vertex 2
-          !   Therefore, the gradient needs no correction term (n_ei)
-          lapu_n=(divu%f(mesh%ed(l)%v(2))-divu%f(mesh%ed(l)%v(1)))
-        end if
-        lapu_n=lapu_n/mesh%ed(l)%leng/erad
+      !Calculate normal part
+      lapu_n=0.
+      !Calculate gradient of div for this edge
+      if(useStagHC)then
+        signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
+          mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
+        lapu_n=signcor*(divu%f(mesh%edhx(l)%sh(2))-divu%f(mesh%edhx(l)%sh(1)))
+      elseif(useStagHTC)then
+        ! Obs: the tangent of a triangle edge (which is used as normal
+        !   of the voronoi cell edges) is always defined such
+        !   that it point from its vertex 1 to its vertex 2
+        !   Therefore, the gradient needs no correction term (n_ei)
+        lapu_n=(divu%f(mesh%ed(l)%v(2))-divu%f(mesh%ed(l)%v(1)))
+      end if
+      lapu_n=lapu_n/mesh%ed(l)%leng/erad
 
-        !Calculate tangent part
-        lapu_t=0.
+      !Calculate tangent part
+      lapu_t=0.
 
-        !Calculate gradient of relative vorticity for this edge
-        if(useStagHC)then
-          k1=mesh%edhx(l)%v(1)
-          k2=mesh%edhx(l)%v(2)
-          !Get relative vorticity
-          etarel1=eta%f(k1)-2.*Omega*dsin(mesh%tr(k1)%c%lat)
-          etarel2=eta%f(k2)-2.*Omega*dsin(mesh%tr(k2)%c%lat)
-          signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%tg, &
-            mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
-          lapu_t=signcor*(etarel2-etarel1)
-        elseif(useStagHTC)then
-          k1=mesh%ed(l)%sh(1)
-          k2=mesh%ed(l)%sh(2)
-          !Get relative vorticity
-          etarel1=eta%f(k1)-2.*Omega*dsin(mesh%tr(k1)%c%lat)
-          etarel2=eta%f(k2)-2.*Omega*dsin(mesh%tr(k2)%c%lat)
-          signcor=dsign( 1._r8, dot_product(-mesh%ed(l)%nr, &
-            mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
-          lapu_t=signcor*(etarel2-etarel1)
-        end if
-        lapu_t=lapu_t/mesh%ed(l)%leng/erad
+      !Calculate gradient of relative vorticity for this edge
+      if(useStagHC)then
+        k1=mesh%edhx(l)%v(1)
+        k2=mesh%edhx(l)%v(2)
+        !Get relative vorticity
+        etarel1=eta%f(k1)-2.*Omega*dsin(mesh%tr(k1)%c%lat)
+        etarel2=eta%f(k2)-2.*Omega*dsin(mesh%tr(k2)%c%lat)
+        signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%tg, &
+          mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
+        lapu_t=signcor*(etarel2-etarel1)
+      elseif(useStagHTC)then
+        k1=mesh%ed(l)%sh(1)
+        k2=mesh%ed(l)%sh(2)
+        !Get relative vorticity
+        etarel1=eta%f(k1)-2.*Omega*dsin(mesh%tr(k1)%c%lat)
+        etarel2=eta%f(k2)-2.*Omega*dsin(mesh%tr(k2)%c%lat)
+        signcor=dsign( 1._r8, dot_product(-mesh%ed(l)%nr, &
+          mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
+        lapu_t=signcor*(etarel2-etarel1)
+      end if
+      lapu_t=lapu_t/mesh%ed(l)%leng/erad
 
-        !Global vector laplacian
-        lapu%f(l)=lapu_n-lapu_t
-        !print*, l, lapu%f(l), lapu_n, lapu_t
-        !print*, l, momeq(l), difus*lapu%f(l), momeq(l)+ difus*lapu%f(l), abs(momeq(l))>abs(momeq(l)+ difus*lapu%f(l))
-        !momeq(l)=momeq(l) + difus*lapu%f(l)
-      end do
+      !Global vector laplacian
+      lapu%f(l)=lapu_n-lapu_t
+      !print*, l, lapu%f(l), lapu_n, lapu_t
+      !print*, l, momeq(l), difus*lapu%f(l), momeq(l)+ difus*lapu%f(l), abs(momeq(l))>abs(momeq(l)+ difus*lapu%f(l))
+      !momeq(l)=momeq(l) + difus*lapu%f(l)
+    end do
 
     return
 
@@ -862,12 +865,13 @@ contains
 
   end subroutine ke_hx
 
- subroutine coriolis_ed(u, uh, eta_ed, q_ed, uhq_perp, mesh)
+  subroutine coriolis_ed(u, uh, eta_ed, q_ed, vhq_tr, uhq_perp, mesh)
     !---------------------------------------------------------------
     !Calculate Coriolis term
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
     type(scalar_field), intent(in):: u, uh, eta_ed, q_ed ! scalar fields
+    type(vector_field_cart), intent(in):: vhq_tr ! vector field
     type(scalar_field), intent(inout):: uhq_perp !gradient at edges
 
     !Indexes
@@ -901,9 +905,9 @@ contains
     !OPENMP PARALLEL DO
     !$omp parallel do &
     !$omp default(none) &
-    !$omp shared(mesh, uh, u, h, q_ed, momeq, uhq_perp, vhq_tr, vhq_hx) &
+    !$omp shared(mesh, uh, u, q_ed, uhq_perp, vhq_tr) &
     !$omp shared(isTrskindLow, uhq_perp_exact, eta_ed) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary) &
+    !$omp shared(useSinterpolTrisk, useSinterpolBary, useCoriolisMtdGass) &
     !$omp shared(useStagHTC, useStagHC, useCoriolisMtdHyb, useCoriolisMtdDtred) &
     !$omp shared(useCoriolisMtdPered, useCoriolisMtdTrisk, useCoriolisMtdExact, noPV) &
     !$omp private(edcelli, signcor, qtmp) &
@@ -1027,6 +1031,8 @@ contains
            !write(55,*)
         end if
          !print*, l, "pered"
+      elseif(useCoriolisMtdGass)then
+        print*, "not implemented gass coriolis method yet"
       elseif(useCoriolisMtdExact)then
         uhq_perp%f(l)=uhq_perp_exact%f(l)
       endif
@@ -1102,8 +1108,8 @@ contains
     end if
 
     if(useCLUST)then
-        print*, "ERROR in apvm: Clust needs debugging"
-        stop
+      print*, "ERROR in apvm: Clust needs debugging"
+      stop
     end if
 
     !$omp parallel do &
@@ -1111,9 +1117,9 @@ contains
     !$omp shared(mesh, q_grad_tr, v_hx, pvspar, dt, q_ed) &
     !$omp schedule(static)
     do l=1, mesh%ne
-        q_ed%f(l)=q_ed%f(l)-pvspar*dt*dot_product( &
-          q_grad_tr%p(mesh%ed(l)%sh(1))%v +q_grad_tr%p(mesh%ed(l)%sh(2))%v, &
-          v_hx%p(mesh%ed(l)%v(1))%v + v_hx%p(mesh%ed(l)%v(2))%v )
+      q_ed%f(l)=q_ed%f(l)-pvspar*dt*dot_product( &
+        q_grad_tr%p(mesh%ed(l)%sh(1))%v +q_grad_tr%p(mesh%ed(l)%sh(2))%v, &
+        v_hx%p(mesh%ed(l)%v(1))%v + v_hx%p(mesh%ed(l)%v(2))%v )
     end do
     !$omp end parallel do
 

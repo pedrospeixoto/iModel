@@ -5,36 +5,36 @@ module multigrid
   !=====================================================================
   !Global constants 
   use constants, only: &
-       datadir, &
-       i4, &
-       pardir, &
-       r4, &
-       r8
+    datadir, &
+    i4, &
+    pardir, &
+    r4, &
+    r8
 
   !Data structures
   use datastruct, only:  &
-       grid_structure, &
-       scalar_field
+    grid_structure, &
+    scalar_field
 
   use datastructmult, only: &
-       interpolable_meshes, &
-       multimesh, &
-       multisol
+    interpolable_meshes, &
+    multimesh, &
+    multisol
 
   !Spherical mesh routines
   use smeshpack, only: &
-       cart2sph, &
-       error_norm_2, &
-       error_norm_max, &
-       getparameters, &
-       getunit, &
-       meshbuild
+    cart2sph, &
+    error_norm_2, &
+    error_norm_max, &
+    getparameters, &
+    getunit, &
+    meshbuild
 
   !Interpolation pack
   use interpack, only: &
-       plot_scalarfield
+    plot_scalarfield
 
-  implicit none	
+  implicit none
 
 contains
 
@@ -126,9 +126,9 @@ contains
 
     !TESTE 4 (-lap u +u =f)
     lap_ext = -(-dcos(m*lon)*dcos(n*lat)**2 * (m**2*dcos(n * lat) **2 &
-         - 4._r8 * dsin(lat) * dcos(n*lat)*dsin(n*lat)*n*dcos(lat) &
-         -12._r8 * dcos(lat)**2*n**2+16._r8*dcos(lat)**2 *dcos(n* lat)**2* n**2)&
-         /dcos(lat)**2)   +  dcos(m*lon)*dcos(n*lat)**4
+      - 4._r8 * dsin(lat) * dcos(n*lat)*dsin(n*lat)*n*dcos(lat) &
+      -12._r8 * dcos(lat)**2*n**2+16._r8*dcos(lat)**2 *dcos(n* lat)**2* n**2)&
+      /dcos(lat)**2)   +  dcos(m*lon)*dcos(n*lat)**4
 
     !------------------------------------------------------------
     !TESTE 5
@@ -210,20 +210,20 @@ contains
     allocate(meshvet%mesh(0:levelmf))
 
     do i=0,levelmf
-       !Get parameters from file mesh.par
-       call getparameters(meshvet%mesh(i))
+      !Get parameters from file mesh.par
+      call getparameters(meshvet%mesh(i))
 
-       if(trim(meshvet%mesh(i)%kind)=="icos")then
-          !Overwrite number of nodes
-          meshvet%mesh(i)%nv=10*(2**(2*(i)))+2
+      if(trim(meshvet%mesh(i)%kind)=="icos")then
+        !Overwrite number of nodes
+        meshvet%mesh(i)%nv=10*(2**(2*(i)))+2
 
-       elseif(trim(meshvet%mesh(i)%kind)=="read")then
-          write(meshvet%mesh(i)%name(10:10),'(i1)')i
-       end if
-       print*, i,meshvet%mesh(i)%name
+      elseif(trim(meshvet%mesh(i)%kind)=="read")then
+        write(meshvet%mesh(i)%name(10:10),'(i1)')i
+      end if
+      print*, i,meshvet%mesh(i)%name
 
-       !meshbuild from module smeshpack
-       call meshbuild(meshvet%mesh(i))
+      !meshbuild from module smeshpack
+      call meshbuild(meshvet%mesh(i))
 
     enddo
 
@@ -297,78 +297,78 @@ contains
 
     mesh=meshvet%mesh(levelmf)
     do i=0, levelmf-1
-       allocate(meshvet%mf(i+1)%indmf(1:mesh%ne))
-       allocate(meshvet%mf(i+1)%cf(1:mesh%nv))
-       allocate(meshvet%mg(i)%cng(1:mesh%nv))
-       allocate(meshvet%mg(i)%cg(1:mesh%nv))
+      allocate(meshvet%mf(i+1)%indmf(1:mesh%ne))
+      allocate(meshvet%mf(i+1)%cf(1:mesh%nv))
+      allocate(meshvet%mg(i)%cng(1:mesh%nv))
+      allocate(meshvet%mg(i)%cg(1:mesh%nv))
     enddo
 
 
     !For each grid level
     do niv=0,levelmf-1
-       mesh=meshvet%mesh(niv)
+      mesh=meshvet%mesh(niv)
 
-       !for each edge
-       do i=1,mesh%ne
+      !for each edge
+      do i=1,mesh%ne
 
-          !Two endpoints of the edge
-          i1=mesh%ed(i)%v(1)
-          i2=mesh%ed(i)%v(2)
+        !Two endpoints of the edge
+        i1=mesh%ed(i)%v(1)
+        i2=mesh%ed(i)%v(2)
 
-          !for each neighbor of i1
-          do k=1,mesh%v(i1)%nnb
+        !for each neighbor of i1
+        do k=1,mesh%v(i1)%nnb
 
-             l1=meshvet%mesh(niv+1)%v(i1)%nb(k)
+          l1=meshvet%mesh(niv+1)%v(i1)%nb(k)
 
-             !for each neighbor of i2
-             do j=1, mesh%v(i2)%nnb
+          !for each neighbor of i2
+          do j=1, mesh%v(i2)%nnb
 
-                l2=meshvet%mesh(niv+1)%v(i2)%nb(j)
+            l2=meshvet%mesh(niv+1)%v(i2)%nb(j)
 
-                if(l1==l2) then
+            if(l1==l2) then
 
-                   !index of fine cell between two neighboring cells 
-                   indcel=l2
+              !index of fine cell between two neighboring cells
+              indcel=l2
 
-                   meshvet%mf(niv+1)%indmf(i)%celm=indcel
-                   meshvet%mf(niv+1)%indmf(i)%cel(1)=i1
-                   meshvet%mf(niv+1)%indmf(i)%cel(2)=i2
+              meshvet%mf(niv+1)%indmf(i)%celm=indcel
+              meshvet%mf(niv+1)%indmf(i)%cel(1)=i1
+              meshvet%mf(niv+1)%indmf(i)%cel(2)=i2
 
-                endif
-             enddo
+            endif
           enddo
-       enddo
+        enddo
+      enddo
     enddo
 
 
 
     do niv=0,levelmf-1
 
-       !for all cells in the coarse level
-       do i=1, meshvet%mesh(niv)%nv
+      !for all cells in the coarse level
+      do i=1, meshvet%mesh(niv)%nv
 
-          meshvet%mg(niv)%cg(i)=i
-       enddo
+        meshvet%mg(niv)%cg(i)=i
+      enddo
 
-       !Given a cell in the fine mesh provides index in the coarse mesh
+      !Given a cell in the fine mesh provides index in the coarse mesh
 
-       !for all cells in the fine level
-       do k=1, meshvet%mesh(niv+1)%nv
-          if (k<=meshvet%mesh(niv)%nv) then
-             meshvet%mf(niv+1)%cf(k)%cmg=meshvet%mg(niv)%cg(k)
+      !for all cells in the fine level
+      do k=1, meshvet%mesh(niv+1)%nv
+        if (k<=meshvet%mesh(niv)%nv) then
+          meshvet%mf(niv+1)%cf(k)%cmg=meshvet%mg(niv)%cg(k)
 
-          else if (k>meshvet%mesh(niv)%nv) then
+        else if (k>meshvet%mesh(niv)%nv) then
 
-             EXIT
-          endif
-       enddo
+          EXIT
+        endif
+      enddo
 
 
 
-       !Given a cell in the coarse mesh provides index in the coarse fine
-       do k=1, meshvet%mesh(niv)%nv
-          meshvet%mg(niv)%cng(k)%cmf=meshvet%mg(niv)%cg(k)
-       enddo
+      !Given a cell in the coarse mesh provides index in the coarse fine
+      do k=1, meshvet%mesh(niv)%nv
+        meshvet%mg(niv)%cng(k)%cmf=meshvet%mg(niv)%cg(k)
+      enddo
     enddo
 
   end subroutine relation_meshes
@@ -427,47 +427,47 @@ contains
     !For each grid level
     do niv=0,levelmf   
 
-       mesh=meshvet%mesh(niv)
+      mesh=meshvet%mesh(niv)
 
-       !Allocate exact value
-       allocate(lap_exact%f(1:mesh%nv))
+      !Allocate exact value
+      allocate(lap_exact%f(1:mesh%nv))
 
-       !Allocate approximate value
-       allocate(lap_ap%f(1:mesh%nv))
+      !Allocate approximate value
+      allocate(lap_ap%f(1:mesh%nv))
 
-       !Allocate error
-       allocate(erro%f(1:mesh%nv))
+      !Allocate error
+      allocate(erro%f(1:mesh%nv))
 
-       !Allocation function to test
-       allocate(fcalc%f(1:mesh%nv))
+      !Allocation function to test
+      allocate(fcalc%f(1:mesh%nv))
 
-       !Calculate exact value of the laplacian on each grid point
-       !Calculate function you want to calculate the Laplacian
-       do i=1,mesh%nv
-          lap_exact%f(i)=lap_ext(mesh%v(i)%p)
-          fcalc%f(i)=func(mesh%v(i)%p)
-       enddo
+      !Calculate exact value of the laplacian on each grid point
+      !Calculate function you want to calculate the Laplacian
+      do i=1,mesh%nv
+        lap_exact%f(i)=lap_ext(mesh%v(i)%p)
+        fcalc%f(i)=func(mesh%v(i)%p)
+      enddo
 
-       !Calculate approximate value of the laplacian on each grid point
-       call lap_cell(mesh,lap_ap,fcalc)
+      !Calculate approximate value of the laplacian on each grid point
+      call lap_cell(mesh,lap_ap,fcalc)
 
 
-       !Calculate errors in laplacian estimatives
-       nrm2(niv)=error_norm_2(lap_exact%f,lap_ap%f,mesh%nv)
-       nrmmax(niv)=error_norm_max(lap_exact%f,lap_ap%f,mesh%nv)
+      !Calculate errors in laplacian estimatives
+      nrm2(niv)=error_norm_2(lap_exact%f,lap_ap%f,mesh%nv)
+      nrmmax(niv)=error_norm_max(lap_exact%f,lap_ap%f,mesh%nv)
 
-       !Calculate error in laplacian estimative on each grid point
-       do i=1,mesh%nv
-          erro%f(i)=abs(lap_ap%f(i)-lap_exact%f(i))
-       enddo
+      !Calculate error in laplacian estimative on each grid point
+      do i=1,mesh%nv
+        erro%f(i)=abs(lap_ap%f(i)-lap_exact%f(i))
+      enddo
 
-       !PLOTS
+      !PLOTS
 
-       !erro%name="ERRO_AP_LAP"
-       !call plot_scalarfield(erro,meshvet%mesh(niv))
+      !erro%name="ERRO_AP_LAP"
+      !call plot_scalarfield(erro,meshvet%mesh(niv))
 
-       !Deallocate
-       deallocate(lap_exact%f,lap_ap%f,fcalc%f,erro%f)
+      !Deallocate
+      deallocate(lap_exact%f,lap_ap%f,fcalc%f,erro%f)
 
     enddo
 
@@ -478,7 +478,7 @@ contains
     open(iunit, file=filename, status='replace')
     write(iunit,*) "erro_nrm2, erro_nrm_max"
     do i=0,levelmf  
-       write(iunit,"(2f16.8)") nrm2(i),nrmmax(i)
+      write(iunit,"(2f16.8)") nrm2(i),nrmmax(i)
     enddo
     close (iunit)
 
@@ -560,81 +560,81 @@ contains
     !For each grid level
     do niv=0,levelmf
 
-       mesh=meshvet%mesh(niv)
+      mesh=meshvet%mesh(niv)
 
-       !Approximate value of the function on each grid point
-       allocate(fap%f(1:mesh%nv))
+      !Approximate value of the function on each grid point
+      allocate(fap%f(1:mesh%nv))
 
-       !Exact value of the function on each grid point
-       allocate(fexact%f(1:mesh%nv))
+      !Exact value of the function on each grid point
+      allocate(fexact%f(1:mesh%nv))
 
-       !Residue
-       allocate(resid%f(1:mesh%nv))
+      !Residue
+      allocate(resid%f(1:mesh%nv))
 
-       !Independent term of equation
-       allocate(g%f(1:mesh%nv))
+      !Independent term of equation
+      allocate(g%f(1:mesh%nv))
 
-       !Auxiliary vector
-       allocate(fap_aux%f(1:mesh%nv))
+      !Auxiliary vector
+      allocate(fap_aux%f(1:mesh%nv))
 
-       !Approximate value of the laplacian on each grid point
-       allocate(lap_ap%f(1:mesh%nv))
+      !Approximate value of the laplacian on each grid point
+      allocate(lap_ap%f(1:mesh%nv))
 
-       !Error between the exact value and the approximate value of the function
-       allocate(faperro%f(1:mesh%nv))
-
-
-       !For each grid point
-       do i=1,mesh%nv
-          fap%f(i)=0!inic(mesh%v(i)%p)                        !initial condition
-          !initial condition
-          fexact%f(i)=func(mesh%v(i)%p)    !Exact value
-          g%f(i)=lap_ext(mesh%v(i)%p)      !Independent term
-       enddo
+      !Error between the exact value and the approximate value of the function
+      allocate(faperro%f(1:mesh%nv))
 
 
-
-       !Calculate approximate value of the function on each grid point
-       call relaxac_mult_cell_GS(mesh,g,fap,numit,w)
-
-       !Calculation of the residue after each iteration
-       call lap_cell(mesh,lap_ap,fap)
-       resid%f=g%f-lap_ap%f
-
-       !Norm residue
-       nrm_res=error_nrm_max(resid%f,mesh%nv)
-
-       !if(nrm_res<=TOL) then
-       !  print*, 'Tolerance was achieved'
-
-       !Norm errors on each grid level
-       ! nrm2(niv)=error_norm_2(fexact%f,fap%f,mesh%nv)
-       !nrmmax(niv)=error_norm_max(fexact%f,fap%f,mesh%nv)
-       !nrmres(niv)=error_nrm_max(resid%f,mesh%nv)
-       ! print*,nrm2(niv),nrmmax(niv),nrmres(niv)
-
-       !EXIT
-       !endif
+      !For each grid point
+      do i=1,mesh%nv
+        fap%f(i)=0!inic(mesh%v(i)%p)                        !initial condition
+        !initial condition
+        fexact%f(i)=func(mesh%v(i)%p)    !Exact value
+        g%f(i)=lap_ext(mesh%v(i)%p)      !Independent term
+      enddo
 
 
-       !Calculate error in funtion estimative on each grid point
-       !do i=1,meshvet%mesh(niv)%nv
-       !  faperro%f(i)=abs(fap%f(i)-fexact%f(i))
-       !enddo
 
-       !PLOTS
-       !faperro%name="ERRO_RELAXAC"
-       !call plot_scalarfield(faperro,meshvet%mesh(niv))
+      !Calculate approximate value of the function on each grid point
+      call relaxac_mult_cell_GS(mesh,g,fap,numit,w)
 
-       !Norm errors on each grid level
+      !Calculation of the residue after each iteration
+      call lap_cell(mesh,lap_ap,fap)
+      resid%f=g%f-lap_ap%f
 
-       nrm2(niv)=error_norm_2(fexact%f,fap%f,mesh%nv)
-       nrmmax(niv)=error_norm_max(fexact%f,fap%f,mesh%nv)
-       nrmres(niv)=nrm_res
+      !Norm residue
+      nrm_res=error_nrm_max(resid%f,mesh%nv)
+
+      !if(nrm_res<=TOL) then
+      !  print*, 'Tolerance was achieved'
+
+      !Norm errors on each grid level
+      ! nrm2(niv)=error_norm_2(fexact%f,fap%f,mesh%nv)
+      !nrmmax(niv)=error_norm_max(fexact%f,fap%f,mesh%nv)
+      !nrmres(niv)=error_nrm_max(resid%f,mesh%nv)
+      ! print*,nrm2(niv),nrmmax(niv),nrmres(niv)
+
+      !EXIT
+      !endif
 
 
-       !Deallocate
-       deallocate(fap%f,fexact%f,faperro%f,g%f,fap_aux%f,resid%f,lap_ap%f)
+      !Calculate error in funtion estimative on each grid point
+      !do i=1,meshvet%mesh(niv)%nv
+      !  faperro%f(i)=abs(fap%f(i)-fexact%f(i))
+      !enddo
+
+      !PLOTS
+      !faperro%name="ERRO_RELAXAC"
+      !call plot_scalarfield(faperro,meshvet%mesh(niv))
+
+      !Norm errors on each grid level
+
+      nrm2(niv)=error_norm_2(fexact%f,fap%f,mesh%nv)
+      nrmmax(niv)=error_norm_max(fexact%f,fap%f,mesh%nv)
+      nrmres(niv)=nrm_res
+
+
+      !Deallocate
+      deallocate(fap%f,fexact%f,faperro%f,g%f,fap_aux%f,resid%f,lap_ap%f)
     enddo
 
     !Write values on file
@@ -643,7 +643,7 @@ contains
     open(iunit, file=filename, status='replace')
     write(iunit,*) "nrm2, nrmmax"
     do niv=0,levelmf
-       write(iunit,"(3f32.16)") nrm2(niv), nrmmax(niv)
+      write(iunit,"(3f32.16)") nrm2(niv), nrmmax(niv)
     enddo
     close (iunit)
 
@@ -705,41 +705,41 @@ contains
     !For each grid level
     do niv=0,levelmf-1
 
-       !Allocate
-       allocate(fexact%f(1:meshvet%mesh(niv+1)%nv))
-       allocate(fap_interpol%f(1:meshvet%mesh(niv+1)%nv))
-       allocate(faperro%f(1:meshvet%mesh(niv+1)%nv))
-       allocate(fap%f(1:meshvet%mesh(niv+1)%nv))
+      !Allocate
+      allocate(fexact%f(1:meshvet%mesh(niv+1)%nv))
+      allocate(fap_interpol%f(1:meshvet%mesh(niv+1)%nv))
+      allocate(faperro%f(1:meshvet%mesh(niv+1)%nv))
+      allocate(fap%f(1:meshvet%mesh(niv+1)%nv))
 
 
-       !For each grid point
-       do i=1, meshvet%mesh(niv)%nv
-          !Exact value function
-          fap%f(i)=func(meshvet%mesh(niv)%v(i)%p)
-       enddo
+      !For each grid point
+      do i=1, meshvet%mesh(niv)%nv
+        !Exact value function
+        fap%f(i)=func(meshvet%mesh(niv)%v(i)%p)
+      enddo
 
-       !Calculate interpolate value
-       call interpol_cell(meshvet,niv,fap,fap_interpol)
+      !Calculate interpolate value
+      call interpol_cell(meshvet,niv,fap,fap_interpol)
 
-       !For each grid point
-       do i=1, meshvet%mesh(niv+1)%nv
-          !Exact value
-          fexact%f(i)=func(meshvet%mesh(niv+1)%v(i)%p)
+      !For each grid point
+      do i=1, meshvet%mesh(niv+1)%nv
+        !Exact value
+        fexact%f(i)=func(meshvet%mesh(niv+1)%v(i)%p)
 
-          !Error between the exact value and the interpolate value
-          faperro%f(i)=abs(fap%f(i)-fexact%f(i))
-       enddo
+        !Error between the exact value and the interpolate value
+        faperro%f(i)=abs(fap%f(i)-fexact%f(i))
+      enddo
 
-       !Norm errors on each grid level
-       nrm2(niv)=error_norm_2(fap_interpol%f,fexact%f,meshvet%mesh(niv+1)%nv)
-       nrmmax(niv)=error_norm_max(fap_interpol%f,fexact%f,meshvet%mesh(niv+1)%nv)
+      !Norm errors on each grid level
+      nrm2(niv)=error_norm_2(fap_interpol%f,fexact%f,meshvet%mesh(niv+1)%nv)
+      nrmmax(niv)=error_norm_max(fap_interpol%f,fexact%f,meshvet%mesh(niv+1)%nv)
 
-       !PLOTS
-       !faperro%name="PLOT_ERRO_INTERPOL"
-       !call plot_scalarfield(faperro,meshvet%mesh(niv+1))
+      !PLOTS
+      !faperro%name="PLOT_ERRO_INTERPOL"
+      !call plot_scalarfield(faperro,meshvet%mesh(niv+1))
 
-       !Deallocate
-       deallocate(fap%f,fexact%f,faperro%f,fap_interpol%f)
+      !Deallocate
+      deallocate(fap%f,fexact%f,faperro%f,fap_interpol%f)
     enddo
 
     !Write values on file
@@ -748,7 +748,7 @@ contains
     open(iunit, file=filename, status='replace')
     write(iunit,*) "erro_nrm2, erro_nrm_max"
     do i=0,levelmf-1
-       write(iunit,"(2f16.8)") nrm2(i),nrmmax(i)
+      write(iunit,"(2f16.8)") nrm2(i),nrmmax(i)
     enddo
     close (iunit)
   end subroutine interpol_linear
@@ -849,14 +849,14 @@ contains
 
     do niv=0,levelmf
 
-       !mesh level "niv"
-       mesh=meshvet%mesh(niv)
+      !mesh level "niv"
+      mesh=meshvet%mesh(niv)
 
-       !value function each grid level
-       allocate(meshsol%solm(niv)%valf(1:mesh%nv))
+      !value function each grid level
+      allocate(meshsol%solm(niv)%valf(1:mesh%nv))
 
-       !value residue each grid level
-       allocate(meshsol%solm(niv)%resf(1:mesh%nv))
+      !value residue each grid level
+      allocate(meshsol%solm(niv)%resf(1:mesh%nv))
     enddo
 
     mesh=meshvet%mesh(levelmf)
@@ -874,14 +874,14 @@ contains
 
     do i=1,mesh%nv
 
-       !Independent term
-       g%f(i)=lap_ext(mesh%v(i)%p)
+      !Independent term
+      g%f(i)=lap_ext(mesh%v(i)%p)
 
-       !initial condition
-       fap%f(i)=inic(mesh%v(i)%p)
+      !initial condition
+      fap%f(i)=inic(mesh%v(i)%p)
 
-       !Exact value
-       fap_exact%f(i)=func(mesh%v(i)%p)
+      !Exact value
+      fap_exact%f(i)=func(mesh%v(i)%p)
 
     enddo
 
@@ -900,163 +900,163 @@ contains
     gamma=1 !gamma=1 vciclo,  gamma=2 wciclo
     contv=1
 
-    !Begin V-ciclo
+        !Begin V-ciclo
 
-10  do while(contv<=numvc)
+    10  do while(contv<=numvc)
 
-       do  k=0,levelmf
-          c(k)=0
-       enddo
+      do  k=0,levelmf
+        c(k)=0
+      enddo
 
-       k=levelmf
+      k=levelmf
 
-       mesh=meshvet%mesh(levelmf)
+      mesh=meshvet%mesh(levelmf)
 
-       !residue before the cycle
-       call lap_cell(mesh,lapc,fap)
+      !residue before the cycle
+      call lap_cell(mesh,lapc,fap)
 
-       !For each grid point
-       do i=1,mesh%nv
-          residuoa%f(i)=g%f(i)-lapc%f(i)
-       enddo
+      !For each grid point
+      do i=1,mesh%nv
+        residuoa%f(i)=g%f(i)-lapc%f(i)
+      enddo
 
-       !----------------------------------------------------------------------
-       !                (I) relax the values ​​in the fine mesh
-       !----------------------------------------------------------------------
-20     mesh=meshvet%mesh(k) 
+      !----------------------------------------------------------------------
+      !                (I) relax the values ​​in the fine mesh
+      !----------------------------------------------------------------------
+20    mesh=meshvet%mesh(k)
 
-       !call relaxac_mult_cell(mesh,g,fap,fap_aux,n1,w) 
-       call relaxac_mult_cell_GS(mesh,g,fap,n1,w)
+      !call relaxac_mult_cell(mesh,g,fap,fap_aux,n1,w)
+      call relaxac_mult_cell_GS(mesh,g,fap,n1,w)
 
-       c(k)=c(k)+1
+      c(k)=c(k)+1
 
-       !Save the solution to use later
-       meshsol%solm(k)%valf=fap%f
+      !Save the solution to use later
+      meshsol%solm(k)%valf=fap%f
 
-       !-----------------------------------------------------------------------
-       !            (II) calculation of the residue
-       !-----------------------------------------------------------------------
+      !-----------------------------------------------------------------------
+      !            (II) calculation of the residue
+      !-----------------------------------------------------------------------
 
-       call lap_cell(mesh,lapc,fap)
-       do i=1,mesh%nv
-          g%f(i)=g%f(i)-lapc%f(i)
-       enddo
+      call lap_cell(mesh,lapc,fap)
+      do i=1,mesh%nv
+        g%f(i)=g%f(i)-lapc%f(i)
+      enddo
 
-       !------------------------------------------------------------------------
-       !  (III) Transference of the residue to the coarser grid
-       !
-       !Restriction by:
-       !Guohua Zhou and Scoot R. Fulton, Fourier analysis of 
-       !multigrid methods on hexagonal grids, 
-       !Society for Industrial and Applied Mathematics. (31):1518-1538, 2009.
-       !------------------------------------------------------------------------
+      !------------------------------------------------------------------------
+      !  (III) Transference of the residue to the coarser grid
+      !
+      !Restriction by:
+      !Guohua Zhou and Scoot R. Fulton, Fourier analysis of
+      !multigrid methods on hexagonal grids,
+      !Society for Industrial and Applied Mathematics. (31):1518-1538, 2009.
+      !------------------------------------------------------------------------
 
-       call transfer_res(meshvet,g,k)
+      call transfer_res(meshvet,g,k)
 
-       k=k-1   
+      k=k-1
 
-       mesh=meshvet%mesh(k)
-       do i=1,mesh%nv
-          meshsol%solm(k)%resf(i)=g%f(i)
-       enddo
-
-
-       if (k.NE.0) then
-          do i=1,mesh%nv
-             fap%f(i)=0.0
-          enddo
-
-          goto 20 !relax the values 
-       endif
-
-       !--------------------------------------------------------
-       !    (IV)   solve the problem in the coarse grid
-       !-------------------------------------------------------
-
-       ! matrix problem in coarser level of resolution
-
-       if(k.EQ.0) then
-
-          do i=1,mesh%nv
-             fap%f(i)=0.0
-          enddo
-
-          !call relaxac_mult_cell(mesh,g,fap,fap_aux,15,w) 
-          call relaxac_mult_cell_GS(mesh,g,fap,15,w) 
-       endif
-
-       !---------------------------------------------------------------------
-       !            (V)nterpolate the correction for fine mesh 
-       !                 and add the solution obtained in the step I
-       !---------------------------------------------------------------------
-
-40     call interpol_cell(meshvet,k,fap,fap_interpol)
-
-       k=k+1
-       mesh=meshvet%mesh(k)
-       do i=1,mesh%nv
-          fap%f(i)=fap_interpol%f(i)+meshsol%solm(k)%valf(i)
-       enddo
-
-       !---------------------------------------------------------------------
-       !             (VI) apply relaxations in the previous solution 
-       !---------------------------------------------------------------------
-
-       if (k==levelmf) then
-          do i=1,mesh%nv
-             g%f(i)=lap_ext(mesh%v(i)%p)
-          enddo
-       else
-          do i=1,mesh%nv
-             g%f(i)=meshsol%solm(k)%resf(i)
-          enddo
-       endif
+      mesh=meshvet%mesh(k)
+      do i=1,mesh%nv
+        meshsol%solm(k)%resf(i)=g%f(i)
+      enddo
 
 
-       !call relaxac_mult_cell(mesh,g,fap,fap_aux,n2,w)
-       call relaxac_mult_cell_GS(mesh,g,fap,n2, w)
+      if (k.NE.0) then
+        do i=1,mesh%nv
+          fap%f(i)=0.0
+        enddo
 
-       if(k.NE.levelmf.AND.c(k)==gamma) then
-          c(k)=0
-          goto 40 
+        goto 20 !relax the values
+      endif
 
-       else if (k.NE.levelmf.AND.c(k).NE.gamma) then 
-          goto 20
-       else if  (k.EQ.levelmf) then
-          contv=contv+1
+      !--------------------------------------------------------
+      !    (IV)   solve the problem in the coarse grid
+      !-------------------------------------------------------
 
-          !residue after the cycle V-CICLO
-          call lap_cell(mesh,lapc,fap)
+      ! matrix problem in coarser level of resolution
 
-          !For each grid point
-          do i=1,mesh%nv
-             residuod%f(i)=g%f(i)-lapc%f(i)
-          enddo
+      if(k.EQ.0) then
 
-          !calculation of the convergence factor
-          nrmg1=error_norm_g(residuoa%f,mesh%nv)
-          nrmg2=error_norm_g(residuod%f,mesh%nv)
+        do i=1,mesh%nv
+          fap%f(i)=0.0
+        enddo
 
-          sfact=(nrmg2/nrmg1)
+        !call relaxac_mult_cell(mesh,g,fap,fap_aux,15,w)
+        call relaxac_mult_cell_GS(mesh,g,fap,15,w)
+      endif
 
-          print*,'Ciclo',contv-1
-          print*, 'convergence factor:', sfact
+      !---------------------------------------------------------------------
+      !            (V)nterpolate the correction for fine mesh
+      !                 and add the solution obtained in the step I
+      !---------------------------------------------------------------------
 
-       endif
+40    call interpol_cell(meshvet,k,fap,fap_interpol)
+
+      k=k+1
+      mesh=meshvet%mesh(k)
+      do i=1,mesh%nv
+        fap%f(i)=fap_interpol%f(i)+meshsol%solm(k)%valf(i)
+      enddo
+
+      !---------------------------------------------------------------------
+      !             (VI) apply relaxations in the previous solution
+      !---------------------------------------------------------------------
+
+      if (k==levelmf) then
+        do i=1,mesh%nv
+          g%f(i)=lap_ext(mesh%v(i)%p)
+        enddo
+      else
+        do i=1,mesh%nv
+          g%f(i)=meshsol%solm(k)%resf(i)
+        enddo
+      endif
+
+
+      !call relaxac_mult_cell(mesh,g,fap,fap_aux,n2,w)
+      call relaxac_mult_cell_GS(mesh,g,fap,n2, w)
+
+      if(k.NE.levelmf.AND.c(k)==gamma) then
+        c(k)=0
+        goto 40
+
+      else if (k.NE.levelmf.AND.c(k).NE.gamma) then
+        goto 20
+      else if  (k.EQ.levelmf) then
+        contv=contv+1
+
+        !residue after the cycle V-CICLO
+        call lap_cell(mesh,lapc,fap)
+
+        !For each grid point
+        do i=1,mesh%nv
+          residuod%f(i)=g%f(i)-lapc%f(i)
+        enddo
+
+        !calculation of the convergence factor
+        nrmg1=error_norm_g(residuoa%f,mesh%nv)
+        nrmg2=error_norm_g(residuod%f,mesh%nv)
+
+        sfact=(nrmg2/nrmg1)
+
+        print*,'Ciclo',contv-1
+        print*, 'convergence factor:', sfact
+
+      endif
 
        
-       if(contv==numvc) then
-          goto 60
-       endif
+      if(contv==numvc) then
+        goto 60
+      endif
 
-       goto 10    
+      goto 10
 
     enddo
 
 60  print*,''
 
     do i=1,meshvet%mesh(levelmf)%nv
-       error%f(i)=abs(fap%f(i)-fap_exact%f(i))
+      error%f(i)=abs(fap%f(i)-fap_exact%f(i))
     enddo
 
     !PLOTS
@@ -1114,29 +1114,29 @@ contains
     !For each grid point
     do  i=1,n
 
-       laptmp=0_r8
-       ledhx=0_r8 
-       Lchx=0_r8
+      laptmp=0_r8
+      ledhx=0_r8
+      Lchx=0_r8
 
-       !For each grid neighboring of i
-       do j=1, mesh%v(i)%nnb 
+      !For each grid neighboring of i
+      do j=1, mesh%v(i)%nnb
 
-          !Edge index
-          k=mesh%v(i)%ed(j)
+        !Edge index
+        k=mesh%v(i)%ed(j)
 
-          !Edge length
-          ledhx=mesh%edhx(k)%leng
+        !Edge length
+        ledhx=mesh%edhx(k)%leng
 
-          !Distance between two neighboring
-          Lchx=mesh%ed(k)%leng
+        !Distance between two neighboring
+        Lchx=mesh%ed(k)%leng
 
-          laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j))-fap%f(i))
+        laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j))-fap%f(i))
 
-       enddo
+      enddo
 
 
-       !para o problema -lap f+f =g
-       lapc%f(i)=-(laptmp/mesh%hx(i)%areag)+fap%f(i)
+      !para o problema -lap f+f =g
+      lapc%f(i)=-(laptmp/mesh%hx(i)%areag)+fap%f(i)
 
        !para o problema lap f =g
        !lapc%f(i)=laptmp
@@ -1183,42 +1183,42 @@ contains
     !For each iteration
     do k=1,numit
 
-       !For each grid point
-       do i=1,n
+      !For each grid point
+      do i=1,n
 
-          laptmp=0_r8
-          laptmp1=0_r8 
-          ledhx=0_r8 
-          Lchx=0_r8
+        laptmp=0_r8
+        laptmp1=0_r8
+        ledhx=0_r8
+        Lchx=0_r8
 
-          !For each grid neighboring of i
-          do j=1,mesh%v(i)%nnb 
+        !For each grid neighboring of i
+        do j=1,mesh%v(i)%nnb
 
-             !Edge length
-             ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
+          !Edge length
+          ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
 
-             !Distance between two neighboring
-             !arclen(mesh%v(mesh%v(i)%nb(j))%p,mesh%v(i)%p)
-             Lchx=mesh%ed(mesh%v(i)%ed(j))%leng
+          !Distance between two neighboring
+          !arclen(mesh%v(mesh%v(i)%nb(j))%p,mesh%v(i)%p)
+          Lchx=mesh%ed(mesh%v(i)%ed(j))%leng
 
-             laptmp1=laptmp1+(ledhx/Lchx)
-             laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j)))
+          laptmp1=laptmp1+(ledhx/Lchx)
+          laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j)))
 
-          enddo
+        enddo
 
-          laptmp=laptmp/mesh%hx(i)%areag
-          laptmp1=laptmp1/mesh%hx(i)%areag
+        laptmp=laptmp/mesh%hx(i)%areag
+        laptmp1=laptmp1/mesh%hx(i)%areag
 
-          !problem -lap f+f =g
-          fap_aux%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
+        !problem -lap f+f =g
+        fap_aux%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
 
 
-          !problem lap f =g
-          !fap_aux%f(i)=(1-w)*fap%f(i)+w*((laptmp-g%f(i))/(laptmp1))
+         !problem lap f =g
+         !fap_aux%f(i)=(1-w)*fap%f(i)+w*((laptmp-g%f(i))/(laptmp1))
 
-       enddo
+      enddo
 
-       fap%f=fap_aux%f
+      fap%f=fap_aux%f
 
     enddo
 
@@ -1259,38 +1259,38 @@ contains
     !For each iteration
     do k=1,numit
 
-       !For each grid point
-       do i=1,n
+      !For each grid point
+      do i=1,n
 
-          laptmp=0_r8
-          laptmp1=0_r8 
-          ledhx=0_r8 
-          Lchx=0_r8
+        laptmp=0_r8
+        laptmp1=0_r8
+        ledhx=0_r8
+        Lchx=0_r8
 
-          !For each grid neighboring of i
-          do j=1,mesh%v(i)%nnb 
+        !For each grid neighboring of i
+        do j=1,mesh%v(i)%nnb
 
-             !Edge length
-             ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
+          !Edge length
+          ledhx=mesh%edhx(mesh%v(i)%ed(j))%leng
 
-             !Distance between two neighboring
-             Lchx=mesh%ed(mesh%v(i)%ed(j))%leng  
-             laptmp1=laptmp1+(ledhx/Lchx)
-             laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j)))
-          enddo
+          !Distance between two neighboring
+          Lchx=mesh%ed(mesh%v(i)%ed(j))%leng
+          laptmp1=laptmp1+(ledhx/Lchx)
+          laptmp=laptmp+(ledhx/Lchx)*(fap%f(mesh%v(i)%nb(j)))
+        enddo
 
-          laptmp=laptmp/mesh%hx(i)%areag
-          laptmp1=laptmp1/mesh%hx(i)%areag
+        laptmp=laptmp/mesh%hx(i)%areag
+        laptmp1=laptmp1/mesh%hx(i)%areag
 
-          !para o problema lap f =g
-          !fap%f(i)=(1-w)*fap%f(i)+w*((laptmp-g%f(i))/(laptmp1))
-
-
-          !para o problema -lap f+f =g
-          fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
+        !para o problema lap f =g
+        !fap%f(i)=(1-w)*fap%f(i)+w*((laptmp-g%f(i))/(laptmp1))
 
 
-       enddo
+        !para o problema -lap f+f =g
+        fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
+
+
+      enddo
 
     enddo
 
@@ -1328,15 +1328,15 @@ contains
 
     !values ​​remain the same
     do i=1, n
-       fap_interpol%f(i)=fap%f(i)
+      fap_interpol%f(i)=fap%f(i)
     enddo
 
     !interpolated values
     do i=1,na
-       l1=meshvet%mf(niv+1)%indmf(i)%cel(1)
-       l2=meshvet%mf(niv+1)%indmf(i)%cel(2)
+      l1=meshvet%mf(niv+1)%indmf(i)%cel(1)
+      l2=meshvet%mf(niv+1)%indmf(i)%cel(2)
 
-       fap_interpol%f(meshvet%mf(niv+1)%indmf(i)%celm)=(fap%f(l1)+fap%f(l2))/2
+      fap_interpol%f(meshvet%mf(niv+1)%indmf(i)%celm)=(fap%f(l1)+fap%f(l2))/2
 
     enddo
 
@@ -1369,29 +1369,29 @@ contains
 
     do i=1,meshvet%mesh(level-1)%nv
 
-       laptmp=0_r8
-       laptmp1=0_r8
+      laptmp=0_r8
+      laptmp1=0_r8
 
 
-       !Injeção
-       !residuo%f(i)=residuo%f(meshvet%mf(level)%cf(i)%cmg)
+      !Injeção
+      !residuo%f(i)=residuo%f(meshvet%mf(level)%cf(i)%cmg)
 
 
-       !Full weighting
-       do j=1, meshvet%mesh(level)%v(i)%nnb 
+      !Full weighting
+      do j=1, meshvet%mesh(level)%v(i)%nnb
 
-          !neighbor index
-          l=meshvet%mesh(level)%v(i)%nb(j)
+        !neighbor index
+        l=meshvet%mesh(level)%v(i)%nb(j)
 
-          !k=meshvet%mg(level-1)%cng(l)%cmf
+        !k=meshvet%mg(level-1)%cng(l)%cmf
 
-          laptmp=laptmp+(residuo%f(l)*meshvet%mesh(level)%hx(l)%areag)
-          laptmp1= laptmp1+meshvet%mesh(level)%hx(l)%areag
+        laptmp=laptmp+(residuo%f(l)*meshvet%mesh(level)%hx(l)%areag)
+        laptmp1= laptmp1+meshvet%mesh(level)%hx(l)%areag
 
-       enddo
+      enddo
 
-       residuo%f(i)=(meshvet%mesh(level)%hx(i)%areag*residuo%f(i)+0.5*laptmp) &
-            /(meshvet%mesh(level)%hx(i)%areag+0.5*laptmp1)
+      residuo%f(i)=(meshvet%mesh(level)%hx(i)%areag*residuo%f(i)+0.5*laptmp) &
+        /(meshvet%mesh(level)%hx(i)%areag+0.5*laptmp1)
     enddo
 
     return
@@ -1427,7 +1427,7 @@ contains
     sum_sq=0.0
 
     do i=1,n 
-       sum_sq=sum_sq+(f(i)**2)
+      sum_sq=sum_sq+(f(i)**2)
     enddo
 
     error_norm_g=dsqrt(sum_sq)

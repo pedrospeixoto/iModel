@@ -7,6 +7,8 @@
 200 0 0
 !Scalar/vector location (HC or HTC)
 HTC
+!Wrapper (overrides next 4 options)
+none 
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
 trsk 1.0
 !Coriolis vec reconstruction method
@@ -53,8 +55,14 @@ none 0.5
 HC : scalars on cell node and vectors on Voronoi cell edge midpoints
 HTC : scalars on cell node and vectors on Voronoi cell edge intersection with triangle edge
 
+!Wrapper (overrides next 4 options)
+none: no wrapper, use options in details in next lines
+trsk10: Original TRSK of Ringler 2010, sets "CellRecon"=trsk, "Coriolis"=trsk, "Scalar interp"=trsk, "Gradient"=trsk
+pxt16: Peixoto 2016 scheme, sets "CellRecon"=perhx, "Coriolis"=pered, "Scalar interp"=bary, "Gradient"=trsk
+gass18: Gassman's modif of TRSK10, sets ? "CellRecon"=gass, "Coriolis"=gass, "Scalar interp"=gass, "Gradient"=trsk
+
 ! Cell Vector recontruction method
-perhx : Perot's method (required for Peixoto 2015)
+perhx : Perot's method (required for Peixoto 2016)
 trsk : simple weighted average
 gass : Gassman's version to avoid Hol. instabil
 dubos: Dubos energy conserving - equals to Gass with coef 0.0
@@ -62,8 +70,9 @@ dubos: Dubos energy conserving - equals to Gass with coef 0.0
 !Coriolis vec recon method
 dtred : Dual triangle method (Similar to Nikovic 2002) 
 trsk  : TRiSK method
-pered : New method using Perot for edges (see Peixoto 2015)
+pered : Perot for edges (see Peixoto 2016)
 hyb   : Hybrid scheme mixing pered and trsk (not in use anymore, since no advantage was seen)
+gass  : Gassmann's 2018 QJ method with diferent position of pv
 
 !Scalar interpolations
 bary : barycentric coordinates (required for Peixoto 2015 scheme)
@@ -77,5 +86,5 @@ trsk : simple difference
 !Potential Vorticity correction
 none : No correction
 apvm : Anticipated potential vorticity method from Ringler et at 2010
-clust : CLUST scheme from Weller 2012
+clust : CLUST scheme from Weller 2012 - unused, avoid
 parameter: append parameter to be used after method name

@@ -11,7 +11,27 @@ module swm
   !=============================================================================
 
   !Use global constants and kinds
-  use constants !Everything
+  use constants, only: &
+    i4, &
+    r8, &
+    erad, &
+    rearth, &
+    eps, &
+    Omega, &
+    datadir, &
+    refdir, &
+    rad2deg, &
+    deg2rad, &
+    pi, &
+    pi2, &
+    pio2, &
+    piby2, &
+    grav, &
+    gravity, &
+    gravi, &
+    sec2day, &
+    day2sec, &
+    rotatn
 
   !Global variables and operators for shallow water model
   use swm_data !Everything
@@ -47,21 +67,13 @@ module swm
     proj_vec_sphere, &
     sphtriarea
 
-  !Use interpolation routines
   use interpack, only: &
     calc_trisk_weights, &
-    gradcalc, &
-    plot_cart_vectorfield, &
-    plot_scalarfield, &
-    precalcgradpol, &
-    scinterpol_linear_trv, &
     wachspress_coords_hxv, &
-    scinterpol_wachspress, &
+    bar_coord_tr, &
     trsk_order_index, &
-    vector_interpol, &
-    vector_field_cart, &
-    vrec_remap, &
-    vector_reconstruct
+    plot_scalarfield, &
+    plot_cart_vectorfield
 
   !Use differential operator routines
   use diffoperpack, only: &
@@ -151,7 +163,7 @@ contains
 
     !Calculate derived initial fields
     !call eqs_spatial_disc(0._r8, dt, h, u, masseq%f, momeq%f)
-    call tendency(0._r8, dt, h, u, masseq%f, momeq%f)
+    call tendency(h, u, masseq%f, momeq%f)
     !h=h_old
     !h=u_old
 
@@ -180,7 +192,6 @@ contains
       time=real(k, r8)*dt
       ! print*
       ! print*, "Time: ", time
-      !call eqs_spatial_disc(time, h, u, masseq%f, momeq%f)
       !do l=1, mesh%ne
       ! print*, l, grad_ghbK%f(l), grad_ghbK%f(l)-grad_ghbK_exact%f(l), uhq_perp%f(l), uhq_perp%f(l)-uhq_perp_exact%f(l), momeq(l)
       !end do
@@ -401,7 +412,7 @@ contains
 
     !Calculate initial derived fields
     !call eqs_spatial_disc(0._r8, dt,  h, u, masseq%f, momeq%f)
-    call tendency(0._r8, dt,  h, u, masseq%f, momeq%f)
+    call tendency( h, u, masseq%f, momeq%f)
 
     !File for errors
     filename=trim(datadir)//"swm_loc_trunc_errors.txt"
@@ -805,7 +816,8 @@ contains
     end if
 
     !Calculate initial nonlinear tendency
-    call eqs_spatial_disc(0._r8, dt,  h_0, u_0, masseq0, momeq0)
+    !call eqs_spatial_disc(0._r8, dt,  h_0, u_0, masseq0, momeq0)
+    call tendency(h_0, u_0, masseq0, momeq0)
 
     print*
     print*, "Generating Matrices" ! - mass field"
@@ -1863,8 +1875,8 @@ contains
           h_ct=((u0**2)/2._r8)*gravi
           eta_ct=(2.*u0/erad)
         elseif(testcase==34)then
-       	            !F-sphere
-       	            !fcte=1.4584e-4_r8
+       	                      !F-sphere
+       	                      !fcte=1.4584e-4_r8
           !fsphere=2
           !u0=200
           !h_ct=((u0**2)/2._r8)*gravi
@@ -3183,7 +3195,7 @@ contains
 
 
 
-  subroutine tendency(t, dt, h, u, masseq, momeq)
+  subroutine tendency(h, u, masseq, momeq)
     !--------------------------------------
     !Calculates the Right Hand Side (spatial discret./tendency)
     !   of mass and velocity equations
@@ -3196,13 +3208,16 @@ contains
     type(scalar_field), intent(in):: u  !General
 
     !Time
-    real(r8), intent(in):: t, dt
+    !real(r8), intent(in):: t, dt
 
     !Right hand side of mass equation (number of cell equations)
     real(r8), intent(inout)::masseq(:)
 
     !Right hand side of momentum equation (number of edge equations)
     real(r8), intent(inout)::momeq(:)
+
+    !call eqs_spatial_disc(0.0_r8, 0.0_r8, h, u, masseq, momeq)
+    !return
 
     !Initialize RHS (in paralel)
     call zero_vector(momeq)
@@ -3223,7 +3238,7 @@ contains
 
     !Depth at triangles
     if(useSinterpolGass)then !Gass
-      call scalar_ed2trcc(h_ed, h_tr, mesh)
+      call scalar_edtr2trcc(h_ed, h_tr, mesh)
     else !TRSK or bary
       call scalar_hx2trcc(h, h_tr, mesh)
     end if
@@ -3289,10 +3304,10 @@ contains
     ! Calculate PV
     !---------------------------------------------------------------
     if(test_lterror==1)then
-       !Calculate pv on cells - just for analysis
-        call vector_elem_product(v_hx, h, vh_hx)
-        call scalar_tr2hx(q_tr, q_hx, mesh)
-        call vector_elem_product(vh_hx, q_hx, vhq_hx)
+      !Calculate pv on cells - just for analysis
+      call vector_elem_product(v_hx, h, vh_hx)
+      call scalar_tr2hx(q_tr, q_hx, mesh)
+      call vector_elem_product(vh_hx, q_hx, vhq_hx)
     end if
 
     !---------------------------------------------------------------
@@ -3312,14 +3327,17 @@ contains
     !---------------------------------------------------------------
     !Calculate coriolis term
     !---------------------------------------------------------------
-    call coriolis_ed(u, uh, eta_ed, q_ed, uhq_perp, mesh)
+    call coriolis_ed(u, uh, eta_ed, q_ed, vhq_tr, uhq_perp, mesh)
     momeq=momeq - uhq_perp%f  !-uhq_perp_exact%f(l) !
 
-    !Calculate divergence of velocity
+    !Calculate divergence of velocity - used in difusion and for diagnostics
     call div_hx(u, divu, mesh)
 
+    !------------------------------------------
+    !Diffusion
+    !------------------------------------------
     if(difus>0)then !Needs verification!!!
-      call diffusion_hx(u, lapu, mesh)
+      call diffusion_hx(u, eta, lapu, mesh)
       momeq=momeq + difus*lapu%f
     end if
 
@@ -3371,7 +3389,8 @@ contains
 
     !Initial f (f0)
     t0=t-dt
-    call eqs_spatial_disc(t0, dt, h, u, massf0, momf0)
+    !call eqs_spatial_disc(t0, dt, h, u, massf0, momf0)
+    call tendency(h, u, massf0, momf0)
     !print*, "Mass, mom: ", maxval(massf0), maxval(momf0)
     !print*, "h, u: ", maxval(h_new%f), maxval(u_new%f)
 
@@ -3379,7 +3398,8 @@ contains
     t1 = t0 + dt/2._r8
     u_new%f(1:u%n) = u%f(1:u%n) + dt * momf0(1:u%n) / 2.0_r8
     h_new%f(1:h%n) = h%f(1:h%n) + dt * massf0(1:h%n) / 2.0_r8
-    call eqs_spatial_disc(t1, dt, h_new, u_new, massf1, momf1)
+    !call eqs_spatial_disc(t1, dt, h_new, u_new, massf1, momf1)
+    call tendency(h_new, u_new, massf1, momf1)
     !print*, "Mass, mom: ", maxval(massf1), maxval(momf1)
     !print*, "h, u: ", maxval(h_new%f), maxval(u_new%f)
 
@@ -3387,7 +3407,8 @@ contains
     t2 = t0 + dt/2._r8
     u_new%f(1:u%n) = u%f(1:u%n) + dt * momf1(1:u%n) / 2.0_r8
     h_new%f(1:h%n) = h%f(1:h%n) + dt * massf1(1:h%n) / 2.0_r8
-    call eqs_spatial_disc(t2, dt, h_new, u_new, massf2, momf2)
+    !call eqs_spatial_disc(t2, dt, h_new, u_new, massf2, momf2)
+    call tendency(h_new, u_new, massf2, momf2)
     !print*, "Mass, mom: ", maxval(massf2), maxval(momf2)
     !print*, "h, u: ", maxval(h_new%f), maxval(u_new%f)
 
@@ -3396,6 +3417,7 @@ contains
     u_new%f(1:u%n) = u%f(1:u%n) + dt * momf2(1:u%n)
     h_new%f(1:h%n) = h%f(1:h%n) + dt * massf2(1:h%n)
     call eqs_spatial_disc(t3, dt, h_new, u_new, massf3, momf3)
+    call tendency(h_new, u_new, massf3, momf3)
     !print*, "Mass, mom: ", maxval(massf3), maxval(momf3)
     !print*, "h, u: ", maxval(h_new%f), maxval(u_new%f)
 
@@ -3694,7 +3716,7 @@ contains
     write(iunit, '(i12, 1f12.4, i4, i10, 12e20.10 , a120)') &
       mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
       ntime, dt, cfl, time*sec2day, &
-      errormax_h, error2_h, errormax_u, error2_u, tmass, &
+      errormax_h, error2_h, errormax_u, error2_u, error_mass, &
       Penergy, Kenergy, Tenergy, tmp, &
       trim(adjustl(trim(swmname)))//"_"//trim(adjustl(trim(mesh%name)))
 
@@ -3709,7 +3731,7 @@ contains
     write(*, '(i12, 1f8.3, i4, i10, 3f10.4, 9e16.6)') &
       mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
       ntime, dt, cfl, time*sec2day, &
-      errormax_h, error2_h, errormax_u, error2_u, tmass, &
+      errormax_h, error2_h, errormax_u, error2_u, error_mass, &
       Penergy, Kenergy, Tenergy, tmp
     print*
   end subroutine write_errors

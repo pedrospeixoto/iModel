@@ -44,7 +44,7 @@ ifeq ($(F90), gfortran)
 	F90 = gfortran
 	F90 := $(shell which gfortran)
 ifeq ($(DEBUG), 1)
-     FFLAG := -O0 -g -fbounds-check -Wall -Wno-unused
+     FFLAG := -O0 -g -fbounds-check -Wall -Wno-unused -Wno-conversion
      #-cpp
 else
      FFLAG := -O3 -fopenmp -march=native 
@@ -59,7 +59,7 @@ ifndef F90
 	F90 = gfortran
 	F90 := $(shell which gfortran)
 ifeq ($(DEBUG), 1)
-     FFLAG := -O0 -g -fbounds-check
+     FFLAG := -O0 -g -fbounds-check -Wall -Wno-unused -Wno-conversion
 else
      FFLAG := -O3 -fopenmp
 endif
