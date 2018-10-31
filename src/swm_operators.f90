@@ -57,7 +57,8 @@ module swm_operators
     cross_product, &
     getedindexonhx, &
     proj_vec_sphere, &
-    sphtriarea
+    sphtriarea, &
+    gethxedgeconnection
 
   implicit none
 
@@ -130,7 +131,7 @@ contains
     type(scalar_field), intent(inout) :: fed
 
     integer(i4)::  i, l
-    real(r8):: d1, d2
+    real(r8):: d1, d2, a1, a2
 
     !Quick check for dimensions
     if(fed%n/=mesh%ne)then
@@ -141,15 +142,26 @@ contains
     !$omp parallel do &
     !$omp default(none) &
     !$omp shared(mesh,  fed, ftr) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary) &
-    !$omp shared(useStagHTC, useStagHC) &
-    !$omp private(d1, d2) &
+    !$omp shared(useSinterpolTrisk, useSinterpolBary, useSinterpolGass) &
+    !$omp shared(useStagHTC, useStagHC, useTiledAreas) &
+    !$omp private(d1, d2, a1, a2) &
     !$omp schedule(static)
     do l=1,mesh%ne
       !Calculate PV on edges
-      if(useStagHC.or. useSinterpolTrisk)then
+      if(useStagHC.or. useSinterpolTrisk)then !Simple 1/2 average
         fed%f(l)=0.5_r8*(ftr%f(mesh%ed(l)%sh(1))+ftr%f(mesh%ed(l)%sh(2)))
-      else
+
+      elseif(useSinterpolGass)then !Rhombi interpolation
+        if(useTiledAreas)then
+          a1=mesh%tr(mesh%ed(l)%sh(1))%areat
+          a2=mesh%tr(mesh%ed(l)%sh(2))%areat
+        else
+          a1=mesh%tr(mesh%ed(l)%sh(1))%areag
+          a2=mesh%tr(mesh%ed(l)%sh(2))%areag
+        endif
+        fed%f(l)=(a1*ftr%f(mesh%ed(l)%sh(1))+a2*ftr%f(mesh%ed(l)%sh(2)))/(a1+a2)
+
+      else !Weighted average based on distances
         d1=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(1))%c%p)
         d2=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(2))%c%p)
         !print*, d1/(d1+d2), d2/(d1+d2)
@@ -189,13 +201,7 @@ contains
     do i=1,mesh%nv
       !Calculate PV at cell centers
       fhx%f(i)=0._r8
-      if(useSinterpolTrisk)then
-        !Weighted average, using areas - 1st order
-        do j=1, mesh%v(i)%nnb
-          fhx%f(i)=fhx%f(i)+&
-            mesh%hx(i)%hxtr_area(j)*ftr%f(mesh%v(i)%tr(j))
-        end do
-      elseif(useSinterpolBary)then
+      if(useSinterpolBary)then
         !Wachspress coordinates - 2nd order
         do j=1, wachc_tr2v(i)%n
           fhx%f(i)=fhx%f(i)+&
@@ -203,8 +209,14 @@ contains
         end do
          !print*, q_hx%f(i), scinterpol_wachspress(mesh%v(i)%p, q_tr, mesh)
       else
-        print*, "ERROR in scalar_tr2hx: don't know what to use."
-        stop
+        !if(useSinterpolTrisk)then
+        !Weighted average, using areas - 1st order
+        do j=1, mesh%v(i)%nnb
+          fhx%f(i)=fhx%f(i)+&
+            mesh%hx(i)%hxtr_area(j)*ftr%f(mesh%v(i)%tr(j))
+        end do
+      !  print*, "ERROR in scalar_tr2hx: don't know what to use."
+      !  stop
       end if
     end do
     !$omp end parallel do
@@ -213,7 +225,7 @@ contains
 
   end subroutine scalar_tr2hx
 
-  subroutine scalar_hx2trcc(fhx, ftr, mesh)
+  subroutine scalar_hx2tr(fhx, ftr, mesh)
     !---------------------------------------------------------------
     !Interpolate from cell centers to triangle centers (constant or linear interpolation)
     ! in: fhx - scalar field defines at cells
@@ -268,7 +280,7 @@ contains
 
     return
 
-  end subroutine scalar_hx2trcc
+  end subroutine scalar_hx2tr
 
   subroutine scalar_edtr2trcc(fed, ftr, mesh)
     !---------------------------------------------------------------
@@ -646,7 +658,7 @@ contains
 
   end subroutine div_hx
 
-  subroutine diffusion_hx(divu, eta, lapu, mesh)
+  subroutine laplacian_hx(divu, eta, lapu, mesh)
     !---------------------------------------------------------------
     !Calculate diffusion (Laplacian) of velocities
     !---------------------------------------------------------------
@@ -718,9 +730,9 @@ contains
 
     return
 
-  end subroutine diffusion_hx
+  end subroutine laplacian_hx
 
-  subroutine ke_tr(u, ke, mesh)
+  subroutine kinetic_energy_tr(u, ke, mesh)
     !---------------------------------------------------------------
     !Calculate kinetic energy at triangles
     ! in: u at cell edges
@@ -776,9 +788,9 @@ contains
 
     return
 
-  end subroutine ke_tr
+  end subroutine kinetic_energy_tr
 
-  subroutine ke_hx(u, vhx, ketr, uh, h, ke, mesh)
+  subroutine kinetic_energy_hx(u, vhx, ketr, uh, h, ke, mesh)
     !---------------------------------------------------------------
     !Calculate kinetic energy at cells
     ! in: u at cell edges
@@ -863,7 +875,7 @@ contains
 
     return
 
-  end subroutine ke_hx
+  end subroutine kinetic_energy_hx
 
   subroutine coriolis_ed(u, uh, eta_ed, q_ed, vhq_tr, uhq_perp, mesh)
     !---------------------------------------------------------------
@@ -879,7 +891,7 @@ contains
     integer(i4):: k, k1, k2 !For triangles
     integer(i4):: l, l1, l2 !For edges
     integer(i4):: j     !Auxiliar
-    integer(i4):: ed    !Edge index
+    integer(i4):: ed, ed3    !Edge index
     integer(i4):: tr   !Triangle index
     integer(i4):: node !Node index
     integer(i4):: edcelli !Edge relative to cell i
@@ -911,7 +923,7 @@ contains
     !$omp shared(useStagHTC, useStagHC, useCoriolisMtdHyb, useCoriolisMtdDtred) &
     !$omp shared(useCoriolisMtdPered, useCoriolisMtdTrisk, useCoriolisMtdExact, noPV) &
     !$omp private(edcelli, signcor, qtmp) &
-    !$omp private(i, i1, i2, j, l1, l2, node, k, k1, k2, d1, d2) &
+    !$omp private(i, i1, i2, j, l1, l2, node, k, k1, k2, d1, d2, ed3) &
     !$omp private(vectmp, vectmp1, vectmp2) &
     !$omp schedule(static)
     do l=1, mesh%ne
@@ -983,19 +995,19 @@ contains
           !Reconstruct velocity with pv to cell centers
           vectmp=0._r8
           if(useStagHTC)then
-            do l1=1,mesh%v(node)%nnb
-              l2=mesh%v(i)%ed(l1)
+            do j=1,mesh%v(node)%nnb
+              l2=mesh%v(i)%ed(j)
               qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(l2))
-              signcor=mesh%hx(node)%ttgout(l1)
+              signcor=mesh%hx(node)%ttgout(j)
               vectmp=vectmp + &
                 signcor*(uh%f(l2))*qtmp*(mesh%ed(l2)%c%p-mesh%v(node)%p)*mesh%edhx(l2)%leng
             end do
           elseif(useStagHC)then
-            do l1=1,mesh%v(node)%nnb
+            do j=1,mesh%v(node)%nnb
               !print*, l, i
-              l2=mesh%v(node)%ed(l1)
+              l2=mesh%v(node)%ed(j)
               qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(l2))
-              signcor=mesh%hx(node)%nr(l1)
+              signcor=mesh%hx(node)%nr(j)
               vectmp=vectmp + &
                 signcor*(uh%f(l2))*qtmp*(mesh%edhx(l2)%c%p-mesh%v(node)%p)*mesh%edhx(l2)%leng
             end do
@@ -1015,16 +1027,9 @@ contains
         !Simples average works on both HC and HTC cases
         vectmp=0.5*vectmp1+0.5*vectmp2
         if(useStagHTC)then
-          !d1=arclen(mesh%ed(l)%c%p,mesh%v(i1)%p)
-          !d2=arclen(mesh%ed(l)%c%p,mesh%v(i2)%p)
-          !vectmp=(d2*vectmp1+d1*vectmp2)/(d1+d2)
           vectmp=proj_vec_sphere(vectmp, mesh%ed(l)%c%p)
           uhq_perp%f(l)=-dot_product(vectmp,mesh%ed(l)%nr)
         elseif(useStagHC)then
-          !d1=arclen(mesh%edhx(l)%c%p,mesh%v(k1)%p)
-          !d2=arclen(mesh%edhx(l)%c%p,mesh%v(k2)%p)
-          ! d1/(d1+d2), d2/( d1+d2) should be 1/2
-          !print*, l, d1, d2, d1/(d1+d2), d2/(d1+d2)
           vectmp=proj_vec_sphere(vectmp, mesh%edhx(l)%c%p)
           uhq_perp%f(l)=dot_product(vectmp,mesh%edhx(l)%tg)
            !write(55,*) l, i1, i2, uhq_perp%f(l), vectmp
@@ -1032,12 +1037,46 @@ contains
         end if
          !print*, l, "pered"
       elseif(useCoriolisMtdGass)then
-        print*, "not implemented gass coriolis method yet"
+        do i=1,2 !cells sharing edge l
+          node=mesh%edhx(l)%sh(i)
+          edcelli=getedindexonhx(l, node, mesh)
+          !For all edges of cell, add contribution to reconstruction
+          do j=1, mesh%v(node)%nnb
+            !Edge's global index
+            k=mesh%v(node)%ed(j)
+            !Apply sign corrections
+            if(useStagHTC)then
+              signcor=dsign(1._r8,1._r8*mesh%hx(node)%ttgout(j)*mesh%hx(node)%tnrccw(edcelli))
+            elseif(useStagHC)then
+              signcor=dsign(1._r8,-1._r8*mesh%hx(node)%nr(j)*mesh%hx(node)%tg(edcelli))
+            endif
+            ed3=gethxedgeconnection(l, k, mesh)
+            !Calculate pv a la Gass 18
+            if(noPV)then
+              if(ed3>0) then !Gass style
+                qtmp=eta_ed%f(ed3) !0.5_r8*(eta_ed%f(l)+eta_ed%f(k))
+              else !trsk
+                qtmp=0.5_r8*(eta_ed%f(l)+eta_ed%f(k))
+              endif
+              uhq_perp%f(l)= uhq_perp%f(l)+ &
+                u%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+            else
+              if(ed3>0)then !Gass style
+                qtmp=q_ed%f(ed3) !0.5_r8*(q_ed%f(l)+q_ed%f(k))
+              else !trsk
+                qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(k))
+              end if
+              uhq_perp%f(l)= uhq_perp%f(l)+ &
+                uh%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
+            endif
+          end do
+        end do
+        uhq_perp%f(l)=uhq_perp%f(l)/mesh%ed(l)%leng
+
       elseif(useCoriolisMtdExact)then
         uhq_perp%f(l)=uhq_perp_exact%f(l)
       endif
 
-     ! momeq(l)=momeq(l) -uhq_perp%f(l)  !-uhq_perp_exact%f(l) !
     end do
     !$omp end parallel do
 

@@ -67,7 +67,7 @@ module poisson
     plot_scalarfield_sphgrid, &
     plot_vectorfield_sphgrid
 
-  implicit none	
+  implicit none
 
   !Function for test
   integer (i4):: testfunc
@@ -91,7 +91,7 @@ module poisson
 
 contains
 
-  subroutine getsimulpars(mesh)
+  subroutine getsimulpars()
     !---------------------------------------------------
     ! GETSIMULPARS
     !    Reads simulation parameters from file named "poisson.par"
@@ -164,15 +164,12 @@ contains
       plots=.false.
     end if
 
-
     !Set discretization position (centroid?)
     if(idiscretcentroid==1)then
       discretcentroid=.true.
     else
       discretcentroid=.false.
     end if
-
-
 
     simulname="poisson"
 
@@ -217,7 +214,7 @@ contains
     !Mesh
     type(grid_structure) :: mesh
 
-    call getsimulpars(mesh)
+    call getsimulpars()
 
     !Names depending on test cases
     select case(testcase)

@@ -262,13 +262,13 @@ contains
           if(useStagHC)then
             signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
               mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
-            gradke_tmp=signcor*(Kin_energy%f(mesh%edhx(l)%sh(2))-Kin_energy%f(mesh%edhx(l)%sh(1)))
+            gradke_tmp=signcor*(ke_hx%f(mesh%edhx(l)%sh(2))-ke_hx%f(mesh%edhx(l)%sh(1)))
           elseif(useStagHTC)then
             ! Obs: the tangent of a triangle edge (which is used as normal
             !   of the voronoi cell edges) is always defined such
             !   that it point from its vertex 1 to its vertex 2
             !   Therefore, the gradient needs no correction term (n_ei)
-            gradke_tmp=(Kin_energy%f(mesh%ed(l)%v(2))-Kin_energy%f(mesh%ed(l)%v(1)))
+            gradke_tmp=(ke_hx%f(mesh%ed(l)%v(2))-ke_hx%f(mesh%ed(l)%v(1)))
           end if
           max_gradke=max(max_gradke, abs(gradke_tmp/mesh%ed(l)%leng/erad))
         end do
@@ -427,7 +427,7 @@ contains
     !---------------------------------------------------
     ! Kinectic Energy calculation
     !---------------------------------------------------
-    call error_calc(Kin_energy, Kin_energy_exact, Kin_energy_error, errormaxrel, error2rel, errormax)
+    call error_calc(ke_hx, ke_hx_exact, ke_hx_error, errormaxrel, error2rel, errormax)
     print '(a16, i12,  3e18.8)', " Kenergy ", mesh%nv,  errormaxrel, error2rel, errormax
     write(errorsunit,trim(fmt)) " Kenergy ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
@@ -436,7 +436,7 @@ contains
     ! Kinectic Energy calculation on Triangles
     !---------------------------------------------------
     if(useReconmtdGass)then
-      call error_calc(Kin_energy_tr, Kin_energy_tr_exact, Kin_energy_tr_error, errormaxrel, error2rel, errormax)
+      call error_calc(ke_tr, ke_tr_exact, ke_tr_error, errormaxrel, error2rel, errormax)
       print '(a16, i12,  3e18.8)', " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax
       write(errorsunit,trim(fmt)) " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax, &
         trim(swmname)//" "//trim(mesh%name)
@@ -485,15 +485,6 @@ contains
       trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
-    ! Potential vorticity at rhombi
-    !---------------------------------------------------
-    q_rhb_exact%f=q_ed_exact%f
-    call error_calc(q_rhb, q_rhb_exact, q_rhb_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " PV_rhb ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " PV_rhb ", mesh%nv,  errormaxrel, error2rel, errormax, &
-      trim(swmname)//" "//trim(mesh%name)
-
-    !---------------------------------------------------
     ! Gradient of ghbK - Kenergy calculated
     !---------------------------------------------------
     call error_calc(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, errormaxrel, error2rel, errormax)
@@ -504,7 +495,7 @@ contains
     !---------------------------------------------------
     ! Gradient of ghbK - Kenergy given exactly
     !---------------------------------------------------
-    ghbK%f(1:ghbK%n)=grav*(h_exact%f(1:ghbK%n)+bt%f(1:ghbK%n))+Kin_energy_exact%f(1:ghbK%n)
+    ghbK%f(1:ghbK%n)=grav*(h_exact%f(1:ghbK%n)+bt%f(1:ghbK%n))+ke_hx_exact%f(1:ghbK%n)
     do l=1, mesh%ne
       grad_ghbK%f(l)=grad_edge_Cgrid(l, ghbk, u%pos, gradmtd, mesh)/erad
        !   print*, l, grad_ghbK%f(l)
@@ -807,7 +798,8 @@ contains
       h=h_0
       u=u_0
       h%f(i)=h_0%f(i)+pert
-      call eqs_spatial_disc(0._r8, 0._r8,  h, u, masseq, momeq)
+      !call eqs_spatial_disc(0._r8, 0._r8,  h, u, masseq, momeq)
+      call tendency(h, u, masseq, momeq)
       ! And save as column of system matrix
       !$OMP PARALLEL WORKSHARE DEFAULT(shared)
       M(1:mesh%nv,i) = (masseq(1:mesh%nv) - masseq0(1:mesh%nv))/pert
@@ -833,7 +825,8 @@ contains
       !print*, "u"
       !print*, u%f
       !read*, j
-      call eqs_spatial_disc(0._r8, 0._r8,  h, u, masseq, momeq)
+      !call eqs_spatial_disc(0._r8, 0._r8,  h, u, masseq, momeq)
+      call tendency( h, u, masseq, momeq)
       !print*, masseq
       !print*, momeq
       ! And save as column of system matrix
@@ -1180,7 +1173,7 @@ contains
           !call convert_vec_sph2cart(utmp, vtmp, mesh%v(i)%p, vectmp)
           !Calculate exact Kinectic energy
           if(test_lterror==1)then
-            Kin_energy_exact%f(i)=(u0*dcos(mesh%v(i)%lat))**2/2._r8
+            ke_hx_exact%f(i)=(u0*dcos(mesh%v(i)%lat))**2/2._r8
             utmp=u0*dcos(mesh%v(i)%lat)
             vtmp=0._r8
             call convert_vec_sph2cart(utmp, vtmp, mesh%v(i)%p, vectmp)
@@ -1256,7 +1249,7 @@ contains
           q_tr_exact%f(k)=eta_ct*dsin(mesh%tr(k)%c%lat)/(h0-h_ct*dsin(mesh%tr(k)%c%lat)**2)
           if(test_lterror==1)then
             !Kin energy
-            Kin_energy_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
+            ke_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
             !Grad of PV
             vtmp=eta_ct*dcos(mesh%tr(k)%c%lat)*(h0+h_ct*dsin(mesh%tr(k)%c%lat)**2) &
               /(erad*(h0-h_ct*dsin(mesh%tr(k)%c%lat)**2)**2)
@@ -1498,7 +1491,7 @@ contains
                 (1/cos(lat))**2*Sin(8.*lon)*(-0.1531934829004216 + 0.6127739316016864*Tan(lat)**2)))
             end if
 
-            Kin_energy_exact%f(i)=((ctmp1*Cos(lat) + ctmp1*Cos(lat)**3*Cos(4*lon)*(-Cos(lat)**2 + 4*Sin(lat)**2))**2 + &
+            ke_hx_exact%f(i)=((ctmp1*Cos(lat) + ctmp1*Cos(lat)**3*Cos(4*lon)*(-Cos(lat)**2 + 4*Sin(lat)**2))**2 + &
               40002.13532449681*Cos(lat)**6*Sin(lat)**2*Sin(4*lon)**2)/2.
             !Velocities
             utmp= erad*w*dcos(lat)+ &
@@ -1853,8 +1846,8 @@ contains
           h_ct=((u0**2)/2._r8)*gravi
           eta_ct=(2.*u0/erad)
         elseif(testcase==34)then
-       	                      !F-sphere
-       	                      !fcte=1.4584e-4_r8
+       	                                !F-sphere
+       	                                !fcte=1.4584e-4_r8
           !fsphere=2
           !u0=200
           !h_ct=((u0**2)/2._r8)*gravi
@@ -1894,7 +1887,7 @@ contains
           !call convert_vec_sph2cart(utmp, vtmp, mesh%v(i)%p, vectmp)
           !Calculate exact Kinectic energy
           if(test_lterror==1)then
-            Kin_energy_exact%f(i)=(u0*dcos(mesh%v(i)%lat))**2/2._r8
+            ke_hx_exact%f(i)=(u0*dcos(mesh%v(i)%lat))**2/2._r8
             utmp=u0*dcos(mesh%v(i)%lat)
             vtmp=0._r8
             call convert_vec_sph2cart(utmp, vtmp, mesh%v(i)%p, vectmp)
@@ -1969,7 +1962,7 @@ contains
           !Loop over triangles
           do k=1, mesh%nt
             !Kin energy
-            Kin_energy_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
+            ke_tr_exact%f(k)=(u0*dcos(mesh%tr(k)%c%lat))**2/2._r8
             !Absolute vorticity
             eta_exact%f(k)=eta_ct*dsin(mesh%tr(k)%c%lat)
             h_tr_exact%f(k)=hollgw
@@ -2004,7 +1997,7 @@ contains
 
           !Calculate exact Kinectic energy
           if(test_lterror==1)then
-            Kin_energy_exact%f(i)=(u0*dsin(mesh%v(i)%lat)**k*dcos(mesh%v(i)%lat))**2/2._r8
+            ke_hx_exact%f(i)=(u0*dsin(mesh%v(i)%lat)**k*dcos(mesh%v(i)%lat))**2/2._r8
             utmp=u0*dsin(mesh%v(i)%lat)**k*dcos(mesh%v(i)%lat)
             vtmp=0._r8
             call convert_vec_sph2cart(utmp, vtmp, mesh%v(i)%p, vectmp)
@@ -2093,7 +2086,7 @@ contains
 
           !Calculate exact Kinectic energy
           if(test_lterror==1)then
-            Kin_energy_exact%f(i)=(u0*dsin(lat)**k*dcos(lat))**2/2._r8
+            ke_hx_exact%f(i)=(u0*dsin(lat)**k*dcos(lat))**2/2._r8
             utmp=u0*dsin(lat)**k*dcos(lat)
             vtmp=0._r8
             call convert_vec_sph2cart(utmp, vtmp, p, vectmp)
@@ -2326,853 +2319,6 @@ contains
     end function h_tc6
   end subroutine initialize_fields
 
-
-
-  subroutine eqs_spatial_disc(t, dt, h, u, masseq, momeq)
-    !--------------------------------------
-    !Calculates the Right Hand Side (spatial discret.)
-    !   of mass and velocity equations
-    !-------------------------------------------------------------
-
-    !Fluid thickness (defined on voronoi centers)
-    type(scalar_field), intent(in):: h  !General
-
-    !Velocities (defined on edges - only normal component)
-    type(scalar_field), intent(in):: u  !General
-
-
-    !Right hand side of mass equation (number of cell equations)
-    real(r8)::masseq(:)
-
-    !Right hand side of momentum equation (number of edge equations)
-    real(r8)::momeq(:)
-
-    !Indexes
-    integer(i4):: i, i1, i2 !For node values
-    integer(i4):: k, k1, k2 !For triangles
-    integer(i4):: l, l1, l2 !For edges
-    integer(i4):: j     !Auxiliar
-    integer(i4):: ed    !Edge index
-    integer(i4):: tr   !Triangle index
-    integer(i4):: node !Node index
-    integer(i4):: edcelli !Edge relative to cell i
-
-    !Time
-    real(r8):: t, dt
-
-    !Temporary scalars
-    real(r8):: ed_area
-    real(r8):: signcor
-    real(r8):: qtmp
-    real(r8):: cell_area
-    real(r8):: vectmp(1:3)
-    real(r8):: vectmp1(1:3)
-    real(r8):: vectmp2(1:3)
-    real(r8):: p1(1:3)
-    real(r8):: p2(1:3)
-    real(r8):: p3(1:3)
-    real(r8):: nvectmp
-    real(r8):: d1
-    real(r8):: d2
-    real(r8):: b(1:3)
-    real(r8):: bclust
-    real(r8):: lambda
-    real(r8):: upwindq
-    real(r8):: etarel1, etarel2
-    ! eta_ct, h_ct, h0, grad_ct
-    real(r8):: lapu_n, lapu_t
-    real(r8):: ratiotrsk
-
-    !Temporary method selection flag
-    character (len=6):: mtdtmp
-
-    !OpenMP variables
-    integer :: n_threads, id_thread, chunk,  OMP_GET_NUM_THREADS, OMP_GET_THREAD_NUM
-
-    !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-    !$OMP SHARED(momeq, masseq)
-    momeq=0.
-    masseq=0.
-    !$OMP END PARALLEL WORKSHARE
-
-    !---------------------------------------------------------------
-    !Interpolate thickness to edges
-    ! Calculate gradient of pv, if needed
-    !---------------------------------------------------------------
-    if(useSinterpolTrisk .or. useStagHTC)then
-      !$omp parallel do default(none) &
-      !$omp shared(mesh, h, u, uh, h_ed) &
-      !$omp schedule(static)
-      do l=1,mesh%ne
-        !Simple average
-        h_ed%f(l)=(h%f(mesh%edhx(l)%sh(1))+h%f(mesh%edhx(l)%sh(2)))*0.5_r8
-        ! h*u is obtained at edges and stored
-        uh%f(l)=u%f(l)*h_ed%f(l)
-      end do
-       !$omp end parallel do
-
-    elseif(useSinterpolBary .and. useStagHC)then
-      !$omp parallel do default(none) &
-      !$omp shared(mesh, h, u, uh, h_ed) &
-      !$omp schedule(static)
-      do l=1,mesh%ne
-        !Linear interpolation
-        h_ed%f(l)=0._r8 !scinterpol_linear_trv(mesh%edhx(l)%c%p, h, mesh)
-        do i=1,3
-          h_ed%f(l)=h_ed%f(l)+ mesh%edhx(l)%c%b(i)*h%f(mesh%tr(mesh%edhx(l)%c%kt)%v(i))
-        end do
-        ! h*u is obtained at edges and stored
-        uh%f(l)=u%f(l)*h_ed%f(l)
-      end do
-       !$omp end parallel do
-    end if
-
-
-    !---------------------------------------------------------------
-    !Calculate fields at triangles
-    !   vorticity, PV, h_tr, vhq_tr at triangle cc
-    !---------------------------------------------------------------
-
-    !OPENMP PARALLEL DO
-    !$omp parallel do &
-    !$omp default(none) &
-    !$omp shared(mesh, h, h_ed, u, uh, h_tr, vhq_tr) &
-    !$omp shared(eta, q_tr , useReconmtdGass, kin_energy_tr ) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary, useSinterpolGass, useCoriolisMtdDtred) &
-    !$omp shared(useStagHTC, useStagHC, useTiledAreas) &
-    !$omp shared(testcase, test_lterror, fsphere, fcte) &
-    !$omp private(l, signcor, ed, cell_area, ed_area) &
-    !$omp private(p1, p2, p3) &
-    !$omp schedule(static)
-    do k=1, mesh%nt
-      !print*, k, omp_get_thread_num()
-      !First calculate relative vorticity
-      eta%f(k)=0.
-      !print*, k
-      !loop over triangle edges
-      do l=1, 3
-        ed=mesh%tr(k)%ed(l)
-        !if(stag=="HTC")then
-        if(useStagHTC)then
-          signcor=mesh%tr(k)%tg(l)
-          eta%f(k)=eta%f(k)+u%f(ed)*mesh%ed(ed)%leng*signcor
-           !print*, eta%f(k)
-        elseif(useStagHC)then
-          signcor=dsign( 1._r8, real(mesh%tr(k)%tg(l), r8)* &
-            dot_product(mesh%edhx(ed)%nr, mesh%ed(ed)%tg))
-          eta%f(k)=eta%f(k)+u%f(ed)*mesh%ed(ed)%leng*signcor
-        end if
-      end do
-      !This is the relative vort.
-      if(useTiledAreas)then
-        eta%f(k)=eta%f(k)/mesh%tr(k)%areat/erad
-      else
-        eta%f(k)=eta%f(k)/mesh%tr(k)%areag/erad
-      endif
-      !Add coriolis term - this is the absolute vorticity
-      if(fsphere==0)then !variable f
-        eta%f(k)=eta%f(k) +2.*Omega*dsin(mesh%tr(k)%c%lat)
-         !For the linearized equation, there is only the coriolis effect
-      elseif(fsphere==1)then !Just put the linear term - f sphere
-        ! Set to constant f
-        eta%f(k)=  fcte !1.4584e-4_r8 !+2.*Omega*dsin(mesh%tr(k)%c%lat)
-      elseif(fsphere==2)then !nonlinear with constant fm - f sphere
-        eta%f(k)=eta%f(k)+  fcte
-      end if
-
-      !Interpolate the thickness to triangle cc
-      h_tr%f(k)=0.
-      if(useSinterpolTrisk)then
-        !Use area weighted interpolation - 1st order
-        do i=1,3 !for each tr vertex
-          h_tr%f(k)=h_tr%f(k)+mesh%tr(k)%trhx_area(i)*h%f(mesh%tr(k)%v(i))
-        end do
-        h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
-         !if(useTiledAreas)then
-           !Gassmann's calculation of h to tr cc
-         !  h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areat
-           !print*, "caution: is this interpolation doing the right thing? (area weighted interp with TRSK and tiled areas)"
-           !stop
-         !else
-
-      elseif(useSinterpolBary)then
-        !Get barycentric coords
-        !b=bar_coord_tr(mesh%tr(k)%c%p, k, mesh)
-        !Interpolate
-        do i=1,3
-          h_tr%f(k)=h_tr%f(k)+ mesh%tr(k)%c%b(i)*h%f(mesh%tr(k)%v(i))
-        end do
-         !h_tr%f(k)=scinterpol_linear_trv(mesh%tr(k)%c%p, h, mesh)
-
-      elseif(useSinterpolGass)then
-        !Use area weighted interpolation based on edge values - 1st order
-        do i=1,3 !for each tr edge
-          !Calculate weight
-          ed=mesh%tr(k)%ed(i)
-          if(useTiledAreas)then ! Dist(trcc,tredmidpoint)*tred_length/2
-            ed_area=0.5*arclen(mesh%tr(k)%c%p, mesh%ed(ed)%c%p)*mesh%ed(ed)%leng
-          else !Use geodesic areas !Area of tr formed by trcc and two endpoints of edge
-            p1=mesh%tr(k)%c%p
-            p2=mesh%v(mesh%ed(ed)%v(1))%p
-            p3=mesh%v(mesh%ed(ed)%v(2))%p
-            ed_area=sphtriarea(p1, p2, p3)
-          endif
-          h_tr%f(k)=h_tr%f(k)+ed_area*h_ed%f(ed)
-        end do
-        if(useTiledAreas)then
-          h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areat
-        else
-          h_tr%f(k)=h_tr%f(k)/mesh%tr(k)%areag
-        end if
-      end if
-
-      !Calculate the potential vorticity
-      if(testcase<2)then
-        q_tr%f(k)=0.
-      elseif(abs(h_tr%f(k))<eps/100000.)then
-        print*, "Null thickness! Cannot calculate PV."
-        stop "  This test case is not adequate for calculating the mommentum eq."
-         !q_tr%f(k)=0.
-      else
-        q_tr%f(k)=eta%f(k)/h_tr%f(k)
-      end if
-
-      !Reconstruct vhq to triangle circumcenter (use Perot's method)
-      !  Only used in dtred Coriolis method
-      if(useCoriolisMtdDtred .or. test_lterror==1)then
-        vhq_tr%p(k)%v=0._r8
-        do l=1,3
-          ed=mesh%tr(k)%ed(l)
-          if(useStagHTC)then
-            signcor=dsign(1._r8, real(mesh%tr(k)%tg(l), r8))
-            !print*, j, ed, signcor, uh%f(ed)
-            vhq_tr%p(k)%v=vhq_tr%p(k)%v + &
-              signcor*(uh%f(ed))*(mesh%ed(ed)%c%p-mesh%tr(k)%c%p)*mesh%ed(ed)%leng
-          elseif(useStagHC)then
-            signcor=dsign( 1._r8, real(mesh%tr(k)%tg(l), r8)* &
-              dot_product(mesh%edhx(ed)%nr, mesh%ed(ed)%tg))
-            !print*, j, ed, signcor, uh%f(ed)
-            vhq_tr%p(k)%v=vhq_tr%p(k)%v + &
-              signcor*(uh%f(ed))*(mesh%edhx(ed)%c%p-mesh%tr(k)%c%p)*mesh%ed(ed)%leng
-          endif
-           !print*,uhq_tr%p(k)%v, norm(uhq_tr%p(k)%v)
-        end do
-        vhq_tr%p(k)%v=cross_product(mesh%tr(k)%c%p, vhq_tr%p(k)%v)/mesh%tr(k)%areag
-        vhq_tr%p(k)%v=vhq_tr%p(k)%v*q_tr%f(k)
-      end if
-
-      !Calculate K energy a la A. Gassman
-      if(useReconmtdGass)then
-        Kin_energy_tr%f(k)=0._r8
-        cell_area=0._r8
-        do l=1, 3
-          ed=mesh%tr(k)%ed(l)
-          !Gassmann
-          ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
-          !Dubos
-          !ed_area=0.5*mesh%ed(ed)%leng*arclen(mesh%ed(ed)%c%p,mesh%tr(k)%c%p)
-          cell_area=cell_area+ed_area
-          Kin_energy_tr%f(k)=Kin_energy_tr%f(k)+ed_area*u%f(ed)**2
-        end do
-        !Kin_energy%f(i)=Kin_energy%f(i)/mesh%hx(i)%areag
-        Kin_energy_tr%f(k)=Kin_energy_tr%f(k)/cell_area
-      end if
-    end do
-    !$omp end parallel do
-
-    !------------------------------------------------------------
-    ! Calculate PV on edges
-    !------------------------------------------------------------
-    !$omp parallel do &
-    !$omp default(none) &
-    !$omp shared(mesh,  q_ed, q_tr,eta_ed, eta) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary) &
-    !$omp shared(useStagHTC, useStagHC) &
-    !$omp private(d1, d2) &
-    !$omp schedule(static)
-    do l=1,mesh%ne
-      !Calculate PV on edges
-      if(useStagHC.or. useSinterpolTrisk)then
-        q_ed%f(l)=0.5_r8*(q_tr%f(mesh%ed(l)%sh(1))+q_tr%f(mesh%ed(l)%sh(2)))
-        eta_ed%f(l)=0.5_r8*(eta%f(mesh%ed(l)%sh(1))+eta%f(mesh%ed(l)%sh(2)))
-      else
-        d1=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(1))%c%p)
-        d2=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(2))%c%p)
-        !print*, d1/(d1+d2), d2/(d1+d2)
-        q_ed%f(l)=(d2*q_tr%f(mesh%ed(l)%sh(1))+d1*q_tr%f(mesh%ed(l)%sh(2)))/(d1+d2)
-        eta_ed%f(l)=(d2*eta%f(mesh%ed(l)%sh(1))+d1*eta%f(mesh%ed(l)%sh(2)))/(d1+d2)
-      end if
-    end do
-
-
-    !------------------------------------------------------------
-    ! Calculate Grad of PV, if needed
-    !------------------------------------------------------------
-    if((.not.useOrigPV).or. test_lterror==1)then
-      !$omp parallel do default(none) &
-      !$omp shared(mesh, q_grad_ed, q_tr) &
-      !$omp shared(useStagHTC, useStagHC) &
-      !$omp private(signcor, k1, k2) &
-      !$omp schedule(static)
-      do l=1,mesh%ne
-        !Calculate gradient of pv on tr edges
-        !  always relative to the normal of the triangle edge - independent of HCT and HCm
-        k1=mesh%ed(l)%sh(1)
-        k2=mesh%ed(l)%sh(2)
-        signcor=dsign( 1._r8, dot_product(mesh%ed(l)%nr, &
-          mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
-        q_grad_ed%f(l)=signcor*(q_tr%f(k2)-q_tr%f(k1))/mesh%edhx(l)%leng !/erad
-      end do
-       !$omp end parallel do
-    end if
-
-    !Reconstruct grad of PV to tr center Perot style, if needed
-    if(useAPVM.or.useCLUST)then
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, q_grad_tr, q_grad_ed, q_grad_tr_exact) &
-      !$omp shared(useStagHTC, useStagHC) &
-      !$omp private(l, signcor, ed, cell_area, ed_area) &
-      !$omp schedule(static)
-      do k=1, mesh%nt
-        q_grad_tr%p(k)%v=0._r8
-        do l=1,3
-          ed=mesh%tr(k)%ed(l)
-          signcor=dsign(1._r8, real(mesh%tr(k)%nr(l), r8))
-          !print*, j, ed, signcor, uh%f(ed)
-          q_grad_tr%p(k)%v=q_grad_tr%p(k)%v + &
-            signcor*(q_grad_ed%f(ed))*(mesh%ed(ed)%c%p-mesh%tr(k)%c%p)*mesh%ed(ed)%leng
-           !print*,ed, q_grad_ed%f(ed)
-        end do
-        q_grad_tr%p(k)%v=q_grad_tr%p(k)%v/mesh%tr(k)%areag/erad
-         !print*, k, q_grad_tr_exact%p(k)%v
-         !print*, k, q_grad_tr%p(k)%v
-      end do
-       !$omp end parallel do
-    elseif(useCLUST)then
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, q_grad_tr, q_grad_tr_exact, q_ed) &
-      !$omp shared(useStagHTC, useStagHC) &
-      !$omp private(l, signcor, ed, cell_area, ed_area) &
-      !$omp schedule(static)
-      do k=1, mesh%nt
-        q_grad_tr%p(k)%v=0._r8
-        do l=1,3
-          ed=mesh%tr(k)%ed(l)
-          signcor=dsign(1._r8, real(mesh%tr(k)%nr(l), r8))
-          !print*, j, ed, signcor, uh%f(ed)
-          q_grad_tr%p(k)%v=q_grad_tr%p(k)%v + &
-            signcor*(q_ed%f(ed))*mesh%ed(ed)%leng*mesh%ed(ed)%nr
-           !signcor*mesh%ed(ed)%leng*mesh%ed(ed)%nr
-           !print*,ed, q_grad_ed%f(ed)
-        end do
-        q_grad_tr%p(k)%v=q_grad_tr%p(k)%v/mesh%tr(k)%areag/erad
-         !print*, k, norm(q_grad_tr%p(k)%v) !, q_grad_tr_exact%p(k)%v
-         !print*, k, q_grad_tr%p(k)%v
-      end do
-       !$omp end parallel do
-    end if
-
-
-    !---------------------------------------------------------------
-    ! Calculate hexagonal cell related fields
-    !   Discrete mass eq RHS
-    !   g(h+b)+K
-    !   Velocity reconstruction
-    !   Kinetic Energy
-    !   PV
-    !---------------------------------------------------------------
-
-    !OPENMP PARALLEL DO
-    !$omp parallel do &
-    !$omp default(none) &
-    !$omp shared(mesh, h, hbt, u, uh, divuh, masseq, kin_energy, ghbK) &
-    !$omp shared(bt, v_hx, vh_hx, q_hx, q_tr, vhq_hx, wachc_tr2v) &
-    !$omp shared(testcase, fsphere, gasscoef) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary, useTiledAreas, useCoriolisMtdDtred) &
-    !$omp shared(useStagHTC, useStagHC, useReconmtdTrisk,useReconmtdPerhx ) &
-    !$omp shared(test_lterror, hollgw, useReconmtdGass, useReconmtdMelv, kin_energy_tr ) &
-    !$omp private(j, signcor, vectmp, ed, cell_area, ed_area, k) &
-    !$omp schedule(static)
-    do i=1,mesh%nv
-      ! print*, i!, OMP_GET_THREAD_NUM()
-
-      !Divergence of uh on unit sphere using div_cell_Cgrig
-      !lengths are multiplied by erad, and area by erad**2, therefore
-      !For all edges forming the hexagon
-      divuh%f(i)=0._r8
-      !divu%f(i)=0._r8
-      do j=1, mesh%v(i)%nnb
-        !Get edge index
-        l=mesh%v(i)%ed(j)
-        !Get edge outer normal related to the hexagon
-        if(useStagHTC)then
-          signcor=real(mesh%hx(i)%ttgout(j), r8)
-        elseif(useStagHC)then
-          signcor=real(mesh%hx(i)%nr(j), r8)
-        end if
-        !Calculate numerical integration
-        divuh%f(i)=divuh%f(i)+signcor*uh%f(l)*mesh%edhx(l)%leng
-         !divu%f(i)=divu%f(i)+signcor*u%f(l)*mesh%edhx(l)%leng
-      end do
-      if(useTiledAreas)then
-        divuh%f(i)=divuh%f(i)/mesh%hx(i)%areat/erad
-      else
-        divuh%f(i)=divuh%f(i)/mesh%hx(i)%areag/erad
-      end if
-      !divu%f(i)=divu%f(i)/mesh%hx(i)%areag/erad
-      !divuh%f(i)=div_cell_Cgrid(i,uh,mesh)/erad
-
-      !Mass eq. RHS
-      masseq(i)= -divuh%f(i) !-divuh_exact%f(i) !
-
-      !Reconstruct velocities to cells - use Perot's method
-      vectmp=0._r8
-      if(useStagHTC)then
-        do l=1,mesh%v(i)%nnb
-          ed=mesh%v(i)%ed(l)
-          signcor=mesh%hx(i)%ttgout(l)
-          vectmp=vectmp + &
-            signcor*(u%f(ed))*(mesh%ed(ed)%c%p-mesh%v(i)%p)*mesh%edhx(ed)%leng
-        end do
-      elseif(useStagHC)then
-        do l=1,mesh%v(i)%nnb
-          ed=mesh%v(i)%ed(l)
-          signcor=mesh%hx(i)%nr(l)
-          vectmp=vectmp + &
-            signcor*(u%f(ed))*(mesh%edhx(ed)%c%p-mesh%v(i)%p)*mesh%edhx(ed)%leng
-        end do
-      end if
-      if(useTiledAreas)then
-        v_hx%p(i)%v=vectmp/mesh%hx(i)%areat
-      else
-        v_hx%p(i)%v=vectmp/mesh%hx(i)%areag
-      end if
-      v_hx%p(i)%v=proj_vec_sphere(v_hx%p(i)%v, mesh%v(i)%p)
-
-
-      !Calculate K energy
-
-      if(useReconmtdTrisk .or. useReconmtdGass)then
-        Kin_energy%f(i)=0._r8
-        cell_area=0._r8
-        do l=1, mesh%v(i)%nnb
-          ed=mesh%v(i)%ed(l)
-          ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
-          cell_area=cell_area+ed_area
-          Kin_energy%f(i)=Kin_energy%f(i)+ed_area*u%f(ed)**2
-        end do
-        !Kin_energy%f(i)=Kin_energy%f(i)/mesh%hx(i)%areag
-        Kin_energy%f(i)=Kin_energy%f(i)/cell_area
-      elseif(useReconmtdPerhx)then
-        Kin_energy%f(i)=dot_product( v_hx%p(i)%v,  v_hx%p(i)%v)/2._r8
-      elseif(useReconmtdMelv)then
-        if(useStagHTC)then !use trsk method
-          Kin_energy%f(i)=0._r8
-          cell_area=0._r8
-          do l=1, mesh%v(i)%nnb
-            ed=mesh%v(i)%ed(l)
-            ed_area=0.25*mesh%ed(ed)%leng*mesh%edhx(ed)%leng
-            cell_area=cell_area+ed_area
-            Kin_energy%f(i)=Kin_energy%f(i)+ed_area*uh%f(ed)*u%f(ed)
-          end do
-          !Kin_energy%f(i)=Kin_energy%f(i)/mesh%hx(i)%areag
-          Kin_energy%f(i)=Kin_energy%f(i)/h%f(i)/cell_area
-        elseif(useStagHC)then !use perots method
-          vectmp=0._r8
-          do l=1,mesh%v(i)%nnb
-            ed=mesh%v(i)%ed(l)
-            signcor=mesh%hx(i)%nr(l)
-            vectmp=vectmp + &
-              signcor*(uh%f(ed))*(mesh%edhx(ed)%c%p-mesh%v(i)%p)*mesh%edhx(ed)%leng
-          end do
-          vectmp=vectmp/mesh%hx(i)%areag
-          vectmp=proj_vec_sphere(vectmp, mesh%v(i)%p)
-          Kin_energy%f(i)=dot_product( vectmp,  v_hx%p(i)%v)/h%f(i)/2._r8
-        end if
-      end if
-
-      !Calculate K energy a la A. Gassman
-      if(useReconmtdGass)then
-        !Kin_energy_tr%f(k)=0._r8
-        Kin_energy%f(i)=Kin_energy%f(i)*gasscoef
-        do j=1, mesh%v(i)%nnb
-          k=mesh%v(i)%tr(j)
-          Kin_energy%f(i)=Kin_energy%f(i)+&
-            (1.0_r8-gasscoef)*mesh%hx(i)%hxtr_area(j)*Kin_energy_tr%f(k)
-           !print*, mesh%hx(i)%hxtr_area(j), Kin_energy_tr%f(k),Kin_energy%f(i)
-        end do
-         !print*, Kin_energy%f(i)
-      end if
-
-      !Add bottom topography to depth
-      hbt%f(i)=h%f(i)+bt%f(i)
-
-      !Calculate g(h+b)+K at cell centers (Bernoulli potential)
-      ghbK%f(i)=grav*(hbt%f(i))+Kin_energy%f(i)
-
-      if(test_lterror==1)then
-        !Calculate pv on cells - just for analysis
-        vh_hx%p(i)%v=v_hx%p(i)%v*h%f(i)
-        !Calculate PV at cell centers
-        q_hx%f(i)=0._r8
-        if(useSinterpolTrisk)then
-          !Weighted average, using areas - 1st order
-          do j=1, mesh%v(i)%nnb
-            q_hx%f(i)=q_hx%f(i)+&
-              mesh%hx(i)%hxtr_area(j)*q_tr%f(mesh%v(i)%tr(j))
-          end do
-        elseif(useSinterpolBary)then
-          !Wachspress coordinates - 2nd order
-          do j=1, wachc_tr2v(i)%n
-            q_hx%f(i)=q_hx%f(i)+&
-              wachc_tr2v(i)%w(j)*q_tr%f(wachc_tr2v(i)%v(j))
-          end do
-           !print*, q_hx%f(i), scinterpol_wachspress(mesh%v(i)%p, q_tr, mesh)
-        end if
-
-        !Calculate reconstructed vhq com cells - formerly used on coriolis term
-        !  not of any use any more
-        vhq_hx%p(i)%v=vh_hx%p(i)%v*q_hx%f(i)
-      end if
-    end do
-    !$omp end parallel do
-
-    !---------------------------------------------------------------
-    ! Calculate edges related fields
-    !   Grad g(h+b)+K
-    !   PV
-    !---------------------------------------------------------------
-
-    !OPENMP PARALLEL DO
-    !$omp parallel do &
-    !$omp default(none) &
-    !$omp shared(mesh, u, q_ed, q_tr, ghbK, grad_ghbK, momeq) &
-    !$omp shared(q_grad_tr, v_hx) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary, useCoriolisMtdDtred) &
-    !$omp shared(useStagHTC, useStagHC, useAPVM, useCLUST, dt, bclust, pvspar) &
-    !$omp shared(test_lterror) &
-    !$omp private(signcor, d1, d2, k, lambda, vectmp, nvectmp, upwindq) &
-    !$omp schedule(static)
-    do l=1, mesh%ne
-      !print*, l
-      !Calculate gradient of ghbk on edges
-      if(useStagHC)then
-        signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
-          mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
-        grad_ghbK%f(l)=signcor*(ghbk%f(mesh%edhx(l)%sh(2))-ghbk%f(mesh%edhx(l)%sh(1)))
-      elseif(useStagHTC)then
-        ! Obs: the tangent of a triangle edge (which is used as normal
-        !   of the voronoi cell edges) is always defined such
-        !   that it point from its vertex 1 to its vertex 2
-        !   Therefore, the gradient needs no correction term (n_ei)
-        grad_ghbK%f(l)=(ghbk%f(mesh%ed(l)%v(2))-ghbk%f(mesh%ed(l)%v(1)))
-      end if
-      grad_ghbK%f(l)=grad_ghbK%f(l)/mesh%ed(l)%leng/erad
-      !grad_ghbK%f(l)=grad_edge_Cgrid(l, ghbk, u%pos, gradmtd, mesh)
-      !grad_ghbK%f(l)=grad_ghbK%f(l)/erad
-
-      momeq(l)= -grad_ghbK%f(l) !-grad_ghbK_exact%f(l) !
-
-      !       !Calculate PV on edges
-      !       if(useStagHC.or. useSinterpolTrisk)then
-      !          q_ed%f(l)=0.5_r8*(q_tr%f(mesh%ed(l)%sh(1))+q_tr%f(mesh%ed(l)%sh(2)))
-      !       else
-      !          d1=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(1))%c%p)
-      !          d2=arclen(mesh%ed(l)%c%p,mesh%tr(mesh%ed(l)%sh(2))%c%p)
-      !          !print*, d1/(d1+d2), d2/(d1+d2)
-      !          q_ed%f(l)=(d2*q_tr%f(mesh%ed(l)%sh(1))+d1*q_tr%f(mesh%ed(l)%sh(2)))/(d1+d2)
-      !       end if
-
-      if(useAPVM)then
-        q_ed%f(l)=q_ed%f(l)-pvspar*dt*dot_product( &
-          q_grad_tr%p(mesh%ed(l)%sh(1))%v +q_grad_tr%p(mesh%ed(l)%sh(2))%v, &
-          v_hx%p(mesh%ed(l)%v(1))%v + v_hx%p(mesh%ed(l)%v(2))%v )
-      elseif(useCLUST)then
-        !Calculate parameter to check whether the flow is parallel to the edge
-        !Total velocity at edges (based on Perots method)
-        vectmp=0.5_r8*(v_hx%p(mesh%ed(l)%v(1))%v+v_hx%p(mesh%ed(l)%v(2))%v)
-        nvectmp=norm(vectmp)
-
-        !Use CLUST method
-        if(nvectmp>eps/1000000.)then
-          lambda=abs(u%f(l))/nvectmp
-          bclust=pvspar
-          if(dot_product(vectmp, mesh%tr(mesh%ed(l)%sh(1))%c%p-mesh%ed(l)%c%p)<0)then
-            !The upwind triangle point is
-            k= mesh%ed(l)%sh(1)
-          else
-            k= mesh%ed(l)%sh(2)
-          end if
-          if(useStagHC)then
-            upwindq=q_tr%f(k)- &
-              dot_product(mesh%tr(mesh%ed(l)%sh(1))%c%p-mesh%edhx(l)%c%p, &
-              q_grad_tr%p(k)%v)
-          else
-            upwindq=q_tr%f(k)- &
-              dot_product(mesh%tr(mesh%ed(l)%sh(1))%c%p-mesh%ed(l)%c%p, &
-              q_grad_tr%p(k)%v)
-          end if
-          !print*, l, lambda, (1-bclust*lambda), q_ed%f(l)
-          q_ed%f(l)=(1-bclust*lambda)*q_ed%f(l)+lambda*bclust*upwindq
-           !print*, l, lambda*bclust, upwindq, q_ed%f(l)
-           !print*
-        end if
-      end if
-    end do
-    !$omp end parallel do
-
-    !---------------------------------------------------------------
-    !Calculate coriolis term
-    !---------------------------------------------------------------
-    !OPENMP PARALLEL DO
-    !$omp parallel do &
-    !$omp default(none) &
-    !$omp shared(mesh, uh, u, h, q_ed, momeq, uhq_perp, vhq_tr, vhq_hx) &
-    !$omp shared(isTrskindLow, uhq_perp_exact, eta_ed) &
-    !$omp shared(useSinterpolTrisk, useSinterpolBary) &
-    !$omp shared(useStagHTC, useStagHC, useCoriolisMtdHyb, useCoriolisMtdDtred) &
-    !$omp shared(useCoriolisMtdPered, useCoriolisMtdTrisk, useCoriolisMtdExact, noPV) &
-    !$omp private(edcelli, signcor, qtmp) &
-    !$omp private(i, i1, i2, j, l1, l2, node, k, k1, k2, d1, d2) &
-    !$omp private(vectmp, vectmp1, vectmp2) &
-    !$omp schedule(static)
-    do l=1, mesh%ne
-      uhq_perp%f(l)=0._r8
-      !trskind%f(l)=trsk_order_index(l, u%pos, mesh)
-      if(useCoriolisMtdHyb)then
-        if(.not. isTrskindLow(l))then
-          !mtdtmp="pered"
-          useCoriolisMtdTrisk=.false.
-          useCoriolisMtdPered=.true.
-        else
-          !mtdtmp="trsk"
-          useCoriolisMtdTrisk=.true.
-          useCoriolisMtdPered=.false.
-        end if
-      end if
-      !For cells that share the edge
-      if(useCoriolisMtdTrisk)then
-        do i=1,2 !cells sharing edge l
-          node=mesh%edhx(l)%sh(i)
-          edcelli=getedindexonhx(l, node, mesh)
-          !For all edges of cell, add contribution to reconstruction
-          do j=1, mesh%v(node)%nnb
-            !Edge's global index
-            k=mesh%v(node)%ed(j)
-            !Apply sign corrections
-            if(useStagHTC)then
-              signcor=dsign(1._r8,1._r8*mesh%hx(node)%ttgout(j)*mesh%hx(node)%tnrccw(edcelli))
-            elseif(useStagHC)then
-              signcor=dsign(1._r8,-1._r8*mesh%hx(node)%nr(j)*mesh%hx(node)%tg(edcelli))
-            endif
-            if(noPV)then
-              qtmp=0.5_r8*(eta_ed%f(l)+eta_ed%f(k))
-              uhq_perp%f(l)= uhq_perp%f(l)+ &
-                u%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
-            else
-              qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(k))
-              uhq_perp%f(l)= uhq_perp%f(l)+ &
-                uh%f(k)*qtmp*mesh%edhx(k)%leng*mesh%hx(node)%trskw(edcelli, j)*signcor
-            endif
-          end do
-        end do
-        uhq_perp%f(l)=uhq_perp%f(l)/mesh%ed(l)%leng
-         !print*, l
-      elseif(useCoriolisMtdDtred)then !This method only works for layer model (with PV)
-        !Use dual triangle reconstruction
-        k1=mesh%ed(l)%sh(1)
-        k2=mesh%ed(l)%sh(2)
-
-        if(useStagHTC)then
-          d1=arclen(mesh%ed(l)%c%p,mesh%tr(k1)%c%p)
-          d2=arclen(mesh%ed(l)%c%p,mesh%tr(k2)%c%p)
-          vectmp=(d2*vhq_tr%p(k1)%v+d1*vhq_tr%p(k2)%v)/(d1+d2)
-          vectmp=proj_vec_sphere(vectmp, mesh%ed(l)%c%p)
-          uhq_perp%f(l)=-dot_product(vectmp,mesh%ed(l)%nr)
-        elseif(useStagHC)then
-          !d1=arclen(mesh%edhx(l)%c%p,mesh%tr(k1)%c%p)
-          !d2=arclen(mesh%edhx(l)%c%p,mesh%tr(k2)%c%p)
-          ! d1/(d1+d2), d2/( d1+d2) should be 1/2
-          !vectmp=(d2*vhq_tr%p(k1)%v+d1*vhq_tr%p(k2)%v)/(d1+d2)
-          vectmp=0.5*vhq_tr%p(k1)%v+0.5*vhq_tr%p(k2)%v
-          !vectmp=proj_vec_sphere(vectmp, mesh%edhx(l)%c%p)
-          uhq_perp%f(l)=dot_product(vectmp,mesh%edhx(l)%tg)
-        end if
-      elseif(useCoriolisMtdPered)then !This method only works for layer model (with PV)
-        !print*, l
-        do i=1,2 !cells sharing edge l
-          node=mesh%edhx(l)%sh(i)
-          !Reconstruct velocity with pv to cell centers
-          vectmp=0._r8
-          if(useStagHTC)then
-            do l1=1,mesh%v(node)%nnb
-              l2=mesh%v(i)%ed(l1)
-              qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(l2))
-              signcor=mesh%hx(node)%ttgout(l1)
-              vectmp=vectmp + &
-                signcor*(uh%f(l2))*qtmp*(mesh%ed(l2)%c%p-mesh%v(node)%p)*mesh%edhx(l2)%leng
-            end do
-          elseif(useStagHC)then
-            do l1=1,mesh%v(node)%nnb
-              !print*, l, i
-              l2=mesh%v(node)%ed(l1)
-              qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(l2))
-              signcor=mesh%hx(node)%nr(l1)
-              vectmp=vectmp + &
-                signcor*(uh%f(l2))*qtmp*(mesh%edhx(l2)%c%p-mesh%v(node)%p)*mesh%edhx(l2)%leng
-            end do
-          end if
-          vectmp=vectmp/mesh%hx(node)%areag
-          if(i==1)then
-            vectmp1=proj_vec_sphere(vectmp, mesh%v(node)%p) !*h%f(node) !vectmp*h%f(node) !
-          else
-            vectmp2=proj_vec_sphere(vectmp, mesh%v(node)%p) !*h%f(node) !vectmp*h%f(node) !
-          end if
-        end do
-        !print*, l, vectmp
-        !print*
-        !Interpolate to edges
-        i1=mesh%edhx(l)%sh(1)
-        i2=mesh%edhx(l)%sh(2)
-        !Simples average works on both HC and HTC cases
-        vectmp=0.5*vectmp1+0.5*vectmp2
-        if(useStagHTC)then
-          !d1=arclen(mesh%ed(l)%c%p,mesh%v(i1)%p)
-          !d2=arclen(mesh%ed(l)%c%p,mesh%v(i2)%p)
-          !vectmp=(d2*vectmp1+d1*vectmp2)/(d1+d2)
-          vectmp=proj_vec_sphere(vectmp, mesh%ed(l)%c%p)
-          uhq_perp%f(l)=-dot_product(vectmp,mesh%ed(l)%nr)
-        elseif(useStagHC)then
-          !d1=arclen(mesh%edhx(l)%c%p,mesh%v(k1)%p)
-          !d2=arclen(mesh%edhx(l)%c%p,mesh%v(k2)%p)
-          ! d1/(d1+d2), d2/( d1+d2) should be 1/2
-          !print*, l, d1, d2, d1/(d1+d2), d2/(d1+d2)
-          vectmp=proj_vec_sphere(vectmp, mesh%edhx(l)%c%p)
-          uhq_perp%f(l)=dot_product(vectmp,mesh%edhx(l)%tg)
-           !write(55,*) l, i1, i2, uhq_perp%f(l), vectmp
-           !write(55,*)
-        end if
-         !print*, l, "pered"
-      elseif(useCoriolisMtdExact)then
-        uhq_perp%f(l)=uhq_perp_exact%f(l)
-      endif
-
-      momeq(l)=momeq(l) -uhq_perp%f(l)  !-uhq_perp_exact%f(l) !
-    end do
-    !$omp end parallel do
-
-
-    !    !Calculate dual divergence of vorticity flux
-    !    do k=1, mesh%nt
-    !       divueta%f(k)=0._r8
-    !       do j=1, 3
-    !          !Get edge index
-    !          l=mesh%tr(k)%ed(j)
-    !          !Get edge outer normal related to the hexagon
-    !          if(useStagHTC)then
-    !             signcor=real(mesh%tr(k)%nr(j), r8)
-    !          elseif(useStagHC)then
-    !             signcor=-dsign(1._r8,dot_product(mesh%edhx(l)%tg, mesh%ed(l)%nr))
-    !             signcor=signcor*(mesh%tr(k)%nr(j))
-    !          end if
-    !          !Calculate numerical integration
-    !          divueta%f(k)=divueta%f(k)+signcor*(uhq_perp%f(l))*mesh%ed(l)%leng
-    !       end do
-    !       divueta%f(k)=divueta%f(k)/mesh%tr(k)%areag/erad
-    !    end do
-
-
-
-    !Calculate divergence of velocity
-    do i=1,mesh%nv
-      !Divergence of u on unit sphere
-      !lengths are multiplied by erad, and area by erad**2, therefore
-      !For all edges forming the hexagon
-      divu%f(i)=0._r8
-      do j=1, mesh%v(i)%nnb
-        !Get edge index
-        l=mesh%v(i)%ed(j)
-        !Get edge outer normal related to the hexagon
-        if(useStagHTC)then
-          signcor=real(mesh%hx(i)%ttgout(j), r8)
-        elseif(useStagHC)then
-          signcor=real(mesh%hx(i)%nr(j), r8)
-        end if
-        !Calculate numerical integration
-
-        divu%f(i)=divu%f(i)+signcor*u%f(l)*mesh%edhx(l)%leng
-      end do
-
-      divu%f(i)=divu%f(i)/mesh%hx(i)%areag/erad
-    end do
-
-    if(difus>0)then !Needs verification!!!
-
-      !Add difusion
-      do l=1, mesh%ne
-
-        !Calculate normal part
-        lapu_n=0.
-        !Calculate gradient of div for this edge
-        if(useStagHC)then
-          signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%nr, &
-            mesh%v(mesh%edhx(l)%sh(2))%p-mesh%v(mesh%edhx(l)%sh(1))%p ))
-          lapu_n=signcor*(divu%f(mesh%edhx(l)%sh(2))-divu%f(mesh%edhx(l)%sh(1)))
-        elseif(useStagHTC)then
-          ! Obs: the tangent of a triangle edge (which is used as normal
-          !   of the voronoi cell edges) is always defined such
-          !   that it point from its vertex 1 to its vertex 2
-          !   Therefore, the gradient needs no correction term (n_ei)
-          lapu_n=(divu%f(mesh%ed(l)%v(2))-divu%f(mesh%ed(l)%v(1)))
-        end if
-        lapu_n=lapu_n/mesh%ed(l)%leng/erad
-
-        !Calculate tangent part
-        lapu_t=0.
-
-        !Calculate gradient of relative vorticity for this edge
-        if(useStagHC)then
-          k1=mesh%edhx(l)%v(1)
-          k2=mesh%edhx(l)%v(2)
-          !Get relative vorticity
-          etarel1=eta%f(k1)-2.*Omega*dsin(mesh%tr(k1)%c%lat)
-          etarel2=eta%f(k2)-2.*Omega*dsin(mesh%tr(k2)%c%lat)
-          signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%tg, &
-            mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
-          lapu_t=signcor*(etarel2-etarel1)
-        elseif(useStagHTC)then
-          k1=mesh%ed(l)%sh(1)
-          k2=mesh%ed(l)%sh(2)
-          !Get relative vorticity
-          etarel1=eta%f(k1)-2.*Omega*dsin(mesh%tr(k1)%c%lat)
-          etarel2=eta%f(k2)-2.*Omega*dsin(mesh%tr(k2)%c%lat)
-          signcor=dsign( 1._r8, dot_product(-mesh%ed(l)%nr, &
-            mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
-          lapu_t=signcor*(etarel2-etarel1)
-        end if
-        lapu_t=lapu_t/mesh%ed(l)%leng/erad
-
-        !Global vector laplacian
-        lapu%f(l)=lapu_n-lapu_t
-        !print*, l, lapu%f(l), lapu_n, lapu_t
-        !print*, l, momeq(l), difus*lapu%f(l), momeq(l)+ difus*lapu%f(l), abs(momeq(l))>abs(momeq(l)+ difus*lapu%f(l))
-        momeq(l)=momeq(l) + difus*lapu%f(l)
-      end do
-
-    end if
-
-    if(testcase<=1)then
-      momeq(1:mesh%ne)=0.
-    end if
-
-    return
-
-  end subroutine eqs_spatial_disc
-
-
-
   subroutine tendency(h, u, masseq, momeq)
     !--------------------------------------
     !Calculates the Right Hand Side (spatial discret./tendency)
@@ -3202,31 +2348,59 @@ contains
     call zero_vector(masseq)
 
     !---------------------------------------------------------------
-    !Interpolate thickness to edges
+    !Interpolate thickness to edges and calculate flux at edges
     !---------------------------------------------------------------
-    call scalar_hx2ed(h, h_ed, mesh)
-    call scalar_elem_product(u, h_ed, uh)
+    call scalar_hx2ed(h, h_ed, mesh)      !h: cell->edge
+    call scalar_elem_product(u, h_ed, uh) !Flux uh at edges
 
     !---------------------------------------------------------------
-    !Calculate fields at triangles
-    !   vorticity, PV, h_tr, vhq_tr at triangle cc
+    !Calculate vorticity/PV related fields
     !---------------------------------------------------------------
+
     !Absolute vorticity
-    call vort_tr(u, eta, mesh)
+    call vort_tr(u, eta, mesh) !Vorticity at triangles
 
-    !Depth at triangles
+    !Depth at triangles/Rhombi
     if(useSinterpolGass)then !Gass
-      call scalar_edtr2trcc(h_ed, h_tr, mesh)
-    else !TRSK or bary
-      call scalar_hx2trcc(h, h_tr, mesh)
+      call scalar_edtr2trcc(h_ed, h_tr, mesh) !h: ed->tr
+      call scalar_tr2ed(h_tr, h_rhb, mesh)    !h: tr->rhombi
+    else !TRSK or bary/PXT
+      call scalar_hx2tr(h, h_tr, mesh) !h: cell->tr
     end if
+
+    !Interpolate vort from tr to edges (or rhombi in case of Gass)
+    call scalar_tr2ed(eta, eta_ed, mesh) ! vort:tr->ed/rhombi
 
     !Calculate the potential vorticity at triangles
     if(testcase<2)then
       q_tr%f=0.
     else
-      call scalar_elem_divide(eta, h_tr, q_tr)
+      call scalar_elem_divide(eta, h_tr, q_tr) !PV on triangles
     end if
+
+    !Calculate vort/PV on edges/rhombi
+    if(useSinterpolGass)then
+      call scalar_elem_divide(eta_ed, h_rhb, q_ed) !PV on rhombi
+    else
+      call scalar_tr2ed(q_tr, q_ed, mesh) !PV: tr->ed
+    end if
+
+    ! Calculate Grad of PV, if needed
+    if((.not.useOrigPV).or. test_lterror==1)then
+      call grad_tr2ed(q_tr, q_grad_ed, mesh)
+    end if
+
+    !Reconstruct grad of PV to tr center Perot style, if needed
+    if(useAPVM.or.useCLUST)then
+      !TODO: check if this is correct (/erad) and matches 2016 paper
+      ! Fig 18 and 19 of paper do not seem correct)
+      call vector_edtr2tr_perot(q_grad_ed, q_grad_tr, mesh)
+    end if
+
+
+    !--------------------------------------------------------
+    ! Vector reconstructions
+    !--------------------------------------------------------
 
     !Reconstruct vhq to triangle circumcenter (use Perot's method)
     !  Only used in dtred Coriolis method
@@ -3235,29 +2409,8 @@ contains
       call vector_elem_product(vhq_tr, q_tr, vhq_tr) !now q is multiplied into vhq
     endif
 
-    !Calculate K energy at triangles (for Gassman schemes)
-    if(useReconmtdGass)then
-      call ke_tr(u, Kin_energy_tr, mesh)
-    end if
-
-    !------------------------------------------------------------
-    ! Calculate vort and PV on edges
-    !------------------------------------------------------------
-    call scalar_tr2ed(eta, eta_ed, mesh)
-    call scalar_tr2ed(q_tr, q_ed, mesh)
-
-    !------------------------------------------------------------
-    ! Calculate Grad of PV, if needed
-    !------------------------------------------------------------
-    if((.not.useOrigPV).or. test_lterror==1)then
-      call grad_tr2ed(q_tr, q_grad_ed, mesh)
-    end if
-
-    !Reconstruct grad of PV to tr center Perot style, if needed
-    if(useAPVM.or.useCLUST)then
-      !TODO: check if this is correct and matches paper (is paper correct?No, Fig 18 and 19 are wrong!)
-      call vector_edtr2tr_perot(q_grad_ed, q_grad_tr, mesh)
-    end if
+    ! Velocity reconstruction use Perot's method
+    call vector_edhx2hx_perot(u, v_hx, mesh)
 
     !---------------------------------------------------------------
     ! Calculate divergence / mas eq RHS
@@ -3266,20 +2419,36 @@ contains
     !Mass eq. RHS
     masseq = -divuh%f !-divuh_exact%f !
 
-    !   Velocity reconstruction use Perot's method
-    call vector_edhx2hx_perot(u, v_hx, mesh)
+    !---------------------------------------------------------------
+    ! Kinetic energy evaluations
+    !---------------------------------------------------------------
+
+    !Calculate K energy at triangles (for Gassman schemes)
+    if(useReconmtdGass)then
+      call kinetic_energy_tr(u, ke_tr, mesh)
+    end if
 
     !Kinetic energy calculation
-    call ke_hx(u, v_hx, Kin_energy_tr, uh, h, Kin_energy, mesh)
+    call kinetic_energy_hx(u, v_hx, ke_tr, uh, h, ke_hx, mesh)
+
+    !---------------------------------------------------------------
+    ! Grad of bernoulli potential
+    !---------------------------------------------------------------
 
     !Add bottom topography to depth
     hbt%f=h%f+bt%f
 
     !Calculate g(h+b)+K at cell centers (Bernoulli potential)
-    ghbK%f=grav*hbt%f+Kin_energy%f
+    ghbK%f=grav*hbt%f+ke_hx%f
+
+    !Grad g(h+b)+K
+    call grad_ed(ghbk, grad_ghbK, mesh)
+
+    !Update momentum eq tendency
+    momeq= -grad_ghbK%f !-grad_ghbK_exact%f(l)
 
     !---------------------------------------------------------------
-    ! Calculate PV
+    ! Calculate PV at cells
     !---------------------------------------------------------------
     if(test_lterror==1)then
       !Calculate pv on cells - just for analysis
@@ -3287,13 +2456,6 @@ contains
       call scalar_tr2hx(q_tr, q_hx, mesh)
       call vector_elem_product(vh_hx, q_hx, vhq_hx)
     end if
-
-    !---------------------------------------------------------------
-    ! Calculate edges related fields
-    !   Grad g(h+b)+K
-    !--------------------------------------------------------------
-    call grad_ed(ghbk, grad_ghbK, mesh)
-    momeq= -grad_ghbK%f !-grad_ghbK_exact%f(l)
 
     !--------------------------------------------------------------
     !   APVM PV - Filtering of PV noise in triangles
@@ -3306,6 +2468,8 @@ contains
     !Calculate coriolis term
     !---------------------------------------------------------------
     call coriolis_ed(u, uh, eta_ed, q_ed, vhq_tr, uhq_perp, mesh)
+
+    !Update mom eq tendency
     momeq=momeq - uhq_perp%f  !-uhq_perp_exact%f(l) !
 
     !Calculate divergence of velocity - used in difusion and for diagnostics
@@ -3315,7 +2479,7 @@ contains
     !Diffusion
     !------------------------------------------
     if(difus>0)then !Needs verification!!!
-      call diffusion_hx(u, eta, lapu, mesh)
+      call laplacian_hx(u, eta, lapu, mesh)
       momeq=momeq + difus*lapu%f
     end if
 
@@ -3394,7 +2558,7 @@ contains
     t3 = t0 + dt
     u_new%f(1:u%n) = u%f(1:u%n) + dt * momf2(1:u%n)
     h_new%f(1:h%n) = h%f(1:h%n) + dt * massf2(1:h%n)
-    call eqs_spatial_disc(t3, dt, h_new, u_new, massf3, momf3)
+    !call eqs_spatial_disc(t3, dt, h_new, u_new, massf3, momf3)
     call tendency(h_new, u_new, massf3, momf3)
     !print*, "Mass, mom: ", maxval(massf3), maxval(momf3)
     !print*, "h, u: ", maxval(h_new%f), maxval(u_new%f)
@@ -3463,7 +2627,7 @@ contains
     Kenergy=0.
     if(useReconmtdPerhx)then
       do i=1, mesh%nv
-        Kenergy=Kenergy+Kin_energy%f(i)*mesh%hx(i)%areag
+        Kenergy=Kenergy+ke_hx%f(i)*mesh%hx(i)%areag
       end do
     else       
       do l=1, mesh%ne
@@ -3514,8 +2678,8 @@ contains
         eta%name=trim(swmname)//"_eta_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(eta, mesh)
 
-        Kin_energy%name=trim(swmname)//"_Kenergy_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(Kin_energy, mesh)
+        ke_hx%name=trim(swmname)//"_Kenergy_t"//trim(adjustl(trim(atime)))
+        call plot_scalarfield(ke_hx, mesh)
 
         q_tr%name=trim(swmname)//"_pv_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(q_tr, mesh)
@@ -3554,8 +2718,8 @@ contains
         eta%name=trim(swmname)//"_eta_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(eta, mesh)
 
-        Kin_energy%name=trim(swmname)//"_Kenergy_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(Kin_energy, mesh)
+        ke_hx%name=trim(swmname)//"_Kenergy_t"//trim(adjustl(trim(atime)))
+        call plot_scalarfield(ke_hx, mesh)
 
 
         v_hx%name=trim(swmname)//"_v_hx_t"//trim(adjustl(trim(atime)))
@@ -3596,9 +2760,9 @@ contains
         u_error%name=trim(swmname)//"_u_error_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(u_error, mesh)
 
-        Kin_energy_error%f=Kin_energy%f-Kin_energy_exact%f
-        Kin_energy_error%name=trim(swmname)//"_Kenergy_error_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(Kin_energy, mesh)
+        ke_hx_error%f=ke_hx%f-ke_hx_exact%f
+        ke_hx_error%name=trim(swmname)//"_Kenergy_error_t"//trim(adjustl(trim(atime)))
+        call plot_scalarfield(ke_hx, mesh)
 
         eta_error%f=eta%f-eta_exact%f
         eta_error%name=trim(swmname)//"_eta_error_t"//trim(adjustl(trim(atime)))

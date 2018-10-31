@@ -7,7 +7,7 @@ module swm_data
   !=============================================================================
 
   !Use global constants and kinds
-   use constants, only: &
+  use constants, only: &
     i4, &
     r8, &
     pardir, &
@@ -16,13 +16,13 @@ module swm_data
 
   !Data structures for geodesic grids
   use datastruct, only: &
-       general_coords, &
-       grid_structure, &
-       scalar_field, &
-       vector_field_cart
+    general_coords, &
+    grid_structure, &
+    scalar_field, &
+    vector_field_cart
 
   use smeshpack, only: &
-       getunit
+    getunit
 
   !-----------------------------------
   !Global variables
@@ -208,6 +208,9 @@ module swm_data
   type(scalar_field):: h_tr  !on tr cc
   type(scalar_field):: h_tr_exact  !Exact
   type(scalar_field):: h_tr_error  !Error
+  type(scalar_field):: h_rhb  !on rhombi - similar to edge
+  type(scalar_field):: h_rhb_exact  !Exact on rhombi - similar to edge
+  type(scalar_field):: h_rhb_error  !Error on rhombi - similar to edge
 
   !Vorticity
   type(scalar_field):: eta   !absolute vorticity - on triangles
@@ -223,9 +226,7 @@ module swm_data
   type(scalar_field):: q_ed  !pv on edges
   type(scalar_field):: q_ed_exact  !pv on edges
   type(scalar_field):: q_ed_error  !pv on edges
-  type(scalar_field):: q_rhb  !pv on rhombi
-  type(scalar_field):: q_rhb_exact  !pv on rhombi
-  type(scalar_field):: q_rhb_error  !pv on rhombi
+
 
   type(scalar_field):: q_grad_ed  !grad pv on edges
   type(vector_field_cart):: q_grad_tr  !graf pv on hexs
@@ -233,12 +234,12 @@ module swm_data
   type(vector_field_cart):: q_grad_tr_error  !pv on hexs
 
   !Kinectic energy
-  type(scalar_field):: Kin_energy  !on cell center
-  type(scalar_field):: Kin_energy_exact  !on cell center
-  type(scalar_field):: Kin_energy_error  !on cell center
-  type(scalar_field):: Kin_energy_tr  !on tr center
-  type(scalar_field):: Kin_energy_tr_exact  !on tr center
-  type(scalar_field):: Kin_energy_tr_error  !on tr center
+  type(scalar_field):: ke_hx  !on cell center
+  type(scalar_field):: ke_hx_exact  !on cell center
+  type(scalar_field):: ke_hx_error  !on cell center
+  type(scalar_field):: ke_tr  !on tr center
+  type(scalar_field):: ke_tr_exact  !on tr center
+  type(scalar_field):: ke_tr_error  !on tr center
   !type(scalar_field):: Kin_energy_ed  !on edges
 
   !Auxiliar field
@@ -401,70 +402,107 @@ contains
     useStagHTC=trim(stag)=="HTC"
     useStagHC=trim(stag)=="HC"
     if((.not.useStagHC) .and. (.not.useStagHTC))then
-       print*, "Unknown staggering", stag
-       stop
+      print*, "Unknown staggering", stag
+      stop
     end if
 
+    if(.not.(trim(mtdwrapper)=="trsk10".or. trim(mtdwrapper)=="pxt16".or.trim(mtdwrapper)=="gass18"))then
+      if(trim(mtdwrapper)/="none")then
+        print*, "No valid method wrapper selected (trsk10, pxt16, gass18)", mtdwrapper
+        mtdwrapper="none"
+      endif
+    endif
+
     !Check scalar interpol
-    if (trim(mtdwrapper)=="none") then
+    if(trim(mtdwrapper)=="trsk10")then
+      useSinterpolTrisk=.true.
+      sinterpol="trsk"
+    elseif(trim(mtdwrapper)=="pxt16")then
+      useSinterpolBary=.true.
+      sinterpol="bary"
+    elseif(trim(mtdwrapper)=="gass18")then
+      useSinterpolGass=.true.
+      sinterpol="gass"
+    else
       useSinterpolTrisk=trim(sinterpol)=="trsk"
       useSinterpolBary=trim(sinterpol)=="bary"
       useSinterpolGass=trim(sinterpol)=="gass"
-    elseif(trim(mtdwrapper)=="trsk10")then
-      useSinterpolTrisk=.true.
-    elseif(trim(mtdwrapper)=="pxt16")then
-      useSinterpolBary=.true.
-    elseif(trim(mtdwrapper)=="gass18")then
-      useSinterpolGass=.true.
     endif
     if((.not.useSinterpolTrisk).and.(.not.useSinterpolBary).and.(.not.useSinterpolGass))then
-       print*, "Unknown interpolation", sinterpol
-       stop
+      print*, "Unknown interpolation", sinterpol, mtdwrapper
+      stop
     end if
 
     !Check  Vector reconstruction method
-    useCoriolisMtdPered=trim(coriolis_reconmtd)=="pered"
-    useCoriolisMtdDtred=trim(coriolis_reconmtd)=="dtred"
-    useCoriolisMtdTrisk=trim(coriolis_reconmtd)=="trsk"
-    useCoriolisMtdHyb=trim(coriolis_reconmtd)=="hyb"
-    useCoriolisMtdGass=trim(coriolis_reconmtd)=="gass"
-    useCoriolisMtdExact=trim(coriolis_reconmtd)=="exact"
+    if(trim(mtdwrapper)=="trsk10")then
+      useCoriolisMtdTrisk=.true.
+      coriolis_reconmtd="trsk"
+    elseif(trim(mtdwrapper)=="pxt16")then
+      useCoriolisMtdPered=.true.
+      coriolis_reconmtd="pered"
+    elseif(trim(mtdwrapper)=="gass18")then
+      useCoriolisMtdGass=.true.
+      coriolis_reconmtd="gass"
+    else
+      useCoriolisMtdPered=trim(coriolis_reconmtd)=="pered"
+      useCoriolisMtdDtred=trim(coriolis_reconmtd)=="dtred"
+      useCoriolisMtdTrisk=trim(coriolis_reconmtd)=="trsk"
+      useCoriolisMtdHyb=trim(coriolis_reconmtd)=="hyb"
+      useCoriolisMtdGass=trim(coriolis_reconmtd)=="gass"
+      useCoriolisMtdExact=trim(coriolis_reconmtd)=="exact"
+    endif
     if((.not. useCoriolisMtdPered).and.(.not. useCoriolisMtdTrisk) &
-         .and.(.not. useCoriolisMtdDtred).and.(.not. useCoriolisMtdHyb) &
-         .and.(.not.useCoriolisMtdGass).and.(.not. useCoriolisMtdExact))then
-       print*, "Unknown Coriolis vector reconstruction method", coriolis_reconmtd
-       stop
+      .and.(.not. useCoriolisMtdDtred).and.(.not. useCoriolisMtdHyb) &
+      .and.(.not.useCoriolisMtdGass).and.(.not. useCoriolisMtdExact))then
+      print*, "Unknown Coriolis vector reconstruction method", coriolis_reconmtd, mtdwrapper
+      stop
     end if
 
     noPV=inoPV>0
     if(noPV)then
-        if(useCoriolisMtdDtred.or.useCoriolisMtdPered)then
-           print*, "Cannot use this Coriolis vector reconstruction method with level model (noPV)", coriolis_reconmtd, noPV
-           stop
-        endif
+      if(useCoriolisMtdDtred.or.useCoriolisMtdPered)then
+        print*, "Cannot use this Coriolis vector reconstruction method with level model (noPV)", coriolis_reconmtd, noPV
+        stop
+      endif
     endif
 
     !Check  Vector reconstruction method
-    useReconmtdPerhx=trim(reconmtd)=="perhx"
-    useReconmtdTrisk=trim(reconmtd)=="trsk"
-    useReconmtdGass=trim(reconmtd)=="gass"
-    useReconmtdMelv=trim(reconmtd)=="melv"
-    if(trim(reconmtd)=="dubos")then
+    if(trim(mtdwrapper)=="trsk10")then
+      useReconmtdTrisk=.true.
+      reconmtd="trsk"
+    elseif(trim(mtdwrapper)=="pxt16")then
+      useReconmtdPerhx=.true.
+      reconmtd="perhx"
+    elseif(trim(mtdwrapper)=="gass18")then
+      useReconmtdGass=.true.
+      reconmtd="gass"
+    else
+      useReconmtdPerhx=trim(reconmtd)=="perhx"
+      useReconmtdTrisk=trim(reconmtd)=="trsk"
+      useReconmtdGass=trim(reconmtd)=="gass"
+      useReconmtdMelv=trim(reconmtd)=="melv"
+      if(trim(reconmtd)=="dubos")then
         useReconmtdGass=.true.
         gasscoef=0.0
-    end if
+      end if
+    endif
     if((.not. useReconmtdPerhx).and.(.not. useReconmtdTrisk) &
-         .and.(.not. useReconmtdGass).and.(.not. useReconmtdMelv))then
-       print*, "Unknown vector reconstruction method", reconmtd
-       stop
+      .and.(.not. useReconmtdGass).and.(.not. useReconmtdMelv))then
+      print*, "Unknown vector reconstruction method", reconmtd
+      stop
     end if
 
     !Check gradmetd
-    useGradmtdTrisk=trim(gradmtd)=="trsk"
-    useGradmtdBary=trim(gradmtd)=="bary"
+    if (trim(mtdwrapper)=="none") then
+
+      useGradmtdTrisk=trim(gradmtd)=="trsk"
+      useGradmtdBary=trim(gradmtd)=="bary"
+    elseif(trim(mtdwrapper)=="trsk10" .or. trim(mtdwrapper)=="pxt16" .or. trim(mtdwrapper)=="gass18")then
+      useGradmtdTrisk=.true.
+    endif
     if((.not.useGradmtdTrisk).and.(.not.useGradmtdBary))then
-       print*, "Unknown gradient discretization method", gradmtd
-       stop
+      print*, "Unknown gradient discretization method", gradmtd
+      stop
     end if
 
     !Check areamtd
@@ -472,8 +510,8 @@ contains
     useTiledAreas=trim(areamtd(1:4))=="tile"
     usePlannarAreas=.false. !trim(areamtd(1:4))=="plan" !not implmented
     if((.not.useGeoAreas).and.(.not.useTiledAreas).and.(.not.usePlannarAreas))then
-       print*, "Area not well specified, using geodesic areas", areamtd
-       useGeoAreas=.true.
+      print*, "Area not well specified, using geodesic areas", areamtd
+      useGeoAreas=.true.
     end if
 
     !Pontential Vorticity correction
@@ -481,61 +519,61 @@ contains
     useCLUST=trim(pv_stab)=="clust"
     useOrigPV=trim(pv_stab)=="none"
     if((.not.useCLUST).and.(.not.useAPVM).and.(.not.useOrigPV))then
-       print*, "Not using any correction for PV", pv_stab
+      print*, "Not using any correction for PV", pv_stab
     end if
     if(useCLUST)then
-       if(pvspar<=0)then
-          print*, "Please provide a parameter (0-1) for CLUST in swm.par", pvspar
-          stop
-       end if
+      if(pvspar<=0)then
+        print*, "Please provide a parameter (0-1) for CLUST in swm.par", pvspar
+        stop
+      end if
     end if
 
     !Number of time steps
     if(period <= 0)then
-       stop "swmpars error: period should be positive and must be given in days"
+      stop "swmpars error: period should be positive and must be given in days"
     endif
     !period and maxtime should be inputed in days, so we have to convert to seconds
     period=period*day2sec
     maxtime=maxtime*day2sec
 
     if(dt>0)then !use the given time step
-       if(adjustntime == 1)then
-          dt = dt * (2**(5_i4-mesh%glevel))
-       end if
-       ntime=ceiling(maxtime/dt,i4)
+      if(adjustntime == 1)then
+        dt = dt * (2**(5_i4-mesh%glevel))
+      end if
+      ntime=ceiling(maxtime/dt,i4)
        !print*, dt, ntime
     elseif(dt==0 .and. ntime>0)then !use number of time steps
-       if(adjustntime == 1)then
-          ntime = ntime * (2**(mesh%glevel-5_i4))
-       end if
-       dt=maxtime/real(ntime, r8)
+      if(adjustntime == 1)then
+        ntime = ntime * (2**(mesh%glevel-5_i4))
+      end if
+      dt=maxtime/real(ntime, r8)
     elseif(ntime<=0 .and. dt<=0)then !use dt=50s
-       dt=50 !seconds
-       if(adjustntime == 1)then
-          dt = dt * (2**(5_i4-mesh%glevel))
-       end if
-       ntime=ceiling(maxtime/dt,i4)
+      dt=50 !seconds
+      if(adjustntime == 1)then
+        dt = dt * (2**(5_i4-mesh%glevel))
+      end if
+      ntime=ceiling(maxtime/dt,i4)
     endif
 
     !Set number of times to plot
     if(nplots<=0) then
-       plots=.false.
+      plots=.false.
     else
-       plotsteps=ntime/nplots
+      plotsteps=ntime/nplots
     end if
     if(plotsteps<=0)then
-       !ntime too small or nplots too large - plot every timestep
-       plotsteps=1
+      !ntime too small or nplots too large - plot every timestep
+      plotsteps=1
     end if
 
     if(nprints<=0)then
-       nprints=1000000
+      nprints=1000000
     end if
 
     if(iploterrors<=0)then
-       ploterrors=.false.
+      ploterrors=.false.
     else
-       ploterrors=.true.
+      ploterrors=.true.
     end if
 
     !Set a standart name for files
@@ -545,60 +583,68 @@ contains
     !Print information
     print*, "Test Case (Will1994)    : ", testcase
     if(usetime)then
-       print*, "Integration period (dys): ", period*sec2day
-       print*, "Stopping time (dys)     : ", maxtime*sec2day
-       print*, "dt  (sec)               : ",  dt
-       print*, "Number of timesteps     : ", ntime
-       write(atmp,'(i8)') nint(dt)
-       swmname=trim(swmname)//"_dt"//trim(adjustl(trim(atmp)))
+      print*, "Integration period (dys): ", period*sec2day
+      print*, "Stopping time (dys)     : ", maxtime*sec2day
+      print*, "dt  (sec)               : ",  dt
+      print*, "Number of timesteps     : ", ntime
+      write(atmp,'(i8)') nint(dt)
+      swmname=trim(swmname)//"_dt"//trim(adjustl(trim(atmp)))
     else
-       ntime=1
+      ntime=1
     end if
     print*, "Staggering              : ", stag
+    print*, "Method wrapper          : ", mtdwrapper
     print*, "Scalar interpolation    : ", sinterpol
     print*, "Vector recon method     : ", reconmtd
     print*, "Coriolis recon method   : ", coriolis_reconmtd
     print*, "Gradient method         : ", gradmtd
     print*, "Area method             : ", areamtd
-    print*, "Hollingsworth parameter : ", hollgw
+    print*, "Hollingsworth depth     : ", hollgw
     print*, "PV stabilization mtd    : ", pv_stab
     if(noPV)then
-        print*, "Using level model (no PV)  : "
+      print*, "Using level model (no PV)  "
     else
-        print*, "Using layer model (with PV)  : "
+      print*, "Using layer model (with PV)  "
     end if
     print*
     swmname=trim(swmname)//"_"//trim(adjustl(trim(stag)))
-    swmname=trim(swmname)//"_vrec"//trim(adjustl(trim(reconmtd)))
-    if(useReconmtdGass)then
+
+    ! If wrapper set, shorten name
+    if(trim(mtdwrapper)/="none")then
+      swmname=trim(swmname)//"_"//trim(adjustl(trim(mtdwrapper)))
+    else
+      swmname=trim(swmname)//"_vrec"//trim(adjustl(trim(reconmtd)))
+      if(useReconmtdGass)then
         write(atmp,'(f4.2)') real(gasscoef)
         swmname=trim(swmname)//trim(adjustl(trim(atmp)))
+      end if
+      swmname=trim(swmname)//"_crec"//trim(adjustl(trim(coriolis_reconmtd)))
+      swmname=trim(swmname)//"_sint"//trim(adjustl(trim(sinterpol)))
+      swmname=trim(swmname)//"_grd"//trim(adjustl(trim(gradmtd)))
     end if
 
-    swmname=trim(swmname)//"_crec"//trim(adjustl(trim(coriolis_reconmtd)))
-    swmname=trim(swmname)//"_sint"//trim(adjustl(trim(sinterpol)))
-    swmname=trim(swmname)//"_grd"//trim(adjustl(trim(gradmtd)))
     swmname=trim(swmname)//"_area"//trim(adjustl(trim(areamtd)))
+
     if((.not.useOrigPV))then
-       write(atmp,'(f5.2)') real(pvspar)
-       swmname=trim(swmname)//"_pvs"//trim(adjustl(trim(pv_stab)))
-       swmname=trim(swmname)//trim(adjustl(trim(atmp)))
+      write(atmp,'(f5.2)') real(pvspar)
+      swmname=trim(swmname)//"_pvs"//trim(adjustl(trim(pv_stab)))
+      swmname=trim(swmname)//trim(adjustl(trim(atmp)))
     end if
 
     if(noPV)then
-       swmname=trim(swmname)//"_nopv"
+      swmname=trim(swmname)//"_nopv"
     endif
 
     if(hollgw>0 .and. (testcase==32 .or. testcase==33 .or. testcase==34 .or. testcase==35) )then
-       write(atmp,'(f6.2)') real(hollgw)
-       swmname=trim(swmname)//"_hol"//trim(adjustl(trim(atmp)))
+      write(atmp,'(f6.2)') real(hollgw)
+      swmname=trim(swmname)//"_hol"//trim(adjustl(trim(atmp)))
        !print*, atmp
     end if
 
     RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
     RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
-         .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &
-         testcase==40 .or. testcase==41.or. testcase==42
+      .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &
+      testcase==40 .or. testcase==41.or. testcase==42
 
     print*, "SWM Name for Plots: ", trim(swmname)
     print*
@@ -615,14 +661,14 @@ contains
     integer(i4):: ist
 
     if(useStagHTC)then
-       !Instersection of tr edge and hx edge
-       edpos=6
+      !Instersection of tr edge and hx edge
+      edpos=6
     elseif(useStagHC)then
-       !Midpoint of Voronoi edges
-       edpos=3
+      !Midpoint of Voronoi edges
+      edpos=3
     else
-       print*, "Staggered undefined", stag
-       stop
+      print*, "Staggered undefined", stag
+      stop
     end if
 
     !Tendencies
@@ -631,8 +677,8 @@ contains
     momeq%pos=edpos
     allocate(momeq%f(1:momeq%n), stat=ist)  !General
     if(test_lterror==1)then
-       allocate(momeq_exact%f(1:momeq%n), stat=ist)
-       allocate(momeq_error%f(1:momeq%n), stat=ist)
+      allocate(momeq_exact%f(1:momeq%n), stat=ist)
+      allocate(momeq_error%f(1:momeq%n), stat=ist)
     end if
 
     masseq%n=mesh%nv
@@ -640,8 +686,8 @@ contains
     masseq%pos=0
     allocate(masseq%f(1:masseq%n), stat=ist)  !General
     if(test_lterror==1)then
-       allocate(masseq_exact%f(1:masseq%n), stat=ist)
-       allocate(masseq_error%f(1:masseq%n), stat=ist)
+      allocate(masseq_exact%f(1:masseq%n), stat=ist)
+      allocate(masseq_error%f(1:masseq%n), stat=ist)
     end if
 
     !Velocities (defined on edges - only normal component)
@@ -661,8 +707,8 @@ contains
     uhq_perp%pos=edpos
     allocate(uhq_perp%f(1:uhq_perp%n), stat=ist)
     if(test_lterror==1)then
-       allocate(uhq_perp_exact%f(1:u%n), stat=ist)
-       allocate(uhq_perp_error%f(1:u%n), stat=ist)
+      allocate(uhq_perp_exact%f(1:u%n), stat=ist)
+      allocate(uhq_perp_error%f(1:u%n), stat=ist)
     end if
 
     v_hx%n=mesh%nv
@@ -677,10 +723,10 @@ contains
 
     !Vector velocities
     if(test_lterror==1)then
-       v_ed_exact%n=mesh%ne
-       v_ed_exact%name="v_ed_exact"
-       v_ed_exact%pos=edpos
-       allocate(v_ed_exact%p(1:v_ed_exact%n), stat=ist)
+      v_ed_exact%n=mesh%ne
+      v_ed_exact%name="v_ed_exact"
+      v_ed_exact%pos=edpos
+      allocate(v_ed_exact%p(1:v_ed_exact%n), stat=ist)
     end if
 
     h%n=mesh%nv
@@ -696,8 +742,8 @@ contains
     h_ed%pos=edpos
     allocate(h_ed%f(1:h_ed%n), stat=ist)
     if(test_lterror==1)then
-       allocate(h_ed_exact%f(1:h_ed%n), stat=ist)
-       allocate(h_ed_error%f(1:h_ed%n), stat=ist)
+      allocate(h_ed_exact%f(1:h_ed%n), stat=ist)
+      allocate(h_ed_error%f(1:h_ed%n), stat=ist)
     end if
 
     h_tr%n=mesh%nt
@@ -705,8 +751,17 @@ contains
     h_tr%pos=1
     allocate(h_tr%f(1:h_tr%n), stat=ist)
     if(test_lterror==1)then
-       allocate(h_tr_exact%f(1:h_tr%n), stat=ist)
-       allocate(h_tr_error%f(1:h_tr%n), stat=ist)
+      allocate(h_tr_exact%f(1:h_tr%n), stat=ist)
+      allocate(h_tr_error%f(1:h_tr%n), stat=ist)
+    end if
+
+    h_rhb%n=mesh%ne
+    h_rhb%name="h_rhb"
+    h_rhb%pos=edpos
+    allocate(h_rhb%f(1:h_rhb%n), stat=ist)
+    if(test_lterror==1)then
+      allocate(h_rhb_exact%f(1:h_rhb%n), stat=ist)
+      allocate(h_rhb_error%f(1:h_rhb%n), stat=ist)
     end if
 
     vhq_tr%n=mesh%nt
@@ -715,8 +770,8 @@ contains
     allocate(vhq_tr%p(1:vhq_tr%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(vhq_tr_exact%p(1:vhq_tr%n), stat=ist)
-       allocate(vhq_tr_error%p(1:vhq_tr%n), stat=ist)
+      allocate(vhq_tr_exact%p(1:vhq_tr%n), stat=ist)
+      allocate(vhq_tr_error%p(1:vhq_tr%n), stat=ist)
     end if
 
     vhq_hx%n=mesh%nv
@@ -725,17 +780,17 @@ contains
     allocate(vhq_hx%p(1:vhq_hx%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(vhq_hx_exact%p(1:vhq_hx%n), stat=ist)
-       allocate(vhq_hx_error%p(1:vhq_hx%n), stat=ist)
+      allocate(vhq_hx_exact%p(1:vhq_hx%n), stat=ist)
+      allocate(vhq_hx_error%p(1:vhq_hx%n), stat=ist)
     end if
 
     if(test_lterror==1)then
-       vh_hx%n=mesh%nv
-       vh_hx%name="vh_hx"
-       vh_hx%pos=0
-       allocate(vh_hx%p(1:vh_hx%n), stat=ist)
-       allocate(vh_hx_exact%p(1:vhq_hx%n), stat=ist)
-       allocate(vh_hx_error%p(1:vhq_hx%n), stat=ist)
+      vh_hx%n=mesh%nv
+      vh_hx%name="vh_hx"
+      vh_hx%pos=0
+      allocate(vh_hx%p(1:vh_hx%n), stat=ist)
+      allocate(vh_hx_exact%p(1:vhq_hx%n), stat=ist)
+      allocate(vh_hx_error%p(1:vhq_hx%n), stat=ist)
     end if
 
     !Absolute vorticity
@@ -745,8 +800,8 @@ contains
     allocate(eta%f(1:eta%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(eta_exact%f(1:eta%n), stat=ist)
-       allocate(eta_error%f(1:eta%n), stat=ist)
+      allocate(eta_exact%f(1:eta%n), stat=ist)
+      allocate(eta_error%f(1:eta%n), stat=ist)
     end if
 
     eta_ed%n=mesh%ne
@@ -766,12 +821,12 @@ contains
     !end if
 
     if(test_lterror==1)then
-       q_hx%n=mesh%nv
-       q_hx%pos=0
-       q_hx%name="q_hx"
-       allocate(q_hx%f(1:q_hx%n), stat=ist)
-       allocate(q_hx_exact%f(1:q_hx%n), stat=ist)
-       allocate(q_hx_error%f(1:q_hx%n), stat=ist)
+      q_hx%n=mesh%nv
+      q_hx%pos=0
+      q_hx%name="q_hx"
+      allocate(q_hx%f(1:q_hx%n), stat=ist)
+      allocate(q_hx_exact%f(1:q_hx%n), stat=ist)
+      allocate(q_hx_error%f(1:q_hx%n), stat=ist)
     end if
 
     q_ed%n=mesh%ne
@@ -779,19 +834,9 @@ contains
     q_ed%name="q_ed"
     allocate(q_ed%f(1:q_ed%n), stat=ist)
     if(test_lterror==1)then
-       allocate(q_ed_exact%f(1:q_ed%n), stat=ist)
-       allocate(q_ed_error%f(1:q_ed%n), stat=ist)
+      allocate(q_ed_exact%f(1:q_ed%n), stat=ist)
+      allocate(q_ed_error%f(1:q_ed%n), stat=ist)
     end if
-
-    q_rhb%n=mesh%ne
-    q_rhb%pos=edpos
-    q_rhb%name="q_rhb"
-    allocate(q_rhb%f(1:q_rhb%n), stat=ist)
-    if(test_lterror==1)then
-       allocate(q_rhb_exact%f(1:q_rhb%n), stat=ist)
-       allocate(q_rhb_error%f(1:q_rhb%n), stat=ist)
-    end if
-
 
     q_grad_ed%n=mesh%ne
     q_grad_ed%pos=edpos
@@ -804,28 +849,28 @@ contains
     allocate(q_grad_tr%p(1:q_grad_tr%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(q_grad_tr_exact%p(1:q_grad_tr%n), stat=ist)
-       allocate(q_grad_tr_error%p(1:q_grad_tr%n), stat=ist)
+      allocate(q_grad_tr_exact%p(1:q_grad_tr%n), stat=ist)
+      allocate(q_grad_tr_error%p(1:q_grad_tr%n), stat=ist)
     end if
 
     !Kinectic energy
-    Kin_energy%n=mesh%nv
-    Kin_energy%pos=0
-    Kin_energy%name="Kin_energy"
-    allocate(Kin_energy%f(1:Kin_energy%n), stat=ist)
+    ke_hx%n=mesh%nv
+    ke_hx%pos=0
+    ke_hx%name="Kin_energy"
+    allocate(ke_hx%f(1:ke_hx%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(Kin_energy_exact%f(1:Kin_energy%n), stat=ist)
-       allocate(Kin_energy_error%f(1:Kin_energy%n), stat=ist)
+      allocate(ke_hx_exact%f(1:ke_hx%n), stat=ist)
+      allocate(ke_hx_error%f(1:ke_hx%n), stat=ist)
     end if
 
-    Kin_energy_tr%n=mesh%nt
-    Kin_energy_tr%pos=1
-    Kin_energy_tr%name="Kin_energy_tr"
-    allocate(Kin_energy_tr%f(1:Kin_energy_tr%n), stat=ist)
+    ke_tr%n=mesh%nt
+    ke_tr%pos=1
+    ke_tr%name="Kin_energy_tr"
+    allocate(ke_tr%f(1:ke_tr%n), stat=ist)
     if(test_lterror==1)then
-       allocate(Kin_energy_tr_exact%f(1:Kin_energy_tr%n), stat=ist)
-       allocate(Kin_energy_tr_error%f(1:Kin_energy_tr%n), stat=ist)
+      allocate(ke_tr_exact%f(1:ke_tr%n), stat=ist)
+      allocate(ke_tr_error%f(1:ke_tr%n), stat=ist)
     end if
 
     !Auxiliar field
@@ -840,13 +885,13 @@ contains
     allocate(grad_ghbK%f(1:grad_ghbK%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(grad_ghbK_exact%f(1:grad_ghbK%n), stat=ist)
-       allocate(grad_ghbK_error%f(1:grad_ghbK%n), stat=ist)
+      allocate(grad_ghbK_exact%f(1:grad_ghbK%n), stat=ist)
+      allocate(grad_ghbK_error%f(1:grad_ghbK%n), stat=ist)
 
-       grad_h%n=mesh%ne
-       grad_h%pos=edpos
-       grad_h%name="grad_ed"
-       allocate(grad_h%f(1:grad_h%n), stat=ist)
+      grad_h%n=mesh%ne
+      grad_h%pos=edpos
+      grad_h%name="grad_ed"
+      allocate(grad_h%f(1:grad_h%n), stat=ist)
     end if
 
     !Bottom topography
@@ -868,8 +913,8 @@ contains
     allocate(divuh%f(1:divuh%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(divuh_exact%f(1:divuh%n), stat=ist)
-       allocate(divuh_error%f(1:divuh%n), stat=ist)
+      allocate(divuh_exact%f(1:divuh%n), stat=ist)
+      allocate(divuh_error%f(1:divuh%n), stat=ist)
     end if
 
     !Divergence
@@ -879,12 +924,12 @@ contains
     allocate(divu%f(1:divu%n), stat=ist)
 
     if(test_lterror==1)then
-       divueta%n=mesh%nt
-       divueta%pos=1
-       divueta%name="divueta"
-       allocate(divueta%f(1:divueta%n), stat=ist)
-       allocate(divueta_exact%f(1:divueta%n), stat=ist)
-       allocate(divueta_error%f(1:divueta%n), stat=ist)
+      divueta%n=mesh%nt
+      divueta%pos=1
+      divueta%name="divueta"
+      allocate(divueta%f(1:divueta%n), stat=ist)
+      allocate(divueta_exact%f(1:divueta%n), stat=ist)
+      allocate(divueta_error%f(1:divueta%n), stat=ist)
     end if
 
     lapu%n=mesh%ne
@@ -893,22 +938,22 @@ contains
     allocate(lapu%f(1:lapu%n), stat=ist)
 
     if(test_lterror==1)then
-       allocate(lapu_exact%f(1:lapu%n), stat=ist)
-       allocate(lapu_error%f(1:lapu%n), stat=ist)
+      allocate(lapu_exact%f(1:lapu%n), stat=ist)
+      allocate(lapu_error%f(1:lapu%n), stat=ist)
 
     end if
 
     if(useCoriolisMtdHyb)then
-       trskind%n=mesh%ne
-       trskind%pos=u%pos
-       trskind%name="trskind"
-       allocate(trskind%f(1:trskind%n), stat=ist)
-       allocate(isTrskindLow(1:trskind%n), stat=ist)
+      trskind%n=mesh%ne
+      trskind%pos=u%pos
+      trskind%name="trskind"
+      allocate(trskind%f(1:trskind%n), stat=ist)
+      allocate(isTrskindLow(1:trskind%n), stat=ist)
     end if
 
     !Wachspress coordinates
     if(useSinterpolBary)then
-       allocate(wachc_tr2v(1 :mesh%nv), stat=ist)
+      allocate(wachc_tr2v(1 :mesh%nv), stat=ist)
     end if
 
     !Runge kutta variables
@@ -941,22 +986,22 @@ contains
     !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) &
     !$OMP PRIVATE(i) SHARED(v_hx)
     do i=1, v_hx%n
-       v_hx%p(i)%v=0._r8
+      v_hx%p(i)%v=0._r8
     end do
     !$OMP END PARALLEL DO
 
     !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) &
     !$OMP PRIVATE(k) SHARED(vhq_tr, q_grad_tr)
     do k=1, vhq_tr%n
-       vhq_tr%p(k)%v(1:3)=0.
-       q_grad_tr%p(k)%v(1:3)=0.
+      vhq_tr%p(k)%v(1:3)=0.
+      q_grad_tr%p(k)%v(1:3)=0.
     end do
     !$OMP END PARALLEL DO
 
     !$OMP PARALLEL DO SCHEDULE(STATIC) DEFAULT(NONE) &
     !$OMP PRIVATE(l) SHARED(v_ed)
     do l=1, v_ed%n
-       v_ed%p(l)%v=0.
+      v_ed%p(l)%v=0.
     end do
     !$OMP END PARALLEL DO
 
@@ -964,9 +1009,9 @@ contains
     !$OMP SHARED(test_lterror, momeq, masseq, u, u_old, u_0) &
     !$OMP SHARED(u_error, u_exact, uh, uhq_perp) &
     !$OMP SHARED(v_hx, v_ed, vhq_hx) &
-    !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed) &
-    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed, q_rhb) &
-    !$OMP SHARED(Kin_energy, Kin_energy_tr, ghbK, grad_ghbK, hbt, bt) &
+    !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed, h_rhb) &
+    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed) &
+    !$OMP SHARED(ke_hx, ke_tr, ghbK, grad_ghbK, hbt, bt) &
     !$OMP SHARED(divuh, q_tr_exact, q_tr_error, q_grad_ed, divu, lapu ) &
     !$OMP SHARED(massf0, massf1, massf2, massf3) &
     !$OMP SHARED(momf0, momf1, momf2, momf3)
@@ -990,17 +1035,17 @@ contains
     h_exact=h
     h_ed%f=0._r8
     h_tr%f=0._r8
+    h_rhb%f=0._r8
 
     !Vorticity
     eta%f=0._r8
     eta_ed%f=0._r8
     q_tr%f=0._r8
     q_ed%f=0._r8
-    q_rhb%f=0._r8
 
     !Energy
-    Kin_energy%f=0._r8
-    Kin_energy_tr%f=0._r8
+    ke_hx%f=0._r8
+    ke_tr%f=0._r8
     ghbK%f=0._r8
     grad_ghbK%f=0._r8
 
@@ -1034,71 +1079,71 @@ contains
 
 
     if(test_lterror==1)then
-       !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-       !$OMP SHARED(test_lterror, uhq_perp, uhq_perp_exact, uhq_perp_error) &
-       !$OMP SHARED(v_ed, v_ed_exact, h_ed, h_ed_exact, h_ed_error) &
-       !$OMP SHARED(h_tr, h_tr_exact, h_tr_error) &
-       !$OMP SHARED(vhq_tr, vhq_tr_exact, vhq_tr_error) &
-       !$OMP SHARED(vhq_hx, vhq_hx_exact, vhq_hx_error) &
-       !$OMP SHARED(vh_hx, vh_hx_exact, vh_hx_error) &
-       !$OMP SHARED(eta, eta_exact, eta_error) &
-       !$OMP SHARED(q_tr, q_tr_exact, q_tr_error) &
-       !$OMP SHARED(q_hx, q_hx_exact, q_hx_error) &
-       !$OMP SHARED(q_ed, q_ed_exact, q_ed_error) &
-       !$OMP SHARED(q_rhb, q_rhb_exact, q_rhb_error) &
-       !$OMP SHARED( q_grad_tr, q_grad_tr_exact, q_grad_tr_error) &
-       !$OMP SHARED(Kin_energy, Kin_energy_exact, Kin_energy_error) &
-       !$OMP SHARED(kin_energy_tr_exact, kin_energy_tr, kin_energy_tr_error) &
-       !$OMP SHARED(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, grad_h) &
-       !$OMP SHARED(divuh, divuh_exact, divuh_error) &
-       !$OMP SHARED(divueta, divueta_exact, divueta_error) &
-       !$OMP SHARED(lapu, lapu_exact, lapu_error) &
-       !$OMP SHARED(momeq,  masseq, momeq_exact, masseq_exact, momeq_error, masseq_error)
-       momeq_exact=momeq
-       masseq_exact=masseq
-       momeq_error=momeq
-       masseq_error=masseq
-       uhq_perp_exact=uhq_perp
-       uhq_perp_error=uhq_perp
-       h_ed_exact=h_ed
-       h_ed_error=h_ed
-       h_tr_exact=h_tr
-       h_tr_error=h_tr
-       v_ed_exact=v_ed
-       vhq_tr_exact=vhq_tr
-       vhq_tr_error=vhq_tr
-       vhq_hx_exact=vhq_hx
-       vhq_hx_error=vhq_hx
-       vh_hx=vhq_hx
-       vh_hx_exact=vh_hx
-       vh_hx_error=vh_hx
-       eta_exact=eta
-       eta_error=eta
-       q_tr_exact=q_tr
-       q_tr_error=q_tr
-       q_grad_tr_exact=q_grad_tr
-       q_grad_tr_error=q_grad_tr
-       q_hx%f=0._r8
-       q_hx_exact=q_hx
-       q_hx_error=q_hx
-       q_ed_exact=q_ed
-       q_ed_error=q_ed
-       q_rhb_exact=q_rhb
-       q_rhb_error=q_rhb
-       Kin_energy_exact=Kin_energy
-       Kin_energy_error=Kin_energy
-       Kin_energy_tr_exact=Kin_energy_tr
-       Kin_energy_tr_error=Kin_energy_tr
-       grad_ghbK_exact=grad_ghbK
-       grad_ghbK_error=grad_ghbK
-       grad_h=grad_ghbK
-       divuh_exact=divuh
-       divuh_error=divuh
-       divueta=q_tr
-       divueta_exact=divueta
-       divueta_error=divueta
-       lapu_exact=lapu
-       lapu_error=lapu
+      !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
+      !$OMP SHARED(test_lterror, uhq_perp, uhq_perp_exact, uhq_perp_error) &
+      !$OMP SHARED(v_ed, v_ed_exact, h_ed, h_ed_exact, h_ed_error) &
+      !$OMP SHARED(h_tr, h_tr_exact, h_tr_error) &
+      !$OMP SHARED(h_rhb, h_rhb_exact, h_rhb_error) &
+      !$OMP SHARED(vhq_tr, vhq_tr_exact, vhq_tr_error) &
+      !$OMP SHARED(vhq_hx, vhq_hx_exact, vhq_hx_error) &
+      !$OMP SHARED(vh_hx, vh_hx_exact, vh_hx_error) &
+      !$OMP SHARED(eta, eta_exact, eta_error) &
+      !$OMP SHARED(q_tr, q_tr_exact, q_tr_error) &
+      !$OMP SHARED(q_hx, q_hx_exact, q_hx_error) &
+      !$OMP SHARED(q_ed, q_ed_exact, q_ed_error) &
+      !$OMP SHARED( q_grad_tr, q_grad_tr_exact, q_grad_tr_error) &
+      !$OMP SHARED(ke_hx, ke_hx_exact, ke_hx_error) &
+      !$OMP SHARED(ke_tr_exact, ke_tr, ke_tr_error) &
+      !$OMP SHARED(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, grad_h) &
+      !$OMP SHARED(divuh, divuh_exact, divuh_error) &
+      !$OMP SHARED(divueta, divueta_exact, divueta_error) &
+      !$OMP SHARED(lapu, lapu_exact, lapu_error) &
+      !$OMP SHARED(momeq,  masseq, momeq_exact, masseq_exact, momeq_error, masseq_error)
+      momeq_exact=momeq
+      masseq_exact=masseq
+      momeq_error=momeq
+      masseq_error=masseq
+      uhq_perp_exact=uhq_perp
+      uhq_perp_error=uhq_perp
+      h_ed_exact=h_ed
+      h_ed_error=h_ed
+      h_tr_exact=h_tr
+      h_tr_error=h_tr
+      h_rhb_exact=h_rhb
+      h_rhb_error=h_rhb
+      v_ed_exact=v_ed
+      vhq_tr_exact=vhq_tr
+      vhq_tr_error=vhq_tr
+      vhq_hx_exact=vhq_hx
+      vhq_hx_error=vhq_hx
+      vh_hx=vhq_hx
+      vh_hx_exact=vh_hx
+      vh_hx_error=vh_hx
+      eta_exact=eta
+      eta_error=eta
+      q_tr_exact=q_tr
+      q_tr_error=q_tr
+      q_grad_tr_exact=q_grad_tr
+      q_grad_tr_error=q_grad_tr
+      q_hx%f=0._r8
+      q_hx_exact=q_hx
+      q_hx_error=q_hx
+      q_ed_exact=q_ed
+      q_ed_error=q_ed
+      ke_hx_exact=ke_hx
+      ke_hx_error=ke_hx
+      ke_tr_exact=ke_tr
+      ke_tr_error=ke_tr
+      grad_ghbK_exact=grad_ghbK
+      grad_ghbK_error=grad_ghbK
+      grad_h=grad_ghbK
+      divuh_exact=divuh
+      divuh_error=divuh
+      divueta=q_tr
+      divueta_exact=divueta
+      divueta_error=divueta
+      lapu_exact=lapu
+      lapu_error=lapu
        !$OMP END PARALLEL WORKSHARE
 
     end if
