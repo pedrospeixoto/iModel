@@ -10,7 +10,9 @@ module swm_data
    use constants, only: &
     i4, &
     r8, &
-    pardir
+    pardir, &
+    sec2day, &
+    day2sec
 
   !Data structures for geodesic grids
   use datastruct, only: &

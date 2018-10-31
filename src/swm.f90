@@ -191,7 +191,7 @@ contains
       !Calculate u and h for time:
       time=real(k, r8)*dt
       ! print*
-      ! print*, "Time: ", time
+      !print*, "Time: ", time
       !do l=1, mesh%ne
       ! print*, l, grad_ghbK%f(l), grad_ghbK%f(l)-grad_ghbK_exact%f(l), uhq_perp%f(l), uhq_perp%f(l)-uhq_perp_exact%f(l), momeq(l)
       !end do
@@ -319,33 +319,11 @@ contains
 
     end do
 
-    !Calculate derived final fields
-    !call eqs_spatial_disc(maxtime, h, u, masseq%f, momeq%f)
-
-    !Calculate errors (if possible)
-    ! if(testcase==5.or. testcase==6.or.testcase==21.or. &
-    !   testcase==2.or. testcase==22)then
-
-    !Calculate
-    !call error_calc(h, h_exact, h_error, errormaxrel_h, error2_h, errormax_h)
-    !call error_calc(u, u_exact, u_error, errormaxrel_u, error2_u, errormax_u)
-
-    !Plot
-    !call plotfields(k, time)
-
-    !call plot_errors_uh()
-
-    !Write errors in txt file
-
-    !end if
-
-    !Total mass
-
     !Print user help for ploting
     if(plots)then
       print*
-      print*, "Use ./gmt/anim.sh to see the fluid transporting"
-      print*, "Use ./gmt/plot.sh to see the vector field, "//&
+      print*, "Use ./gmt/anim.sh to see the fluid animation"
+      print*, "Use ./gmt/plot.sh to see the scalar/vector field, "//&
         " initial condition and errors"
     end if
 
