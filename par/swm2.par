@@ -1,32 +1,36 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-34 0
+2 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-12 250
+12 100
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-500 0 0
+200 0 0
 !Scalar/vector location (HC or HTC)
 HTC
+!Wrapper (overrides next 4 options)
+trsk10
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
-gass 1.0
+trsk 1.0
 !Coriolis vec reconstruction method
 trsk
 !Scalar interpolations
 trsk
 !Gradient discrete method
 trsk
-!Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors
-2 10 0
+!Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
+tile
+!Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
+4 1 1
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32, 33, 34
-1.0
+100.0
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
 0.0
 !Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter
 none 0.5
 !Level model vs layer model (Use PV = 0 , Do not use PV, use just vorticity = 1)
-1
+0
 
 !--------------------------HELP----------------------------------!
 !Options
@@ -51,8 +55,14 @@ none 0.5
 HC : scalars on cell node and vectors on Voronoi cell edge midpoints
 HTC : scalars on cell node and vectors on Voronoi cell edge intersection with triangle edge
 
+!Wrapper (overrides next 4 options)
+none: no wrapper, use options in details in next lines
+trsk10: Original TRSK of Ringler 2010, sets "CellRecon"=trsk, "Coriolis"=trsk, "Scalar interp"=trsk, "Gradient"=trsk
+pxt16: Peixoto 2016 scheme, sets "CellRecon"=perhx, "Coriolis"=pered, "Scalar interp"=bary, "Gradient"=trsk
+gass18: Gassman's modif of TRSK10, sets ? "CellRecon"=gass, "Coriolis"=gass, "Scalar interp"=gass, "Gradient"=trsk
+
 ! Cell Vector recontruction method
-perhx : Perot's method (required for Peixoto 2015)
+perhx : Perot's method (required for Peixoto 2016)
 trsk : simple weighted average
 gass : Gassman's version to avoid Hol. instabil
 dubos: Dubos energy conserving - equals to Gass with coef 0.0
@@ -60,12 +70,14 @@ dubos: Dubos energy conserving - equals to Gass with coef 0.0
 !Coriolis vec recon method
 dtred : Dual triangle method (Similar to Nikovic 2002) 
 trsk  : TRiSK method
-pered : New method using Perot for edges (see Peixoto 2015)
+pered : Perot for edges (see Peixoto 2016)
 hyb   : Hybrid scheme mixing pered and trsk (not in use anymore, since no advantage was seen)
+gass  : Gassmann's 2018 QJ method with diferent position of pv
 
 !Scalar interpolations
 bary : barycentric coordinates (required for Peixoto 2015 scheme)
 trsk : simple average
+gass : average to edges, simple average to tr centers
 
 !Gradient discrete method
 bary : uses 3 values and bary coordinates ( not in use anymore - avoid)
@@ -74,5 +86,5 @@ trsk : simple difference
 !Potential Vorticity correction
 none : No correction
 apvm : Anticipated potential vorticity method from Ringler et at 2010
-clust : CLUST scheme from Weller 2012
+clust : CLUST scheme from Weller 2012 - unused, avoid
 parameter: append parameter to be used after method name

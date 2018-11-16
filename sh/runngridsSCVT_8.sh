@@ -2,7 +2,7 @@
 
 source inc_vars.sh 
 
-# Script for convergence analysis on HR95 grids
+# Script for convergence analysis on SCVT grids
 #------------------------------------------
 
 echo "            Basic Parameters     "

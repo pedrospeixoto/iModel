@@ -263,11 +263,6 @@ module swm_data
   type(scalar_field):: divuh_error
   type(scalar_field):: divu
 
-  !Divergence at dual (with vorticity)
-  type(scalar_field):: divueta
-  type(scalar_field):: divueta_exact
-  type(scalar_field):: divueta_error
-
   !Vector Laplacian (at edges)
   type(scalar_field):: lapu
   type(scalar_field):: lapu_exact
@@ -578,7 +573,7 @@ contains
 
     !Set a standart name for files
     write(atmp,'(i8)') int(testcase)
-    swmname="swmnew_tc"//trim(adjustl(trim(atmp)))
+    swmname="swm_tc"//trim(adjustl(trim(atmp)))
 
     !Print information
     print*, "Test Case (Will1994)    : ", testcase
@@ -923,15 +918,6 @@ contains
     divu%name="divu"
     allocate(divu%f(1:divu%n), stat=ist)
 
-    if(test_lterror==1)then
-      divueta%n=mesh%nt
-      divueta%pos=1
-      divueta%name="divueta"
-      allocate(divueta%f(1:divueta%n), stat=ist)
-      allocate(divueta_exact%f(1:divueta%n), stat=ist)
-      allocate(divueta_error%f(1:divueta%n), stat=ist)
-    end if
-
     lapu%n=mesh%ne
     lapu%pos=edpos
     lapu%name="lapu"
@@ -1096,7 +1082,6 @@ contains
       !$OMP SHARED(ke_tr_exact, ke_tr, ke_tr_error) &
       !$OMP SHARED(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, grad_h) &
       !$OMP SHARED(divuh, divuh_exact, divuh_error) &
-      !$OMP SHARED(divueta, divueta_exact, divueta_error) &
       !$OMP SHARED(lapu, lapu_exact, lapu_error) &
       !$OMP SHARED(momeq,  masseq, momeq_exact, masseq_exact, momeq_error, masseq_error)
       momeq_exact=momeq
@@ -1139,9 +1124,6 @@ contains
       grad_h=grad_ghbK
       divuh_exact=divuh
       divuh_error=divuh
-      divueta=q_tr
-      divueta_exact=divueta
-      divueta_error=divueta
       lapu_exact=lapu
       lapu_error=lapu
        !$OMP END PARALLEL WORKSHARE

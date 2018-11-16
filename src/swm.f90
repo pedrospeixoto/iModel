@@ -428,8 +428,8 @@ contains
     ! Kinectic Energy calculation
     !---------------------------------------------------
     call error_calc(ke_hx, ke_hx_exact, ke_hx_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " Kenergy ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " Kenergy ", mesh%nv,  errormaxrel, error2rel, errormax, &
+    print '(a16, i12,  3e18.8)', " kenergy ", mesh%nv,  errormaxrel, error2rel, errormax
+    write(errorsunit,trim(fmt)) " kenergy ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
@@ -437,8 +437,8 @@ contains
     !---------------------------------------------------
     if(useReconmtdGass)then
       call error_calc(ke_tr, ke_tr_exact, ke_tr_error, errormaxrel, error2rel, errormax)
-      print '(a16, i12,  3e18.8)', " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax
-      write(errorsunit,trim(fmt)) " Kenergy tr", mesh%nv,  errormaxrel, error2rel, errormax, &
+      print '(a16, i12,  3e18.8)', " kenergy_tr", mesh%nv,  errormaxrel, error2rel, errormax
+      write(errorsunit,trim(fmt)) " kenergy_tr", mesh%nv,  errormaxrel, error2rel, errormax, &
         trim(swmname)//" "//trim(mesh%name)
        !print*, Kin_energy_tr%f(1:10)
        !print*, Kin_energy_tr_exact%f(1:10)
@@ -464,31 +464,31 @@ contains
     ! Potential vorticity at tr center
     !---------------------------------------------------
     call error_calc(q_tr, q_tr_exact, q_tr_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " PV_tr ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " PV_tr ", mesh%nv,  errormaxrel, error2rel, errormax, &
+    print '(a16, i12,  3e18.8)', " q_tr ", mesh%nv,  errormaxrel, error2rel, errormax
+    write(errorsunit,trim(fmt)) " q_tr ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
     ! Potential vorticity at cell center
     !---------------------------------------------------
     call error_calc(q_hx, q_hx_exact, q_hx_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " PV_hx ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " PV_hx ", mesh%nv,  errormaxrel, error2rel, errormax, &
+    print '(a16, i12,  3e18.8)', " q_hx ", mesh%nv,  errormaxrel, error2rel, errormax
+    write(errorsunit,trim(fmt)) " q_hx ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
     ! Potential vorticity at edges
     !---------------------------------------------------
     call error_calc(q_ed, q_ed_exact, q_ed_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " PV_ed ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " PV_ed ", mesh%nv,  errormaxrel, error2rel, errormax, &
+    print '(a16, i12,  3e18.8)', " q_ed ", mesh%nv,  errormaxrel, error2rel, errormax
+    write(errorsunit,trim(fmt)) " q_ed ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
     ! Gradient of ghbK - Kenergy calculated
     !---------------------------------------------------
     call error_calc(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " grad_ghbKestim ", mesh%nv,  errormaxrel, error2rel, errormax
+    print '(a16, i12,  3e18.8)', " grad_ghbK ", mesh%nv,  errormaxrel, error2rel, errormax
     write(errorsunit,trim(fmt)) " grad_ghbK ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
@@ -501,8 +501,8 @@ contains
        !   print*, l, grad_ghbK%f(l)
     end do
     call error_calc(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " grad_ghbKexact ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " grad_ghbKexact ", mesh%nv,  errormaxrel, error2rel, errormax, &
+    print '(a16, i12,  3e18.8)', " grad_ghbK_exact ", mesh%nv,  errormaxrel, error2rel, errormax
+    write(errorsunit,trim(fmt)) " grad_ghbK_exact ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
@@ -545,13 +545,6 @@ contains
     write(errorsunit,trim(fmt)) " uhq_perp ", mesh%nv,  errormaxrel, error2rel, errormax, &
       trim(swmname)//" "//trim(mesh%name)
 
-    !---------------------------------------------------
-    ! Div of uhq on triangle
-    !---------------------------------------------------
-    call error_calc(divueta, divueta_exact, divueta_error, errormaxrel, error2rel, errormax)
-    print '(a16, i12,  3e18.8)', " divueta ", mesh%nv,  errormaxrel, error2rel, errormax
-    write(errorsunit,trim(fmt)) " divueta ", mesh%nv,  errormaxrel, error2rel, errormax, &
-      trim(swmname)//" "//trim(mesh%name)
 
     !---------------------------------------------------
     ! Laplacian on edges
@@ -1272,7 +1265,7 @@ contains
             vtmp=0._r8
             call convert_vec_sph2cart(utmp, vtmp, mesh%tr(k)%c%p, vectmp)
             vhq_tr_exact%p(k)%v=vectmp*eta_exact%f(k)
-            divueta_exact%f(k)=0.
+
           end do
           masseq_exact%f=0._r8
           momeq_exact%f=0._r8
@@ -1972,7 +1965,7 @@ contains
             vtmp=0._r8
             call convert_vec_sph2cart(utmp, vtmp, mesh%tr(k)%c%p, vectmp)
             vhq_tr_exact%p(k)%v=vectmp*eta_exact%f(k)
-            divueta_exact%f(k)=0.
+
           end do
           masseq_exact%f=0._r8
           momeq_exact%f=0._r8
@@ -2736,9 +2729,6 @@ contains
 
         divuh%name=trim(swmname)//"_divuh_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(divuh, mesh)
-
-        !divueta%name=trim(swmname)//"_divueta_t"//trim(adjustl(trim(atime)))
-        !call plot_scalarfield(divueta, mesh)
 
         uhq_perp%name=trim(swmname)//"_uhq_perp_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(uhq_perp, mesh)
