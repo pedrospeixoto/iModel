@@ -23,7 +23,7 @@ import imodel_plot
 from imodel_plot import Plotter, PlotterPanel
 
 import imodel_dict
-from imodel_dict import Dictionary
+from imodel_dict import Names, Filter
 
 # input filename
 input_filename = 'errors.txt'
@@ -84,29 +84,43 @@ for i, l in enumerate(lines[1:]):
 operators_list=sorted(set(operators))
 methods_list=sorted(set(methods))
 grids_list=sorted(set(gridnames))
+print("Full options available")
 print(operators_list)
 print(methods_list)
 print(grids_list)
+print("---------------------")
+print()
 
-dict=Dictionary("test.csv")
-print(dict)
 
-print(dict.names)
-print(dict.names['asdsaf'])
+dict=Names("naming_conv.csv") #Load naming convention
+filter=Filter("filter.csv") #load filtering conditions
 
+#Apply filters
+operators_list=filter.select(operators_list, 'operator')
+grids_list=filter.select(grids_list, 'grid')
+methods_list=filter.select(methods_list, 'method')
+#methods_list=filter.select(methods_list)
+#grids_list=filter.select(grids_list)
+print("Filtred lists")
+print(operators_list)
+print(methods_list)
+print(grids_list)
+print("---------------------")
+print()
 
 
 #Plot for each operator
 for oper in operators_list:
 	outname=input_filename.replace('.txt', "_"+oper+".eps")
 	#outnamerms=input_filename.replace('.txt', "_"+oper+"_rms.eps")
-	figure = PlotterPanel( 2, oper, ["grid points", "gris points"], ["max error", "rms error"])
+	title=dict.names.get(oper, oper)
+	figure = PlotterPanel( 2, title, ["grid points", "gris points"], ["max error", "rms error"])
 	#figurerms = Plotter(oper, "grid points", "rms error")
 	c = 0
 	for mtd in methods_list:
 		for grd in grids_list:
 			name=mtd+"_"+grd[0:-1]
-			print(name)
+			name=dict.names.get(name, name)
 			x = []
 			ymax = []
 			yrms = []
@@ -115,7 +129,6 @@ for oper in operators_list:
 					x.append(gridres[i])
 					ymax.append(maxerrors[i])
 					yrms.append(rmserrors[i])
-			
 			figure.plot( 0, x, ymax, label=name, i=c)
 			figure.plot( 1, x, yrms, label=name, i=c)
 			c = c + 1
@@ -123,7 +136,7 @@ for oper in operators_list:
 			#plt.show()
 			
 	figure.finish(outname)
-	break
+
 	#figurerms.finish(outnamerms)
 
 

@@ -29,9 +29,9 @@ class Plotter(object):
 	fontsize=16
 	dimx=10
 	dimy=10
-	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
-	linestyles = ['-', '--', ':', '-.', '-']
-	markers = ['.', ',', 'o', 'v', '+', 'x']
+	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k', 'r']
+	linestyles = ['-', '--', ':', '-.', '-', '--','-',':']
+	markers = ['.', ',', 'o', 'v', '+', 'x',',', '.','+']
 	
 	def __init__(self, title, xlabel, ylabel):
 		self.fig, self.ax = plt.subplots(figsize=(self.dimx, self.dimy))
@@ -48,7 +48,7 @@ class Plotter(object):
 		if len(x) == 0:
 			return
 		x, y = (list(t) for t in zip(*sorted(zip(x,y))))
-		i=i % 5
+		i=i % 8
 		
 		self.ax.plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i], label=label)
 		return
@@ -100,7 +100,7 @@ class PlotterPanel(object):
 	
 	def finish(self, outname):
 		self.fig.legend(fontsize=self.fontsmall, loc = "center right", borderaxespad=0.0)
-		self.fig.subplots_adjust(right=0.75)
+		self.fig.subplots_adjust(right=0.85)
 		self.fig.subplots_adjust(left=0.05)
 		#for i in range(self.n):
 		#	self.ax[i].set_frame_on(False)

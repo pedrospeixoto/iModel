@@ -1,0 +1,39 @@
+codename,labelname
+,
+,
+swm_tc2_HTC_gass18_areageo_HR95JT,GASS18-HR95
+swm_tc2_HTC_gass18_areageo_icos_pol_scvt_h1,GASS18-SCVT
+swm_tc2_HTC_gass18_areatile_HR95JT,GASS18-HR95-TILE
+swm_tc2_HTC_gass18_areatile_icos_pol_scvt_h1,GASS18-SCVT-TILE
+swm_tc2_HTC_pxt16_areageo_HR95JT,PXT16-HR95
+swm_tc2_HTC_pxt16_areageo_icos_pol_scvt_h1,PXT16-SCVT
+swm_tc2_HTC_pxt16_areatile_HR95JT,PXT16-HR95-TILE
+swm_tc2_HTC_pxt16_areatile_icos_pol_scvt_h1,PXT16-SCVT-TILE
+swm_tc2_HTC_trsk10_areageo_HR95JT,TRSK10-HR95
+swm_tc2_HTC_trsk10_areageo_icos_pol_scvt_h1,TRSK10-SCVT
+swm_tc2_HTC_trsk10_areatile_HR95JT,TRSK10-HR95-TILE
+swm_tc2_HTC_trsk10_areatile_icos_pol_scvt_h1,TRSK10-SCVT-TILE
+,
+,
+PV_ed,Potential Vorticity (Edges)
+PV_hx,Potential Vorticity (Cells)
+PV_tr,Potential Vorticity (Triang)
+abs_vort,Absolute Vorticity
+divuh,Flux Divergence (Div(uh))
+grad_ghbK,Grad of Bernoulli Pot.
+grad_ghbKexact,Grad of Bernoulli Pot. (exact)
+h_ed,Depth (Edges)
+h_tr,Depth (Triang)
+kenergy,Kinetic Energy
+kenergy_tr,Kinetic Energy (Triang)
+lapu,Laplacian 
+masseq,Mass Eq.
+momeq,Mom. Eq.
+q_grad_tr,Pot Vorticity Grad (Triang)
+uhq_perp,Perp Operator (uhq)
+vh_hx,Velocity Vec (vh)
+vhq_hx,Velocity Vec (vhq)
+vhq_tr,Velocity Vec (vhq at Triang)
+q_ed,Potential Vorticity (Edges)
+q_hx,Potential Vorticity (Cells)
+q_tr,Potential Vorticity (Triang)

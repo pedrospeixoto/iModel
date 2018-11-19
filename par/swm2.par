@@ -6,7 +6,7 @@
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
 200 0 0
 !Scalar/vector location (HC or HTC)
-HTC
+HC
 !Wrapper (overrides next 4 options)
 trsk10
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
@@ -18,7 +18,7 @@ trsk
 !Gradient discrete method
 trsk
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
-tile
+geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
 4 1 1
 !Diffusion coef - Leave zero for no diffusion - not debugged!
