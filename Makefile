@@ -72,6 +72,7 @@ IMOD=-Ibin
 OBJ=bin/constants.obj \
 bin/stripackm.obj \
 bin/datastruct.obj \
+bin/refinter.obj \
 bin/smeshpack.obj \
 bin/interpack.obj \
 bin/diffoperpack.obj \
@@ -122,6 +123,11 @@ bin/datastruct.obj: src/datastruct.f90
 bin/datastructmult.obj: src/datastructmult.f90
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv datastructmult.mod bin/.
+
+#Interpolation for local refinement pack #################################################################################
+bin/refinter.obj: src/refinter.f90
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv refinter.mod bin/.
 
 #Spherical triangulation pack
 bin/stripackm.obj: src/stripackm.f90
