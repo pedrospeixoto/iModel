@@ -20,6 +20,9 @@ program imodel
        printending, &
        printheader
 
+  !Interpolation for local refinemet
+  use refinter  
+
   !Test routines
   use simulpack, only: &
        divergence_test, &
