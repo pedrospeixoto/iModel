@@ -469,6 +469,8 @@ module datastruct
      character (len=128) :: name
      character (len=256) :: filename
 
+     real (r8), allocatable  :: densf_table(:,:)
+
   end type grid_structure
 
   !---------------------------------------------------------
