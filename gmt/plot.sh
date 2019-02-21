@@ -126,12 +126,14 @@ echo
 #MAP CENTER
 #lon=0 #-179.5 #1.23296 #31.7174
 #lat=0 #-80 #-89.5 #-61.30099 #-0.0374
-lon=0 #17.5
-lat=0
+#lon=0 #17.5
+#lat=0
 #lon=30.125
 #lat=-64.875
 #lon=90.5 #1.23296 #31.7174
 #lat=-0.5 #-89.5 #-61.30099 #-0.0374
+lon=-60
+lat=0
 
 #echo "Map center (set manually in plot.sh)"
 #echo $lon $lat
