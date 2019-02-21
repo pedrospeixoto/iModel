@@ -19,6 +19,8 @@ module simulpack
        pi, &
        r8, &
        rad2deg, &
+       nlat_alt, &
+       nlon_alt, &
        simulcase
 
   !Data structures
@@ -62,7 +64,8 @@ module simulpack
        sph2cart, &
        sphpolarea, &
        sqtriintersec, &
-       vorbarycenter
+       vorbarycenter, &
+       vorbarycenterdens
 
   !Interpolation pack
   use interpack, only: &
@@ -91,6 +94,10 @@ module simulpack
   use diffoperpack, only: &
        div_mesh_fullvec, &
        divho_mesh_fullvec
+
+
+  !Intepolation for local refinement
+  use refinter
 
   implicit none
 
@@ -437,6 +444,7 @@ contains
     !Errors
     logical:: ifile
     integer:: iunit
+    integer:: iunit2
     integer:: izero
     character (len=256):: filename
 
@@ -448,7 +456,7 @@ contains
     !Aux
     real(r8):: tmp
     real(r8):: vtmp(1:30)
-    !real(r8):: p(1:3)
+    real(r8):: p(1:3)
 
     !Min, max, mean of arrays
     real(r8):: mindistortr
@@ -510,10 +518,31 @@ contains
     !Offset between mass center and hexag centers
     offsethx%n=mesh%nv
     offsethx%pos=0
-    allocate(offsethx%f(1:offsethx%n))
-    do i=1,mesh%nv
-       offsethx%f(i)=arclen(mesh%hx(i)%b%p,mesh%v(i)%p)
-    end do
+
+    if(trim(mesh%pos)=="readref_andes")then
+       if(.not.allocated(mesh%densf_table))then
+         print*, "Reading Andes density table ..."
+         allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
+         call getunit(iunit2)
+         call earth_elevation(iunit2, mesh%densf_table)
+         !call andes_density_table(mesh%densf_table)
+         !call andes_density_table2(mesh%densf_table)
+         call andes_density_table3(mesh%densf_table)
+       end if
+
+         allocate(offsethx%f(1:offsethx%n))
+         do i=1,mesh%nv
+           p = vorbarycenterdens(i,mesh) 
+           offsethx%f(i)=arclen(p,mesh%v(i)%p)
+         end do
+       deallocate (mesh%densf_table)
+    else    
+        allocate(offsethx%f(1:offsethx%n))
+        do i=1,mesh%nv
+          offsethx%f(i)=arclen(mesh%hx(i)%b%p,mesh%v(i)%p)
+        end do
+    end if
+
 
     minoffsethx=minval(offsethx%f(1:offsethx%n))
     maxoffsethx=maxval(offsethx%f(1:offsethx%n))
