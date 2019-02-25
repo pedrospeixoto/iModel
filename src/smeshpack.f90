@@ -32,10 +32,21 @@ module smeshpack
        pi2, &
        pio2, &
        r8, &
+       r4, &
        r16, &
        rad2deg, &
        showonscreen, &
-       simulcase
+       simulcase, &
+       n_lat, &
+       n_lon, &
+       latmin, &
+       latmax, &
+       lonmin, &
+       lonmax, & 
+       altdir, &
+       nlat_alt, &
+       nlon_alt
+
 
   !Data structures
   use datastruct, only: &
@@ -47,6 +58,9 @@ module smeshpack
   !Spherical triangulation pack
   use stripackm, only: &
        trmesh
+
+  !Intepolation for local refinement
+  use refinter
 
   implicit none
 
@@ -348,7 +362,6 @@ contains
 
     return
   end subroutine meshbuild
-
 
   subroutine meshstruct(mesh, opt, stat)
     !--------------------------------------------------------------------
@@ -761,6 +774,7 @@ contains
     !Define triangles indexes
     k = 1     !Index used to count triangle
     !For each node on the mesh
+
     do i=1,mesh%nv
        !print*, "Vertice:", i
        nb=mesh%v(i)%nnb
@@ -1156,7 +1170,7 @@ contains
           mesh%dlat=mesh%meanvdist/10._r8
        else
           ! Forces to be less then 3 times smaller than the smallest triangle
-          if(trim(mesh%pos)=='ref')then
+          if(trim(mesh%pos)=='ref' .or. trim(mesh%pos)=='readref' .or. trim(mesh%pos)=='readref_andes')then
              mesh%dlat=mesh%minvdist/3._r8
           else
              mesh%dlat=mesh%minvdist/3.5_r8
@@ -1202,10 +1216,10 @@ contains
     real (r8):: lat
     real (r8):: dlon
     integer:: i
-    character (len=3):: pos
-    character (len=3):: pos0
+    character (len=16):: pos
+    character (len=16):: pos0
 
-    if(trim(pos)=="ref")then
+    if(trim(pos)=="ref" .or. trim(pos)=="readref" .or. trim(pos)=="readref_andes")then
        pos0="pol"
     else
        pos0=pos
@@ -1299,7 +1313,7 @@ contains
     integer:: i
     integer:: j
     integer:: ier
-    character (len=3):: pos
+    character (len=16):: pos
     real(r8), allocatable :: x(:)
     real(r8), allocatable :: y(:)
     real(r8), allocatable :: z(:)
@@ -1312,6 +1326,24 @@ contains
     case("pol") !Point on poles
        print*, "Generating mesh using icosahedral nodes on poles..."
     case("ref") !Refined grid - use points on poles
+       pos="pol"
+       if(trim(mesh%optm(1:4))=="scvt")then
+          print *, "Generating mesh using icosahedral nodes on poles, but with local refinement"
+       else
+          print*, "  Generating mesh using icosahedral nodes on poles..."
+          print *, "  (Ignored locally refined positioning, because SCVT was not set)"
+          mesh%pos="pol"
+       end if
+    case("readref") !Refined grid - use points on poles
+       pos="pol"
+       if(trim(mesh%optm(1:4))=="scvt")then
+          print *, "Generating mesh using icosahedral nodes on poles, but with local refinement"
+       else
+          print*, "  Generating mesh using icosahedral nodes on poles..."
+          print *, "  (Ignored locally refined positioning, because SCVT was not set)"
+          mesh%pos="pol"
+       end if
+    case("readref_andes") !Refined grid - use points on poles
        pos="pol"
        if(trim(mesh%optm(1:4))=="scvt")then
           print *, "Generating mesh using icosahedral nodes on poles, but with local refinement"
@@ -1382,7 +1414,7 @@ contains
     integer:: i
     integer:: j
     integer:: ier
-    character (len=3):: pos
+    character (len=16):: pos
     real(r8), allocatable :: x(:)
     real(r8), allocatable :: y(:)
     real(r8), allocatable :: z(:)
@@ -1392,7 +1424,7 @@ contains
     if(trim(mesh%pos)=='eqs' .or. trim(mesh%pos)=='pol')then
        print*, "Generating mesh using hemisphere symmetrical octahedron,"
        print*, "    with point on poles..."
-    elseif(trim(mesh%pos)=="ref")then !Refined grid - use points on poles
+    elseif(trim(mesh%pos)=="ref" .or. trim(mesh%pos)=="readref" .or. trim(mesh%pos)=="readref_andes")then !Refined grid - use points on poles
        pos="pol"
        if(trim(mesh%optm)=="scvt")then
           print*, "Generating mesh using hemisphere symmetrical octahedron,"
@@ -1684,7 +1716,7 @@ contains
 
        !Set each pair of random nodes
        do i=2, n/2
-          mesh%v(i)%p=sphrandom_denspt(mesh%pos)
+          mesh%v(i)%p=sphrandom_denspt(mesh%pos,mesh)
           mesh%v(i+n/2-1)%p=mesh%v(i)%p
           mesh%v(i+n/2-1)%p(3)=-mesh%v(i+n/2-1)%p(3)
           ! print*, i, mesh%v(i)%p
@@ -1703,7 +1735,7 @@ contains
 
        !Set each random node
        do i=2,n-1
-          mesh%v(i)%p=sphrandom_denspt(mesh%pos)
+          mesh%v(i)%p=sphrandom_denspt(mesh%pos,mesh)
        end do
        !South pole
        mesh%v(n)%p=-mesh%v(1)%p
@@ -1711,7 +1743,7 @@ contains
     case default !Nodes random
        print*, "Generating mesh using random nodes ..."
        do i=1,n
-          mesh%v(i)%p=sphrandom_denspt(mesh%pos)
+          mesh%v(i)%p=sphrandom_denspt(mesh%pos,mesh)
        end do
 
     end select
@@ -1783,7 +1815,10 @@ contains
     !File variables
     integer:: iunit
     integer:: iunit2
+    integer:: iunit3
+    integer:: iunit4
     character (len=100):: filename
+    character (len=100):: filename2
     !character (len=100):: method
     logical:: ifile
     logical:: iopen
@@ -1818,7 +1853,7 @@ contains
     opt=.true.
     call meshstruct(mesh, opt, stat)
     stat=0
-    print*
+
 
     !Allocate space for tmp array of forcing terms
     allocate(vec%p(1:mesh%nv))
@@ -1829,10 +1864,10 @@ contains
     select case (trim(mesh%optm))
     case ("scvt")  !Spherical Centroidal Voronoi Tesselation
        !No optimization parameter needed
-       if(trim(mesh%pos)=="ref")then
+       if(trim(mesh%pos)=="ref" .or. trim(mesh%pos)=="readref" .or. trim(mesh%pos)=="readref_andes")then
           !Stop criteria - difference between energies
           if(mesh%nv<45000)then
-             maxiter=100000 !6000 !2000
+             maxiter=100000  !6000 !2000
              epsdif=mesh%meanvdist*eps/10000.0_r8
              epsmin=mesh%meanvdist*eps*1.0_r8 !/100.0_r8
              miniter=40000
@@ -1940,6 +1975,29 @@ contains
        write(iunit,*) "energy"
     end if
 
+    if(trim(mesh%pos)=="readref")then
+       if(.not.allocated(mesh%densf_table))then
+         allocate (mesh%densf_table(n_lat*n_lon, 3))
+         call getunit(iunit3)
+         filename2 = trim(datadir)//"densf_table.dat"
+         call densftable(filename2, iunit3)
+         open(iunit3, file=filename2)
+         read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
+         close(iunit3) 
+       end if
+    end if
+
+   if(trim(mesh%pos)=="readref_andes")then 
+       if(.not.allocated(mesh%densf_table))then
+         allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
+         call getunit(iunit4)
+         call earth_elevation(iunit4, mesh%densf_table)
+         !call andes_density_table(mesh%densf_table)
+         !call andes_density_table2(mesh%densf_table)
+         call andes_density_table3(mesh%densf_table)
+       end if
+   end if
+
     !Energy variables
     energy=0._r8
     energytmp=0._r8
@@ -2003,7 +2061,7 @@ contains
           do k=ni, nf
              !In case of locally refined grid
              !  uses a density function (dens_f)
-             if(trim(mesh%pos)=="ref")then
+             if(trim(mesh%pos)=="ref" .or. trim(mesh%pos)=="readref" .or. trim(mesh%pos)=="readref_andes" )then
                 p=vorbarycenterdens(k, mesh)
                 dm=arclen(p, mesh%v(k)%p)
                 mesh%v(k)%p=p
@@ -2017,7 +2075,7 @@ contains
              !energy=max(energy,arclen(mesh%hx(j)%b%p, mesh%v(j)%p))
              !energy=energy+dm*dm
           end do
-          if(trim(mesh%pos)=="ref")then
+          if(trim(mesh%pos)=="ref" .or. trim(mesh%pos)=="readref" .or. trim(mesh%pos)=="readref_andes")then
              energy = dsqrt(energy/(1.0_r8*(nf-ni+1)))
           end if
        case("sprg") !Spring Dynamics
@@ -2496,7 +2554,8 @@ contains
   !    DENSITY FUNCTION - TO BE USED IN CASE OF LOCALLY REFINED GRIDS
   !================================================================================
 
-  function dens_f(p, refin)
+  !function dens_f(p, refin)
+  function dens_f(p, refin, mesh)
     !--------------------------------------------------------------------
     ! dens_f
     !     Define the density function for a given point on the sphere
@@ -2510,7 +2569,8 @@ contains
     !        (refin may be passed as mesh%pos)
     !--------------------------------------------------------------------
     real (kind=8), intent(in) :: p(1:3)
-    character(len=3), intent(in) :: refin
+    character(len=16), intent(in) :: refin
+    type(grid_structure), intent(in) :: mesh
     real (kind=8):: dens_f
 
     real (kind=8):: lat
@@ -2524,38 +2584,19 @@ contains
     real (kind=8):: sx
 
     !Set this flag to choose density function
-    if(refin/="ref")then
+    if(refin/="ref" .and. refin/="readref" .and.  refin/="readref_andes")then
        dens_f=1
     else
        call cart2sph(p(1), p(2), p(3), lon, lat)
-
-       !See Voronoi Tessellations and their application to climate and global modeling
-       ! by Lili Ju, Todd Ringler and Max Gunzburger
-       !Center of refined region
-       latc=-50.0*pi/180._r8
-       lonc=-30.0*pi/180._r8
-       !Distance to center
-       dists=dsqrt((lat-latc)**2+(lon-lonc)**2)
-       !Density function parameters
-       gammas=3._r8
-       epsilons=pi/12._r8
-       maxdist=pi/6._r8
-       !Distance to center metric
-       sx=(dists-maxdist)/epsilons
-       !Set density
-       if(dists<=maxdist)then
-          !Point close to the center
-          dens_f=gammas**4
-       elseif((dists<=maxdist+epsilons) .and. (dists>maxdist))then
-          !Point in the transition
-          dens_f=((1._r8-sx)*gammas+sx)**4
-       else
-          !Point far from the center
-          dens_f=1
+       if(refin =="ref")then
+          dens_f=densf([lat,lon]) 
+       else if(refin =="readref")then
+                dens_f = interpol_densf([lat,lon], mesh%densf_table, latmin, latmax, lonmin, lonmax, n_lat, n_lon)
+       else if(refin =="readref_andes")then
+                !dens_f = dens_andes([lat,lon], mesh%densf_table)
+                !dens_f = dens_andes1([lat,lon], mesh%densf_table)
+                dens_f = dens_andes2([lat,lon], mesh%densf_table)
        end if
-       !Normalization - Make it in [0,1]
-       dens_f=dens_f/gammas**4
-
     end if
     return
 
@@ -5536,7 +5577,8 @@ contains
 
     !Center point
     p1=mesh%v(hx)%p
-    dfw(1)=dens_f(p1, mesh%pos)
+    !dfw(1)=dens_f(p1, mesh%pos)
+    dfw(1)=dens_f(p1, mesh%pos, mesh)
 
     !Sum of density weights with triangle areas
     wsum=0._r8
@@ -5550,8 +5592,10 @@ contains
        !Triangle vertices and associated densities
        p2=mesh%tr(k1)%c%p
        p3=mesh%tr(k2)%c%p
-       dfw(2)=dens_f(p2, mesh%pos)
-       dfw(3)=dens_f(p3, mesh%pos)
+       !dfw(2)=dens_f(p2, mesh%pos)
+       dfw(2)=dens_f(p2, mesh%pos, mesh)
+       !dfw(3)=dens_f(p3, mesh%pos)
+       dfw(3)=dens_f(p3, mesh%pos, mesh)
 
        !Triangle geodesical area
        area=sphtriarea(p1, p2, p3)
@@ -5575,6 +5619,179 @@ contains
 
     return
   end function vorbarycenterdens
+
+
+  function energy_functional(hx, mesh,pc)
+    real (r8):: energy_functional
+    real (r8):: energy
+
+    !Voronoi index
+    integer (i4), intent(in) :: hx
+    real (r8), intent(in) :: pc(1:3)
+
+    !Mesh
+    type(grid_structure), intent(in) :: mesh
+
+    !Aux variables
+    integer:: i
+    integer:: k1
+    integer:: k2
+    real (r8), dimension(1:3) :: p
+    real (r8), dimension(1:3) :: p1
+    real (r8), dimension(1:3) :: p2
+    real (r8), dimension(1:3) :: p3
+    real (r8), dimension(1:3) :: dfw
+    real (r8):: area
+    real (r8):: wsum
+
+    !Center point
+    p1=mesh%v(hx)%p
+    dfw(1)=dens_f(p1, mesh%pos, mesh)*norm2(pc-p1)**2
+
+
+    !Sum of density weights with triangle areas
+    energy=0._r8
+
+    !For all triangles surounding the node
+    do i=1,mesh%v(hx)%nnb
+       !Trinagle indexes
+       k1=mesh%v(hx)%tr(i)
+       k2=mesh%v(hx)%tr(modint(i+1, mesh%v(hx)%nnb))
+
+       !Triangle vertices and associated densities
+       p2=mesh%tr(k1)%c%p
+       p3=mesh%tr(k2)%c%p
+       dfw(2)=dens_f(p2, mesh%pos, mesh)*norm2(pc-p2)**2
+       dfw(3)=dens_f(p3, mesh%pos, mesh)*norm2(pc-p3)**2
+
+       !Triangle geodesical area
+       area=sphtriarea(p1, p2, p3)
+
+       energy=energy+area*sum(dfw(1:3))/3._r8
+
+    end do
+    energy_functional = energy
+
+
+    return
+  end function energy_functional
+
+
+
+  function energy1(hx, mesh)
+    real (r8):: energy1
+    real (r8):: energy
+
+    !Voronoi index
+    integer (i4), intent(in) :: hx
+
+    !Mesh
+    type(grid_structure), intent(in) :: mesh
+
+    !Aux variables
+    integer:: i
+    integer:: k1
+    integer:: k2
+    real (r8), dimension(1:3) :: p
+    real (r8), dimension(1:3) :: p1
+    real (r8), dimension(1:3) :: p2
+    real (r8), dimension(1:3) :: p3
+    real (r8), dimension(1:3) :: dfw
+    real (r8):: area
+    real (r8):: wsum
+
+    !Center point
+    p1=mesh%v(hx)%p
+    dfw(1)=dens_f(p1, mesh%pos, mesh)*norm2(p1-p1)**2
+
+
+    !Sum of density weights with triangle areas
+    energy=0._r8
+
+    !For all triangles surounding the node
+    do i=1,mesh%v(hx)%nnb
+       !Trinagle indexes
+       k1=mesh%v(hx)%tr(i)
+       k2=mesh%v(hx)%tr(modint(i+1, mesh%v(hx)%nnb))
+
+       !Triangle vertices and associated densities
+       p2=mesh%tr(k1)%c%p
+       p3=mesh%tr(k2)%c%p
+       dfw(2)=dens_f(p2, mesh%pos, mesh)*norm2(p1-p2)**2
+       dfw(3)=dens_f(p3, mesh%pos, mesh)*norm2(p1-p3)**2
+
+       !Triangle geodesical area
+       area=sphtriarea(p1, p2, p3)
+
+       energy=energy+area*sum(dfw(1:3))/3._r8
+
+    end do
+    energy1 = energy
+
+
+    return
+  end function energy1
+
+
+
+
+  function energy_functional2(hx, mesh, pc)
+    real (r8):: energy_functional2
+    real (r8):: energy
+
+    !Voronoi index
+    integer (i4), intent(in) :: hx
+    real (r8), dimension(1:3), intent(in)  :: pc
+
+    !Mesh
+    type(grid_structure), intent(in) :: mesh
+
+    !Aux variables
+    integer:: i
+    integer:: k1
+    integer:: k2
+    real (r8), dimension(1:3) :: p
+    real (r8), dimension(1:3) :: p1
+    real (r8), dimension(1:3) :: p2
+    real (r8), dimension(1:3) :: p3
+    real (r8), dimension(1:3) :: dfw
+    real (r8):: area
+    real (r8):: wsum
+
+    !Center point
+    p1=mesh%v(hx)%p
+    dfw(1)=dens_f(p1, mesh%pos, mesh)*norm2(pc-p1)**2
+
+
+    !Sum of density weights with triangle areas
+    energy=0._r8
+
+    !For all triangles surounding the node
+    do i=1,mesh%v(hx)%nnb
+       !Trinagle indexes
+       k1=mesh%v(hx)%tr(i)
+       k2=mesh%v(hx)%tr(modint(i+1, mesh%v(hx)%nnb))
+
+       !Triangle vertices and associated densities
+       p2=mesh%tr(k1)%c%p
+       p3=mesh%tr(k2)%c%p
+       p = p1+p2+p3
+       p = p/norm(p) !centroid
+
+       !Triangle geodesical area
+       area=sphtriarea(p1, p2, p3)
+
+       energy=energy+area*dens_f(p, mesh%pos, mesh)*norm2(pc-p)**2
+       !energy=energy+area*sum(dfw(1:3))
+
+    end do
+
+    energy_functional2 = energy
+
+
+    return
+  end function energy_functional2
+
 
   function arcintersec(p1, p2, q1, q2, intpt)
     !-------------------------------------------------------------
@@ -7272,6 +7489,10 @@ contains
        print'(a)', " Position    : RAN (All nodes random)"
     case("ref")
        print'(a)', " Position    : REF (Random nodes with local refinement)"
+    case("readref")
+       print'(a)', " Position    : READREF (Random nodes with local refinement)"
+    case("readref_andes")
+       print'(a)', " Position    : READREF_ANDES (Random nodes with Andes refinement)"
     case default
        print'(a)', " PRINTMESH ERROR: Invalid mesh position : ", trim(mesh%pos)
        stop
@@ -7338,7 +7559,7 @@ contains
     !Names for files and numbers
     character (len=128):: filename
     character (len=128):: tmp
-    character (len=3):: ext
+    character (len=16):: ext
     !character (len=256):: buffer
 
     !I/O unit
@@ -8393,13 +8614,15 @@ contains
   !    RANDOM NUMBERS ROUTINES
   !===============================================================================================
 
-  function sphrandom_denspt(refin)
+  !function sphrandom_denspt(refin)
+  function sphrandom_denspt(refin,mesh)
     !-------------------------------------------------------------------
     !  Generate a point on the unit sphere randomly with an associated
     !  density function (dens_f)
     !  Input: seed - integer, dens_max - maximum of density function
     !------------------------------------------------------------------
-    character(len=3), intent(in) :: refin
+    character(len=16), intent(in) :: refin
+    type(grid_structure), intent(in) :: mesh 
     real (r8):: sphrandom_denspt(1:3)
 
     real (r8):: p(1:3)
@@ -8419,7 +8642,8 @@ contains
        u=randnum() !call random_number(u)
        !Get density associates with p
        ! probability of this point to occur
-       df=dens_f(p, refin)
+       !df=dens_f(p, refin)
+       df=dens_f(p, refin, mesh)
        !If point probability is larger then random limit, keep this point
        !Else, make another point and limit
        if (u <= df) then
