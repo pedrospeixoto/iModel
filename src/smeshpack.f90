@@ -1867,7 +1867,7 @@ contains
        if(trim(mesh%pos)=="ref" .or. trim(mesh%pos)=="readref" .or. trim(mesh%pos)=="readref_andes")then
           !Stop criteria - difference between energies
           if(mesh%nv<45000)then
-             maxiter=100000 !6000 !2000
+             maxiter=100000  !6000 !2000
              epsdif=mesh%meanvdist*eps/10000.0_r8
              epsmin=mesh%meanvdist*eps*1.0_r8 !/100.0_r8
              miniter=40000
