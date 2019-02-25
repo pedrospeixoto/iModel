@@ -3,7 +3,7 @@
 10000
 !Kind of mesh use: icos, octg, read, rand
 icos
-!Position: eqs, pol, ran, ref, readref, readref_andes
+!Position: eqs, pol, ran, ref, readref_andes
 readref_andes
 !Optimization of mesh: nopt, sprg, scvt, salt, hr95
 scvt
