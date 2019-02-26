@@ -1,24 +1,27 @@
 # iModel
 Icosahedral grid tools for geophysical fluid dynamics modelling
 
-Pedro Peixoto Oct 2017
+Pedro Peixoto Fev 2019
 (pedrosp@ime.usp.br)
+
+With contributions from MSc/PhD students.
 
 -------------------------------------------------------
 
 iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid based geophysical fluid models. Fully Fortran written, with outputs using GMT/Matlab. It contains:
 
 - Grid generator and grid tools, including grid optimization
+- Locally refined grids, topography based (MSc L. Santos)
 - Interpolation and vector reconstruction pack
-- Multigrid solver
+- Multigrid solver (MSc M. Silva)
 - Transport model (Semi-Lagrangian)
-- Shallow water model
+- Finite Volume Shallow Water Model 
 
-Also includes (Developed by John Thuburn):
+Additionally includes (Developed by John Thuburn):
 - A spherical shallow water model version of ENDGame model, which uses finite differences on lat-long grid (endgame/)
 - A spherical shallow water model of a mixed finite elements schemes, uses cubed shere or hexagonal grid (mfem_swm/)
 
-Also includes (Developed by Pedro Peixoto)
+Additionally includes (Developed by Pedro Peixoto)
 - A planar shallow water model writen in Matlab using finite differences regular C-grid energy enstrophy conserving schemes (fdc_een_swm)
 
 Please read doc/manual.pdf for further information and doc/ in submodel folders.
@@ -44,7 +47,7 @@ iModel:
  
 6) Use GMT visualization tool scripts from gmt/plot.sh to plot output (Generic Mapping Tool need to be installed separately) 
 
-7) Problems? Send me an e-mail
+7) Problems? Send an e-mail to pedrosp@ime.usp.br
 
 ----------------------------------------------------------------------------
 
