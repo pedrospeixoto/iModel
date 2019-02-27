@@ -60,7 +60,16 @@ module smeshpack
        trmesh
 
   !Intepolation for local refinement
-  use refinter
+  use refinter, only: &
+   andes_density_table3, &
+   dens_andes2, &
+   densf, &
+   densftable, &
+   earth_elevation, &
+   interpol_densf, &
+   latmax, latmin, lonmax, lonmin
+
+
 
   implicit none
 

@@ -1,18 +1,18 @@
 !Grid parameters 
 !Number of vertices (may be changed if icos/octg mesh is chosen) 
-1000
+40000
 !Kind of mesh use: icos, octg, read, rand
 icos
-!Position: eqs, pol, ran, ref, readref_andes
-pol
+!Position: eqs, pol, ran, ref, readref, readref_andes
+readref_andes
 !Optimization of mesh: nopt, sprg, scvt, salt, hr95
-nopt
+scvt
 !Loadable grid? 0-No; 1-Yes
 1
 !Show ongoing process details on screen? 0-No; 1-Yes
 1
 !Test case to be done - uncomment method to be used in imodel.f90
-3
+15
 !If mesh read from file give filename (Extensions: .xyz cartesian coords, .gmt lon, lat)
 icos_pol_scvt_h1_6.xyz
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos0 Symmetry implied; 4- Both 2 and 3
@@ -30,11 +30,13 @@ icos_pol_scvt_h1_6.xyz
 !  pol (north pole point)\\
 !  ran (all random points)\\
 !  ref (local mesh refinement - needs scvt optimization)\\
+!  readref ((local mesh refinement based on file read -  needs scvt opt) \\
+!  readref_andes ((local mesh refinement with topography read from file  needs scvt opt) \\
 
 !Optimization of mesh 
 !  nopt (no optimization) \\
 !  sprg (spring dynamics - ok until level 8) \\
-!  scvt (centroidal voronoi) \\
+!  scvt (centroidal voronoi - required for local refinement) \\
 !  salt (aligned tesselation - not debuged ...) \\
 !  hr95 (Heikes and Randall 1995 optimization using Miura's alg - not debuged...) \\
 

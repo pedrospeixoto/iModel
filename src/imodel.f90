@@ -21,7 +21,7 @@ program imodel
        printheader
 
   !Interpolation for local refinemet
-  use refinter  
+  !use refinter
 
   !Test routines
   use simulpack, only: &

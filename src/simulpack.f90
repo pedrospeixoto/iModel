@@ -97,7 +97,9 @@ module simulpack
 
 
   !Intepolation for local refinement
-  use refinter
+  use refinter, only: &
+    andes_density_table3, &
+    earth_elevation
 
   implicit none
 

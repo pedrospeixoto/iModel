@@ -142,7 +142,7 @@ module constants
 
   integer, parameter :: nlat_alt = 4*180+1 
   integer, parameter :: nlon_alt = 4*360+1
-  integer, parameter :: nx_andes = (latmax_andes - latmin_andes)*4+1	
+  integer, parameter :: nx_andes = (latmax_andes - latmin_andes)*4+1
   integer, parameter :: ny_andes = (lonmax_andes - lonmin_andes)*4+1
 
   character (len=60), parameter::  altdir = "altitude/"

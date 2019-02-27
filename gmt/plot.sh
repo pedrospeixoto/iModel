@@ -28,6 +28,16 @@ echo
 
 # ---- INPUT/OUTPUT SETTINGS ---------#
 
+#Arguments check
+if [ $# -eq 0  ] ; then
+    echo "Please enter arguments:"
+    echo " Arguments (files) should be passed in the following order:"
+    echo " Mesh (nodes file .gmt), scalar (.dat), vector (.dat), output filename (directory/name with no extension) "
+    echo " Grid files and vector fields are ASCII. Scalar fields must be binary files"
+    echo " This script is built in agreement with the outputs of iModel"
+    exit 0
+fi  
+
 #KIND OF PLOT
 echo
 echo "Select kind of plot:"
@@ -41,15 +51,6 @@ echo " 7) Mesh, scalar and vector fields"
 read kplot
 echo
 
-#Arguments check
-if [ $# -eq 0  ] ; then
-    echo "Please enter arguments:"
-    echo " Arguments (files) should be passed in the following order:"
-    echo " Mesh (nodes file .gmt), scalar (.dat), vector (.dat), output filename (directory/name with no extension) "
-    echo " Grid files and vector fields are ASCII. Scalar fields must be binary files"
-    echo " This script is built in agreement with the outputs of iModel"
-    exit 0
-fi  
 
 #mesh=""
 case $kplot in
