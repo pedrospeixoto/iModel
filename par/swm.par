@@ -7,24 +7,24 @@
 200 0 0
 !Scalar/vector location (HC or HTC)
 HTC
-!Wrapper (overrides next 4 options)
-trsk10
+!Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
+none
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
-trsk 1.0
+perhx 1.0
 !Coriolis vec reconstruction method
-trsk
+pered
 !Scalar interpolations
-trsk
+bary
 !Gradient discrete method
 trsk
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
-100 1 1
+12 1 1
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32, 33, 34
-100.0
+10.0
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
 0.0
 !Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter
