@@ -996,7 +996,7 @@ contains
           vectmp=0._r8
           if(useStagHTC)then
             do j=1,mesh%v(node)%nnb
-              l2=mesh%v(i)%ed(j)
+              l2=mesh%v(node)%ed(j)
               qtmp=0.5_r8*(q_ed%f(l)+q_ed%f(l2))
               signcor=mesh%hx(node)%ttgout(j)
               vectmp=vectmp + &
@@ -1221,7 +1221,7 @@ contains
       stop
     end if
     if(f1%n/=fprod%n)then
-      print*, "ERROR in scalar_elem_product: dimensions do not match", f1%n, fprod%n
+      print*, "ERROR in scalar_elem_product: dimensions do not match with output", f1%n, fprod%n
       stop
     end if
 
