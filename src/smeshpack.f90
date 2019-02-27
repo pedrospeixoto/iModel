@@ -7776,8 +7776,8 @@ contains
     !Print mesh caracteristics
     !------------------------------------
 
+    call printmesh(mesh)
     if(showonscreen)then
-       call printmesh(mesh)
        print '(a, i6)',   " nlat:", mesh%nlat
        print '(a, f8.4)', " dlat:", mesh%dlat
        print '(a, i6)', " Max Quad Triangle intersection: ",  mesh%maxtrsqint
