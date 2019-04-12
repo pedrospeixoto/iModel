@@ -1566,16 +1566,22 @@ contains
         momeq_exact%f=0
 
 
-      case(21, 22, 23) !  ! Galewsky et al test case - From J. Thuburns code
+      case(21, 22, 23, 52) !  ! Galewsky et al test case - From J. Thuburns code
 
         if(testcase==23)then
           u00 = 200.0
           lat0 = pi/7.0
           lat1 = pi/2.0 - lat0
         else
-          u00 = 80.0
-          lat0 = pi/7.0
-          lat1 = pi/2.0 - lat0
+          if(testcase==52)then ! Jet in Southern Hemisphere
+             u00 = 80.0
+             *lat0 = -pi/7.0 + pi/9.0
+             lat1 = -pi/2.0 + pi/7.0 + pi/9.0
+          else 
+             u00 = 80.0
+             lat0 = pi/7.0
+             lat1 = pi/2.0 - lat0
+          end if
         end if
 
 
