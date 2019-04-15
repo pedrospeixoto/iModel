@@ -1566,17 +1566,19 @@ contains
         momeq_exact%f=0
 
 
-      case(21, 22, 23, 52) !  ! Galewsky et al test case - From J. Thuburns code
+      case(21, 22, 23, 52, 53) !  ! Galewsky et al test case - From J. Thuburns code
 
         if(testcase==23)then
           u00 = 200.0
           lat0 = pi/7.0
           lat1 = pi/2.0 - lat0
         else
-          if(testcase==52)then ! Jet in Southern Hemisphere
+          if(testcase==52 .or. testcase==53)then ! Jet in Southern Hemisphere
              u00 = 80.0
-             *lat0 = -pi/7.0 + pi/9.0
-             lat1 = -pi/2.0 + pi/7.0 + pi/9.0
+             lat0 = -5.d0*deg2rad
+             lat1 = -45.d0*deg2rad
+             !lat0 = -pi/7.0 + pi/9.0
+             !lat1 = -pi/2.0 + pi/7.0 + pi/9.0
           else 
              u00 = 80.0
              lat0 = pi/7.0
@@ -1687,7 +1689,7 @@ contains
         end do
 
         !Add perturbation only in test case 21 or 23
-        if(testcase==21 .or. testcase==23)then
+        if(testcase==21 .or. testcase==23 .or. testcase==53)then
           ! Geopotential perturbation
           !if(testcase==21)then
           hpert = 120.0D0
@@ -1698,7 +1700,13 @@ contains
           ! alpha = 1.0D0/2.0D0
           ! beta = 1.0D0/2.0D0
           !end if
-          lat2 = 0.5D0*piby2
+
+          if(testcase ==53)then
+            lat2 = -25.d0*deg2rad
+          else
+            lat2 = 0.5D0*piby2
+          end if
+
           do i = 1, mesh%nv
             ! l2 = flat(if0,ngrids)
             ! l1 = flong(if0,ngrids)
@@ -1708,6 +1716,9 @@ contains
             l2 = lat
             l1 = long
             clat = COS(l2)
+            if(testcase ==53)then
+               l1 = l1 + 120.d0*deg2rad
+            end if
             !IF (l1 > pi) l1 = l1 - 2.0d0*pi
             e1 = EXP(-(l1/alpha)**2)
             e2 = EXP(-((lat2 - l2)/beta)**2)
