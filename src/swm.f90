@@ -31,7 +31,9 @@ module swm
     gravi, &
     sec2day, &
     day2sec, &
-    rotatn
+    rotatn, &
+    nlat_alt, &
+    nlon_alt
 
   !Global variables and operators for shallow water model
   use swm_data !Everything
@@ -80,6 +82,10 @@ module swm
     div_cell_Cgrid, &
     grad_edge_Cgrid
 
+  !Use topography and bilinear interpolation routines
+  use refinter, only: &
+   andean_mountain_data, &
+   smooth_andean_mountain
 
   !use eispack, only: &
   !  rg
@@ -1070,9 +1076,11 @@ contains
     character (len=256):: tctmp, atime
 
     !File units
-    integer (i4):: iunit
+    integer (i4):: iunit, iunit2
     logical::  ifile
 
+    ! Andes smooth topography - testcases 54 and 55
+    real(r8), allocatable :: alt_table(:,:)
 
     maxvel=1.
     maxh=1.
@@ -1566,14 +1574,14 @@ contains
         momeq_exact%f=0
 
 
-      case(21, 22, 23, 52, 53) !  ! Galewsky et al test case - From J. Thuburns code
+      case(21, 22, 23, 52, 53, 54) !  ! Galewsky et al test case - From J. Thuburns code
 
         if(testcase==23)then
           u00 = 200.0
           lat0 = pi/7.0
           lat1 = pi/2.0 - lat0
         else
-          if(testcase==52 .or. testcase==53)then ! Jet in Southern Hemisphere
+          if(testcase==52 .or. testcase==53 .or. testcase==54)then ! Jet in Southern Hemisphere
              u00 = 80.0
              lat0 = -5.d0*deg2rad
              lat1 = -45.d0*deg2rad
@@ -1591,6 +1599,8 @@ contains
         umen = u00/en
         totvol = 0.0D0
         totarea = 0.0D0
+
+
 
         ! Integrate to tabulate h and psi as functions of geographical
         ! latitude
@@ -1663,6 +1673,23 @@ contains
         enddo
         deallocate(hgg)!, psigg)
 
+
+        ! Flow over Andes mountain - adds topography
+        if(testcase == 54)then
+          allocate(alt_table(nlat_alt*nlon_alt,3))
+          call getunit(iunit2)
+          call andean_mountain_data(alt_table, iunit2)
+          do i=1, mesh%nv
+            lon=mesh%v(i)%lon
+            lat=mesh%v(i)%lat
+            bt%f(i) = smooth_andean_mountain([lat,lon], alt_table)
+            !print*, i, lon*rad2deg, lat*rad2deg, bt%f(i)
+            ! Correct h to allow orography
+            h%f(i)=h%f(i)-bt%f(i)
+          end do
+          deallocate(alt_table)
+        end if
+
         !Set velocity field
         do l=1,mesh%ne
           utmp=0._r8
@@ -1701,7 +1728,7 @@ contains
           ! beta = 1.0D0/2.0D0
           !end if
 
-          if(testcase ==53)then
+          if(testcase == 53)then
             lat2 = -25.d0*deg2rad
           else
             lat2 = 0.5D0*piby2
