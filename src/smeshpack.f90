@@ -68,9 +68,6 @@ module smeshpack
    earth_elevation, &
    interpol_densf, &
    latmax, latmin, lonmax, lonmin
-
-
-
   implicit none
 
 contains 
@@ -2001,8 +1998,6 @@ contains
          allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
          call getunit(iunit4)
          call earth_elevation(iunit4, mesh%densf_table)
-         !call andes_density_table(mesh%densf_table)
-         !call andes_density_table2(mesh%densf_table)
          call andes_density_table3(mesh%densf_table)
        end if
    end if
