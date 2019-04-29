@@ -1,6 +1,6 @@
 grid,all
-method,HC
-operator,uhq_perp
+method,all
+operator,all
 ,
 ,
 ,
@@ -15,11 +15,8 @@ operator,uhq_perp
 ,
 ,
 gass18geo,'swm_tc2_HTC_gass18_areageo'
-gass18tile, 'swm_tc2_HTC_gass18_areatile'
-pxt16geo, 'swm_tc2_HTC_pxt16_areageo'
-pxt16tile, 'swm_tc2_HTC_pxt16_areatile'
-trsk10geo, 'swm_tc2_HTC_trsk10_areageo'
-trsk10tile, 'swm_tc2_HTC_trsk10_areatile'
+pxt16geo,'swm_tc2_HTC_pxt16_areageo'
+trsk10geo,'swm_tc2_HTC_trsk10_areageo'
 ,
 ,
 HR95,'HR95JT_'

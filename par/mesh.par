@@ -2,11 +2,11 @@
 !Number of vertices (may be changed if icos/octg mesh is chosen) 
 10000
 !Kind of mesh use: icos, octg, read, rand
-icos
+read
 !Position: eqs, pol, ran, ref, readref, readref_andes
 pol
 !Optimization of mesh: nopt, sprg, scvt, salt, hr95
-scvt
+nopt
 !Loadable grid? 0-No; 1-Yes
 1
 !Show ongoing process details on screen? 0-No; 1-Yes
@@ -14,7 +14,7 @@ scvt
 !Test case to be done - uncomment method to be used in imodel.f90
 15
 !If mesh read from file give filename (Extensions: .xyz cartesian coords, .gmt lon, lat)
-icos_pol_scvt_h1_6.xyz
+HR95JT_005.xyz
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos0 Symmetry implied; 4- Both 2 and 3
 1
 

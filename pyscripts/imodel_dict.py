@@ -22,7 +22,7 @@ class Names(object):
 		with open(filename, mode='r') as infile:
 			reader = csv.reader(infile)
 			self.names = {rows[0]:rows[1] for rows in reader}
-		#print(self.names)
+		print(self.names)
 		
 class Filter(object):
 	filter = {}
