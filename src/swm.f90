@@ -407,13 +407,14 @@ contains
       open(errorsunit,file=filename, status='old', position='append')
     else
       open(errorsunit,file=filename, status='replace')
-      write(errorsunit, '(a140)') "     Operator       Mesh       MaxErrorRel    "//&
-        "    RMSError    MaxError     Methods        Grid"
+      write(errorsunit, *) "          Field       Mesh       MaxErrorRel       "//&
+      " RMSError         MaxError                            "//&
+      "Methods                                     Grid"
     end if
     fmt="(a16, i12,  3e18.8, a80)"
 
     !LTE analysis
-    print*, "     Operator       Mesh       MaxErrorRel        RMSError         MaxError"
+    print*, " Field       Mesh       MaxErrorRel        RMSError         MaxError"
     !---------------------------------------------------
     ! H interpolation to edges - should be second order on HTC grid
     !---------------------------------------------------
@@ -2874,11 +2875,12 @@ contains
     filename=trim(datadir)//"swm_errors.txt"
     call getunit(iunit)
 
-    buffer="        n        mvdist  tcase       ntime"//&
-      "     dt(s)                 cfl                time(dys)  "//&
-      "        errormax_h       error2_h               errormax_u     "//&
-      "   error2_u               mass              Penergy      "//&
-      "     Kenergy             Tenergy       SWMparameters"
+    buffer="       Mesh  TCase    nTime"//&
+      "     dt                   TimeDays  "//&
+      "        MaxError_h          RMSError_h            MaxError_u     "//&
+      "   RMSError_u               Mass              Penergy      "//&
+      "     Kenergy             Tenergy             ExtraData                    "//&
+      "                Methods  Grid    "
 
     inquire(file=filename, exist=ifile)
     if(ifile)then
@@ -2889,12 +2891,12 @@ contains
     end if
 
     !Write errors to file
-    write(iunit, '(i12, 1f12.4, i4, i10, 12e20.10 , a120)') &
-      mesh%nv,  mesh%meanvdist*rad2deg, testcase, &
-      ntime, dt, cfl, time*sec2day, &
+    write(iunit, '(i12, i4, i10, 11e20.10 , a120)') &
+      mesh%nv,   testcase, &
+      ntime, dt, time*sec2day, &
       errormax_h, error2_h, errormax_u, error2_u, error_mass, &
       Penergy, Kenergy, Tenergy, tmp, &
-      trim(adjustl(trim(swmname)))//"_"//trim(adjustl(trim(mesh%name)))
+      trim(adjustl(trim(swmname)))//" "//trim(adjustl(trim(mesh%name)))
 
     print*
     print*, "Final Errors"
