@@ -469,8 +469,9 @@ contains
       useReconmtdPerhx=.true.
       reconmtd="perhx"
     elseif(trim(mtdwrapper)=="gass18")then
-      useReconmtdGass=.true.
-      reconmtd="gass"
+      useReconmtdTrisk=.true.
+      useReconmtdGass=.false.
+      reconmtd="trsk"
     else
       useReconmtdPerhx=trim(reconmtd)=="perhx"
       useReconmtdTrisk=trim(reconmtd)=="trsk"
