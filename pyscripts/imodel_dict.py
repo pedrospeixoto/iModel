@@ -24,6 +24,7 @@ class Names(object):
 			self.names = {rows[0]:rows[1] for rows in reader}
 		print(self.names)
 		
+#This filtering need debug
 class Filter(object):
 	filter = {}
 	def __init__(self, filename):	
@@ -41,4 +42,14 @@ class Filter(object):
 				if choice in item:
 					listtmp.append(item)
 			return listtmp
-			
+
+def extract_data(options, selections, data):
+
+	return 1
+
+def clean_data_meshname(head, data):
+	igridname = head.index("Grid")
+	datatmp=data
+	#gridnames.append(d[igridname].rstrip(string.digits).replace('_', ''))
+	return datatmp
+

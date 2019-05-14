@@ -1,22 +1,15 @@
 codename,labelname
 ,
 ,
-swm_tc2_HTC_gass18_areageo_HR95JT,GASS18-HR95
-swm_tc2_HTC_gass18_areageo_icos_pol_scvt_h1,GASS18-SCVT
-swm_tc2_HTC_gass18_areageo_icos_pol_nopt,GASS18-NOPT
-swm_tc2_HTC_gass18_areatile_HR95JT,GASS18-HR95-TILE
-swm_tc2_HTC_gass18_areatile_icos_pol_scvt_h1,GASS18-SCVT-TILE
-swm_tc2_HTC_gass18_areatile_icos_pol_nopt,GASS18-NOPT-TILE
-swm_tc2_HTC_pxt16_areageo_HR95JT,PXT16-HR95
-swm_tc2_HTC_pxt16_areageo_icos_pol_scvt_h1,PXT16-SCVT
-swm_tc2_HTC_pxt16_areatile_HR95JT,PXT16-HR95-TILE
-swm_tc2_HTC_pxt16_areatile_icos_pol_scvt_h1,PXT16-SCVT-TILE
-swm_tc2_HTC_trsk10_areageo_HR95JT,TRSK10-HR95
-swm_tc2_HTC_trsk10_areageo_icos_pol_scvt_h1,TRSK10-SCVT
-swm_tc2_HTC_trsk10_areageo_icos_pol_nopt,TRSK10-NOPT
-swm_tc2_HTC_trsk10_areatile_HR95JT,TRSK10-HR95-TILE
-swm_tc2_HTC_trsk10_areatile_icos_pol_scvt_h1,TRSK10-SCVT-TILE
-swm_tc2_HTC_trsk10_areatile_icos_pol_nopt,TRSK10-NOPT-TILE
+swm_tc2_HTC_gass18_areageo,GASS18
+swm_tc2_HTC_gass18_areatiel,GASS18-TILE
+,
+,
+,
+icos_pol_scvt_h1, SCVT
+HR95JT, HR95
+,
+,
 ,
 ,
 PV_ed,Potential Vorticity (Edges)
