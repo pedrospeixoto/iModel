@@ -20,36 +20,6 @@ import re
 import json
 
 
-class Names(object):
-	names = {}
-	def __init__(self, filename):	
-		with open(filename, mode='r') as infile:
-			reader = csv.reader(infile)
-			self.names = {rows[0]:rows[1] for rows in reader}
-		#print(self.names)
-		
-#This filtering needs refinement for detailed filtering, now it is all or just one
-class Filter(object):
-	filter = {}
-	def __init__(self, filename):	
-		with open(filename, mode='r') as infile:
-			reader = csv.reader(infile)
-			#for row in reader:
-			#	self.filter[row[0]]=row[1]
-			self.filter = {rows[0]:rows[1] for rows in reader}
-		
-
-	def select(self, list, variable):
-		listtmp=[]
-		choice=self.filter.get(variable, "all")
-		if choice=="all":
-			listtmp=list
-		else:
-			for item in list:
-				if choice in item:
-					listtmp.append(item)
-		print(variable, choice, listtmp)
-		return listtmp
 
 class imodelData(object):
 	def __init__(self, input_filename):
@@ -86,10 +56,18 @@ class imodelData(object):
 		print("Data with numbers")
 		print(datanum)
 		print(	)
+		self.GetOptions()
 
-	def getoptions(self):
+	def FancyNames(self, filename):	
+		self.fancynames = {}
+		with open(filename, mode='r') as infile:
+			reader = csv.reader(infile)
+			self.fancynames = {rows[0]:rows[1] for rows in reader}
+
+	def GetOptions(self):
 		#Check option in string variables
-		print("Options to filter")
+		print()
+		print("String options to filter")
 		d = {}
 		for x in self.datastr:
 			print(x)
@@ -99,5 +77,36 @@ class imodelData(object):
 			y=sorted(set(y))
 			print(y)
 			d[x]=y
+		print()
+		print("Numerics options to filter")
+		for x in self.datanum:
+			
+			y=self.data[x]
+			y=sorted(set(y))
+			if all( i==int(i) for i in y): #ignore floats
+				print(x)
+				d[x]=y
+				print(y)	
+			
 		self.varoptions=d
 		return
+
+	def UserOptions(self, filename):	
+		with open(filename, mode='r') as infile:
+			reader = csv.reader(infile)
+			#for row in reader:
+			#	self.filter[row[0]]=row[1]
+			userdata = list(reader)
+			n=len(userdata)
+			for i in range(n):
+				if userdata[i][0] in self.varoptions.keys():
+					#This option exists!
+					if userdata[i][1] != "all":
+						self.varoptions[userdata[i][0]]=userdata[i][1:]
+				else:
+					self.varoptions[userdata[i][0]]=userdata[i][1:]
+				#print(i, filterdata[i][1])
+			
+			#self.filter = {rows[0]:rows[1] for rows in reader}
+
+

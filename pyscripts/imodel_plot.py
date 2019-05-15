@@ -13,15 +13,17 @@ import os
 import sys
 import stat
 import math
-
+import re
 import matplotlib
+
 #matplotlib.use('Agg')
 import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
-import re
-
+#imodel routines
+import imodel_data
+from imodel_data import imodelData 
 
 
 

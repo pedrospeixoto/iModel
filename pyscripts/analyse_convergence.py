@@ -3,7 +3,7 @@
 #   Plots errors of experiments
 #      obtained from iModel output
 #   Pedro Peixoto (ppeixoto@usp.br)
-#   Novembre 2018
+#   May 2019
 #----------------------------------
 
 
@@ -23,7 +23,8 @@ import imodel_plot
 from imodel_plot import Plotter, PlotterPanel
 
 #imodel routines
-from imodel_data import Names, Filter, imodelData
+import imodel_data
+from imodel_data import imodelData 
 
 # input filename
 input_filename = 'errors.txt'
@@ -35,38 +36,38 @@ if len(sys.argv) <= 1 :
 if len(sys.argv) > 1:
 	input_filename = sys.argv[1]
 	
-
-#Check what is in the data file by looking at its name
-if "swm" in input_filename:
-	swmdata=True
-else:
-	print("The filename does not contain swm data")
-	print("Are you sure this ia valid format for this script?")
-	sys.exit(1)
-
 data=imodelData(input_filename)
 
-data.getoptions()
-
 #Dictionary for fancy naming
-dict=Names("naming_conv.csv") #Load naming convention
+data.FancyNames("naming_conv.csv") #Load naming convention
 print()
 
-#Filter options
-options=Filter("options.csv") #load filtering conditions
-print("Filtred variables")
-for var in data.datastr:
-	data.varoptions[var]=options.select(data.varoptions[var], var)
+#Filter options based on user input
+data.UserOptions("options.csv") #load user options
 
-sys.exit(1)
-
-
-#if 'Field' in data.datastr:
-#Naming 
-	#outname=input_filename.replace('.txt', "_"+f+".eps")
+# Decide what to plot based on
+# -Inloop - goes into a graph
+# -MidLoop - goes into separate panels - defines the flot data to be plotted
+# -OutLoop - goes into different figures
+# See header 
+#data.LoopOptions() #load user inner/outer loops for plotting - inner is within legend (each graph), outer
 
 
-""" for f in fields_list:
+#Loop over outer loop
+for xout in data.varoptions["OutLoop"]:
+	print(xout)
+	for x in data.varoptions[xout]:
+		print(x)
+
+#plot swm convergence data
+#outname=input_filename.replace('.txt','.eps')
+
+#title="Test case "+str(int(data.data["TCase"][1]))
+#print(title)
+
+""" 
+if 'Field' in data.datastr:
+for f in fields_list:
 	
 	title=dict.names.get(f, f)
 	figure = PlotterPanel( 2, title, ["grid points", "grid points"], ["max error", "rms error"])
