@@ -126,14 +126,14 @@ class imodelData(object):
 		self.figures = []
 		for op in outeroptions:
 			self.figures.append(Figure(op, self.varoptions["OutLoop"], self))
-
+		print('Created figure layouts')
 		for fig in self.figures:
+			print(fig.param)
 			for yvar in self.varoptions["MidLoop"]:
+				print(yvar)
 				fig.addpanel(yvar, self)
 			
 	
-
-
 class Figure(object):
 	panels = []
 	def __init__(self, param, names, data):
@@ -143,24 +143,38 @@ class Figure(object):
 			label=label+xout+str(int(param[i]))+"_"
 			title=title+xout+" "+str(int(param[i]))+" "
 		self.label=label
-		self.param=param
-		self.names=names
+		self.param = {}
+		for i, name in enumerate(names):
+			self.param[name]=param[i]
 		self.filename=data.infile
 
 	def addpanel(self, yvar, data):
-		print(self.param)
-		print(data.varoptions['MidLoop'])
-		self.panels.append(Panel(yvar, data))
+		self.panels.append(Panel(yvar, self.param, data))
 
 class Panel(object):
-	def __init__(self, yvar, data):
+	def __init__(self, yvar, param, data):
 		self.xvar=data.varoptions['xVar'][0]
 		self.yvar=yvar
 		print(self.xvar, self.yvar)
-		x = []
-		y = []
+		self.x = []
+		self.y = []
 		for i, val in enumerate(data.data[yvar]):
-				print(data.data[yvar][i], val)
+			print(i)
+			for figopt in param.keys():
+				print(figopt)
+				if data.data[figopt][i] != param[figopt]:
+					print('skip this line', data.data[figopt][i])
+					break
+			print('added this line' )
+			self.x.append(data.data[self.xvar][i])
+			self.y.append(val)
+		print(self.x,self.y)
+			#or varop in data.varoptions['InLoop']:
+			#	print(varop, fig.param.keys())
+			#	if varop in fig.param.keys():
+			#		print(varop, data.data[varop][i], fig.param[varop])
+			#		if data.data[varop][i] != fig.param[varop] :
+			#			print(i, val, data.data[self.xvar][i], val)
 				#if field[i] == f and methods[i] == mtd and gridnames[i] == grd:
 				#	x.append(gridres[i])
 				#		ymax.append(maxerrors[i])
