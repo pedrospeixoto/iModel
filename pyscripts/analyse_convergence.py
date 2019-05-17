@@ -44,13 +44,13 @@ data=imodelData(input_filename)
 data.FancyNames("naming_conv.csv") #Load naming convention
 print()
 
-#Filter options based on user input
+# User inputs
 data.UserOptions("options.csv") #load user options
-
 # Decide what to plot based on
 # -Inloop - goes into a graph
 # -MidLoop - goes into separate panels - defines the flot data to be plotted
 # -OutLoop - goes into different figures
+# -xVar - variable for x-axis
 # See header 
 # load user inner/outer loops for plotting - inner is within legend (each graph), outer
 # Configure the figures to be plotted

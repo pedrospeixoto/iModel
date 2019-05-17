@@ -22,32 +22,23 @@ import json
 #For data structuring
 import itertools
 
-class Figure(object):
-		def __init__(self, param, names, infile):
-			label=""
-			title=""
-			for i, xout in enumerate(names):
-				label=label+"_"+xout+str(int(param[i]))
-				title=title+" "+xout+" "+str(int(param[i]))
-			self.label=label
-			self.param=param
-			self.names=names
-			self.filename=
-		
-		def panels():
 
 
 class imodelData(object):
 	def __init__(self, input_filename):
+		self.infile=input_filename
+
 		#Get header
 		lines = open(input_filename).readlines()
 		self.datahead = lines[0].split()
-		#print(datahead)
 		self.ncol=len(self.datahead)
 		
 		#Check first line to get types
 		line1 = lines[1].split()
-		#print(line1)
+		if len(line1)!=self.ncol:
+			print("Table data not matching with header")
+			sys.exit(1)
+
 		datatypes = []
 		datastr = []
 		datanum = []
@@ -63,8 +54,9 @@ class imodelData(object):
 			
 		#Get data
 		self.data = np.genfromtxt(input_filename, skip_header=1, dtype=datatypes, autostrip=True, names=self.datahead)
-		self.datastr=datastr
-		self.datanum=datanum
+
+		self.datastr = datastr #String data header
+		self.datanum = datanum #Numeric data header
 
 		print("Data with strings")
 		print(datastr)
@@ -119,7 +111,7 @@ class imodelData(object):
 					#This option exists!
 					if userdata[i][1] != "all":
 						self.varoptions[userdata[i][0]]=userdata[i][1:]
-				else:
+				else: #This is new options of loop/var option
 					self.varoptions[userdata[i][0]]=userdata[i][1:]
 
 	def ConfigFigures(self, input_filename):
@@ -133,9 +125,48 @@ class imodelData(object):
 
 		self.figures = []
 		for op in outeroptions:
-			self.figures.append(Figure(op, self.varoptions["OutLoop"]),input_filename)
+			self.figures.append(Figure(op, self.varoptions["OutLoop"], self))
 
-		print(self.figures[1].label)
+		for fig in self.figures:
+			for yvar in self.varoptions["MidLoop"]:
+				fig.addpanel(yvar, self)
 			
 	
 
+
+class Figure(object):
+	panels = []
+	def __init__(self, param, names, data):
+		label=""
+		title=""
+		for i, xout in enumerate(names):
+			label=label+xout+str(int(param[i]))+"_"
+			title=title+xout+" "+str(int(param[i]))+" "
+		self.label=label
+		self.param=param
+		self.names=names
+		self.filename=data.infile
+
+	def addpanel(self, yvar, data):
+		print(self.param)
+		print(data.varoptions['MidLoop'])
+		self.panels.append(Panel(yvar, data))
+
+class Panel(object):
+	def __init__(self, yvar, data):
+		self.xvar=data.varoptions['xVar'][0]
+		self.yvar=yvar
+		print(self.xvar, self.yvar)
+		x = []
+		y = []
+		for i, val in enumerate(data.data[yvar]):
+				print(data.data[yvar][i], val)
+				#if field[i] == f and methods[i] == mtd and gridnames[i] == grd:
+				#	x.append(gridres[i])
+				#		ymax.append(maxerrors[i])
+				#
+				#figure.plot( 0, x, ymax, label=name, i=c)
+				#figure.plot( 1, x, yrms, label=name, i=c)
+				#c = c + 1
+				
+				#plt.show()
