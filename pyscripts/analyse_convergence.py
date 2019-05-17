@@ -26,6 +26,8 @@ from imodel_plot import Plotter, PlotterPanel
 import imodel_data
 from imodel_data import imodelData 
 
+
+
 # input filename
 input_filename = 'errors.txt'
 if len(sys.argv) <= 1 :
@@ -50,14 +52,28 @@ data.UserOptions("options.csv") #load user options
 # -MidLoop - goes into separate panels - defines the flot data to be plotted
 # -OutLoop - goes into different figures
 # See header 
-#data.LoopOptions() #load user inner/outer loops for plotting - inner is within legend (each graph), outer
-
+# load user inner/outer loops for plotting - inner is within legend (each graph), outer
+# Configure the figures to be plotted
+data.ConfigFigures(input_filename)
 
 #Loop over outer loop
-for xout in data.varoptions["OutLoop"]:
-	print(xout)
-	for x in data.varoptions[xout]:
-		print(x)
+#print(data.varoptions["OutLoop"])
+# outloop = []
+# for xout in data.varoptions["OutLoop"]:
+# 	outloop.append(data.varoptions[xout])
+
+# outeroptions=list(itertools.product(*outloop))
+# #print(outeroptions)
+
+# for op in outeroptions:
+# 	label=""
+# 	title=""
+# 	for i, xout in enumerate(data.varoptions["OutLoop"]):
+# 		label=label+"_"+xout+str(int(op[i]))
+# 		title=title+" "+xout+" "+str(int(op[i]))
+# 	print("Building figure for :", title)
+# 	outname=input_filename.replace('.txt',label+'.eps')	
+# 	print("Saving figure at: ", outname)
 
 #plot swm convergence data
 #outname=input_filename.replace('.txt','.eps')

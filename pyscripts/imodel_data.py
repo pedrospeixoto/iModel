@@ -19,6 +19,22 @@ import string
 import re 
 import json
 
+#For data structuring
+import itertools
+
+class Figure(object):
+		def __init__(self, param, names, infile):
+			label=""
+			title=""
+			for i, xout in enumerate(names):
+				label=label+"_"+xout+str(int(param[i]))
+				title=title+" "+xout+" "+str(int(param[i]))
+			self.label=label
+			self.param=param
+			self.names=names
+			self.filename=
+		
+		def panels():
 
 
 class imodelData(object):
@@ -105,8 +121,21 @@ class imodelData(object):
 						self.varoptions[userdata[i][0]]=userdata[i][1:]
 				else:
 					self.varoptions[userdata[i][0]]=userdata[i][1:]
-				#print(i, filterdata[i][1])
-			
-			#self.filter = {rows[0]:rows[1] for rows in reader}
 
+	def ConfigFigures(self, input_filename):
+
+		outloop = []
+		for xout in self.varoptions["OutLoop"]:
+			outloop.append(self.varoptions[xout])
+
+		outeroptions=list(itertools.product(*outloop))
+		#print(outeroptions)
+
+		self.figures = []
+		for op in outeroptions:
+			self.figures.append(Figure(op, self.varoptions["OutLoop"]),input_filename)
+
+		print(self.figures[1].label)
+			
+	
 
