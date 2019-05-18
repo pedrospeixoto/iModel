@@ -1,16 +1,5 @@
-Filtering, Fist item is a label that should match data source heading, Use comma to separate options in list, use all to obtain all possible attibutes
-Grid,all
-Methods,all
-Field,h_ed,pv_tr
-,
-,
-,
-,
-Graphing Structure, Inloop - goes into a graph, MidLoop - goes into separate panels and defines float var to be ploted,OutLoop - goes into different figures
+#Graphing Structure, Inloop - goes into a graph, MidLoop - goes into separate panels and defines float var to be ploted,OutLoop - goes into different figures
 InLoop,Methods,Grid
 MidLoop,MaxError_h,RMSError_h
 OutLoop,TCase,nTime,TimeDays,dt
 xVar,Mesh
-,
-,
-,

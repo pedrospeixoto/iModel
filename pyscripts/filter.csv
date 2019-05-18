@@ -1,4 +1,4 @@
-codename,labelname
-Grids,all
+#Filtering, Fist item is a label that should match data source heading, Use comma to separate options in list, use all to obtain all possible attibutes
+Grid,all
 Methods,all
-Field,h_ed
+Field,h_ed,pv_tr

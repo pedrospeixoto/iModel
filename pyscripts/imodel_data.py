@@ -22,100 +22,107 @@ import json
 #For data structuring
 import itertools
 
-
+import pandas as pd
 
 class imodelData(object):
-	def __init__(self, input_filename):
-		self.infile=input_filename
+	
+	datafile = "errors.txt" #Data file name
+	fancynames = {} #Naming convention
+	options = {} #Graph structuring options
+	varoptions = {} #For each variable option, the possible labels 
+	filters = {} #For each variable from varoptions, a list of selected labels to use (or all)
+	
+	outloopname="OutLoop"
+	inloopname="InLoop"
+	midloopname="MidLoop"
 
-		#Get header
-		lines = open(input_filename).readlines()
-		self.datahead = lines[0].split()
-		self.ncol=len(self.datahead)
-		
-		#Check first line to get types
-		line1 = lines[1].split()
-		if len(line1)!=self.ncol:
-			print("Table data not matching with header")
-			sys.exit(1)
+	def __init__(self, input_filename): #Read data file
+		self.datafile = input_filename
+		self.data = pd.read_csv(input_filename, delim_whitespace=True)
+		#print(self.data.dtypes)
+		#print(self.data.values)
+		print("Data file header:")
+		print(list(self.data))
+		print()		
 
-		datatypes = []
-		datastr = []
-		datanum = []
-		for i, x in enumerate(line1):
-			#print(x)
-			try:
-				float(x)
-				datatypes.append('f16')	
-				datanum.append(self.datahead[i])
-			except ValueError:
-				datatypes.append('U60')
-				datastr.append(self.datahead[i])
-			
-		#Get data
-		self.data = np.genfromtxt(input_filename, skip_header=1, dtype=datatypes, autostrip=True, names=self.datahead)
-
-		self.datastr = datastr #String data header
-		self.datanum = datanum #Numeric data header
-
-		print("Data with strings")
-		print(datastr)
-		print()
-		print("Data with numbers")
-		print(datanum)
-		print(	)
-		self.GetOptions()
-
-	def FancyNames(self, filename):	
-		self.fancynames = {}
+	def FancyNames(self, filename):	#Dictionary for fancy names
 		with open(filename, mode='r') as infile:
 			reader = csv.reader(infile)
 			self.fancynames = {rows[0]:rows[1] for rows in reader}
 
-	def GetOptions(self):
-		#Check option in string variables
-		print()
-		print("String options to filter")
-		d = {}
-		for x in self.datastr:
-			print(x)
-			y=self.data[x]
-			if x=='Grid': #Remove numbers from grid names
-				y= [ i.rstrip(string.digits).replace('_', '') for i in y]
-			y=sorted(set(y))
-			print(y)
-			d[x]=y
-		print()
-		print("Numerics options to filter")
-		for x in self.datanum:
-			
-			y=self.data[x]
-			y=sorted(set(y))
-			if all( i==int(i) for i in y): #ignore floats
-				print(x)
-				d[x]=y
-				print(y)	
-			
-		self.varoptions=d
-		return
-
-	def UserOptions(self, filename):	
+	def UserFilters(self, filename): #User defined filters
+		#For each variable in header a filter can be defined selecting specific values
+		self.filters = {}
 		with open(filename, mode='r') as infile:
 			reader = csv.reader(infile)
-			#for row in reader:
-			#	self.filter[row[0]]=row[1]
-			userdata = list(reader)
-			n=len(userdata)
-			for i in range(n):
-				if userdata[i][0] in self.varoptions.keys():
-					#This option exists!
-					if userdata[i][1] != "all":
-						self.varoptions[userdata[i][0]]=userdata[i][1:]
-				else: #This is new options of loop/var option
-					self.varoptions[userdata[i][0]]=userdata[i][1:]
+			next(reader) #skip first line that has comments
+			
+			for row in reader:
+				self.filters[row[0]]=row[1:]
+			print("Filters:")
+			print(self.filters)
+			print()
 
-	def ConfigFigures(self, input_filename):
+	def UserOptions(self, filename): #PLotting options
+		# -Inloop - goes into a graph
+		# -MidLoop - goes into separate panels - defines the flot data to be plotted
+		# -OutLoop - goes into different figures
+		# -xVar - variable for x-axis
 
+		with open(filename, mode='r') as infile:
+			reader = csv.reader(infile)
+			next(reader) #skip first line that has comments
+			
+			for row in reader:
+				self.options[row[0]]=row[1:]
+			print("Graph nesting:")
+			print(self.options)
+			print()
+	
+	def OrganizeOptions(self):
+		#Get unique values from data to be used as options
+		print()
+		print("Options to filter")
+		
+		d = {}
+		
+		for x in self.data:
+
+			y = self.data[x].values
+
+			#Clean labels
+			xisnumber=np.issubdtype(self.data[x].dtype, np.number)
+			if not xisnumber: #Clean string names (strip digits)
+				y = [ i.rstrip(string.digits).replace('_', '') for i in y]
+			if xisnumber: 
+				if all( i==int(i) for i in y): #Clean ints
+					y = [ int(i) for i in y]
+				else: #ignore floats
+					continue
+			
+			#Sort and make unique
+			y=sorted(set(y))
+			print(x, y)
+			d[x]=y
+
+		print()
+		self.varoptions=d
+
+		#Get all combinations for inner and out loops
+		outloop = []
+		outlabel = []
+		for xout in self.options[self.outloopname]:
+			outlabel.append(xout)
+			outloop.append(self.varoptions[xout])
+
+		outopt=list(itertools.product(*outloop))
+		print(outlabel)
+		print(outopt)
+		return
+
+	def ConfigFigures(self):
+		
+		#Get all options for outer loop (multiple combinations of choices)
 		outloop = []
 		for xout in self.varoptions["OutLoop"]:
 			outloop.append(self.varoptions[xout])
