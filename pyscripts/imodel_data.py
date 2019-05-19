@@ -84,6 +84,9 @@ class imodelData(object):
 			
 			for row in reader:
 				self.options[row[0]]=row[1:]
+
+			self.xvar=self.options[self.xvarname][0]
+
 			print("Graph nesting:")
 			print(self.options)
 			print()
@@ -148,7 +151,7 @@ class imodelData(object):
 
 		return
 
-	def ConfigFigures(self):
+	def BuildFigures(self):
 		print("")
 		print("Printing figures")
 		print(self.options[self.midloopname][0])
@@ -159,7 +162,7 @@ class imodelData(object):
 			title=""
 			for i, x in enumerate(out):
 				y=self.fancynames.get(x,x)
-				title=title+self.outlabel[i]+str(y)+" "
+				title=title+" "+self.outlabel[i]+str(y)+" "
 			print(title)
 
 			#Filter data frame for this case
@@ -167,59 +170,43 @@ class imodelData(object):
 			for i, col in enumerate(out):
 				print(self.outlabel[i],col)
 				datalocal=datalocal.loc[datalocal[self.outlabel[i]] == col]
-			print(datalocal)
 			
+			
+			#Define panels based on midloop options
 			n=len(self.options[self.midloopname])
-			figure = PlotterPanel( n, title, [self.options[self.xvarname]]*n, self.options[self.midloopname])
+			figure = PlotterPanel( n, title, [self.xvar]*n, self.options[self.midloopname])
 			c = 0
-			#https://www.digitalocean.com/community/tutorials/data-analysis-and-visualization-with-pandas-and-jupyter-notebook-in-python-3
 			
-			for i, opt in enumerate(self.inopt): #Different Lines in graphs
-				name=""
-				for o in opt: #Join labels to get a full name
-					print(o)
+			#Plot data for each panel
+			for i, pan in enumerate(self.options[self.midloopname]): #Panel 
 					
-					name=name+self.fancynames.get(o, o).strip()+"_"
-				name=name[0:len(name)-1]
-				print(name)
-				
-				
-				for j, pan in enumerate(self.options[self.midloopname]): #Panel 
-					
-					datapivot=pd.pivot_table(datalocal,  pan,  self.options[self.xvarname][0], self.inlabel)
-					print(datapivot)	
-					
+					#index dataframe to make it easier to get options
 					dataindex = datalocal.set_index(self.inlabel).sort_index()
 					
-					print(dataindex)
-					print(dataindex.loc[self.inopt[0]][pan].values)
-
-					sys.exit(1)		
-					x = []
-					y = []
-					print()
-					print(pan)
-					for k, val in enumerate(self.data[pan]):
-						include = 0
-						for l, o in enumerate(opt):
-							print(l,o,self.data[self.inlabel[l]][k]) 
-							if o == self.data[self.inlabel[l]][k]:
-								include = include + 1
-						if include == len(opt):
-							xtmp=self.data[self.options[self.xvarname][0]][k]
-							print(xtmp,val)
-							x.append(xtmp)
-							y.append(val)
+					#Loop over inner options and plot each line
+					#print(dataindex)
+					for opt in self.inopt:
+						name=""
+						for o in opt: #Join labels to get a full name
+							name=name+self.fancynames.get(o, o).strip()+"_"
+						name=name[:-1]
 						
-					figure.plot( j, x, y, label=name, i=c)
-					c=c+1
-
+						x=dataindex.loc[opt][self.xvar].values.T
+						y=dataindex.loc[opt][pan].values
+						figure.plot( i, x, y, label=name, i=c)
+						c=c+1
+								
 			outname=self.datafile.replace('.txt','')
-			name=name.replace(" ", "_")
-			outname=outname+name+".eps"
+			name=name.replace(" ", "_").replace('_', '')
+			outname=outname+"_"+name+".eps"
 							
 			figure.finish(outname)
+
 			plt.show()
+
+		return figure
+
+			
 	
 class PlotterPanel(object):
 	fontsize=16
