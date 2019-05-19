@@ -169,6 +169,8 @@ class imodelData(object):
 					name=name+self.fancynames.get(o, o).strip()+"_"
 				name=name[0:len(name)-1]
 				print(name)
+				datalocal=self.data.groupby(opt)
+				print(datalocal)
 				for j, pan in enumerate(self.options[self.midloopname]): #Panel 
 					x = []
 					y = []
