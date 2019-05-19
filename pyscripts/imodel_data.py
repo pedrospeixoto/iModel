@@ -151,6 +151,9 @@ class imodelData(object):
 	def ConfigFigures(self):
 		print("")
 		print("Printing figures")
+		print(self.options[self.midloopname][0])
+		print(self.outlabel)
+		
 		for out in self.outopt:
 			#Set title
 			title=""
@@ -159,19 +162,39 @@ class imodelData(object):
 				title=title+self.outlabel[i]+str(y)+" "
 			print(title)
 
+			#Filter data frame for this case
+			datalocal=self.data
+			for i, col in enumerate(out):
+				print(self.outlabel[i],col)
+				datalocal=datalocal.loc[datalocal[self.outlabel[i]] == col]
+			print(datalocal)
+			
 			n=len(self.options[self.midloopname])
 			figure = PlotterPanel( n, title, [self.options[self.xvarname]]*n, self.options[self.midloopname])
 			c = 0
+			#https://www.digitalocean.com/community/tutorials/data-analysis-and-visualization-with-pandas-and-jupyter-notebook-in-python-3
+			
 			for i, opt in enumerate(self.inopt): #Different Lines in graphs
 				name=""
 				for o in opt: #Join labels to get a full name
 					print(o)
+					
 					name=name+self.fancynames.get(o, o).strip()+"_"
 				name=name[0:len(name)-1]
 				print(name)
-				datalocal=self.data.groupby(opt)
-				print(datalocal)
+				
+				
 				for j, pan in enumerate(self.options[self.midloopname]): #Panel 
+					
+					datapivot=pd.pivot_table(datalocal,  pan,  self.options[self.xvarname][0], self.inlabel)
+					print(datapivot)	
+					
+					dataindex = datalocal.set_index(self.inlabel).sort_index()
+					
+					print(dataindex)
+					print(dataindex.loc[self.inopt[0]][pan].values)
+
+					sys.exit(1)		
 					x = []
 					y = []
 					print()
