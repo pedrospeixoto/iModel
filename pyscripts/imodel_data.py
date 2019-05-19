@@ -24,6 +24,14 @@ import itertools
 
 import pandas as pd
 
+import matplotlib
+
+#matplotlib.use('Agg')
+import matplotlib.pyplot as plt
+from matplotlib.figure import Figure
+from matplotlib.lines import Line2D
+
+
 class imodelData(object):
 	
 	datafile = "errors.txt" #Data file name
@@ -35,6 +43,7 @@ class imodelData(object):
 	outloopname="OutLoop"
 	inloopname="InLoop"
 	midloopname="MidLoop"
+	xvarname = "xVar"
 
 	def __init__(self, input_filename): #Read data file
 		self.datafile = input_filename
@@ -93,14 +102,17 @@ class imodelData(object):
 			#Clean labels
 			xisnumber=np.issubdtype(self.data[x].dtype, np.number)
 			if not xisnumber: #Clean string names (strip digits)
-				y = [ i.rstrip(string.digits).replace('_', '') for i in y]
+				y = [ i.rstrip(string.digits) for i in y]
+				#y = [ i.rstrip(string.digits).replace('_', '') for i in y]
 			if xisnumber: 
 				if all( i==int(i) for i in y): #Clean ints
 					y = [ int(i) for i in y]
 				else: #ignore floats
 					continue
 			
-			#Sort and make unique
+			self.data[x] = y
+
+			#Sort and make unique to create list of options
 			y=sorted(set(y))
 			print(x, y)
 			d[x]=y
@@ -108,86 +120,128 @@ class imodelData(object):
 		print()
 		self.varoptions=d
 
-		#Get all combinations for inner and out loops
+		#Get all combinations for outer loops
 		outloop = []
 		outlabel = []
 		for xout in self.options[self.outloopname]:
 			outlabel.append(xout)
 			outloop.append(self.varoptions[xout])
 
-		outopt=list(itertools.product(*outloop))
-		print(outlabel)
-		print(outopt)
+		self.outlabel=outlabel
+		self.outopt=list(itertools.product(*outloop))
+		print("Figures Options:")
+		print(self.outlabel)
+		print(self.outopt)
+		print()
+
+		#Get all combinations for inner  loops
+		inloop = []
+		inlabel = []
+		for xout in self.options[self.inloopname]:
+			inlabel.append(xout)
+			inloop.append(self.varoptions[xout])
+		self.inlabel=inlabel
+		self.inopt=list(itertools.product(*inloop))
+		print("In graph options:")
+		print(self.inlabel)
+		print(self.inopt)
+
 		return
 
 	def ConfigFigures(self):
-		
-		#Get all options for outer loop (multiple combinations of choices)
-		outloop = []
-		for xout in self.varoptions["OutLoop"]:
-			outloop.append(self.varoptions[xout])
+		print("")
+		print("Printing figures")
+		for out in self.outopt:
+			#Set title
+			title=""
+			for i, x in enumerate(out):
+				y=self.fancynames.get(x,x)
+				title=title+self.outlabel[i]+str(y)+" "
+			print(title)
 
-		outeroptions=list(itertools.product(*outloop))
-		#print(outeroptions)
+			n=len(self.options[self.midloopname])
+			figure = PlotterPanel( n, title, [self.options[self.xvarname]]*n, self.options[self.midloopname])
+			c = 0
+			for i, opt in enumerate(self.inopt): #Different Lines in graphs
+				name=""
+				for o in opt: #Join labels to get a full name
+					print(o)
+					name=name+self.fancynames.get(o, o).strip()+"_"
+				name=name[0:len(name)-1]
+				print(name)
+				for j, pan in enumerate(self.options[self.midloopname]): #Panel 
+					x = []
+					y = []
+					print()
+					print(pan)
+					for k, val in enumerate(self.data[pan]):
+						include = 0
+						for l, o in enumerate(opt):
+							print(l,o,self.data[self.inlabel[l]][k]) 
+							if o == self.data[self.inlabel[l]][k]:
+								include = include + 1
+						if include == len(opt):
+							xtmp=self.data[self.options[self.xvarname][0]][k]
+							print(xtmp,val)
+							x.append(xtmp)
+							y.append(val)
+						
+					figure.plot( j, x, y, label=name, i=c)
+					c=c+1
 
-		self.figures = []
-		for op in outeroptions:
-			self.figures.append(Figure(op, self.varoptions["OutLoop"], self))
-		print('Created figure layouts')
-		for fig in self.figures:
-			print(fig.param)
-			for yvar in self.varoptions["MidLoop"]:
-				print(yvar)
-				fig.addpanel(yvar, self)
-			
+			outname=self.datafile.replace('.txt','')
+			name=name.replace(" ", "_")
+			outname=outname+name+".eps"
+							
+			figure.finish(outname)
+			plt.show()
 	
-class Figure(object):
-	panels = []
-	def __init__(self, param, names, data):
-		label=""
-		title=""
-		for i, xout in enumerate(names):
-			label=label+xout+str(int(param[i]))+"_"
-			title=title+xout+" "+str(int(param[i]))+" "
-		self.label=label
-		self.param = {}
-		for i, name in enumerate(names):
-			self.param[name]=param[i]
-		self.filename=data.infile
+class PlotterPanel(object):
+	fontsize=16
+	fontlarge=20
+	fontsmall=14
+	dimx=18
+	dimy=8
+	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
+	linestyles = ['-', '--', ':', '-.', '-']
+	markers = ['.', ',', 'o', 'v', '+', 'x']
+	n=1
+	
+	def __init__(self, n, title, xlabel, ylabel):
+		self.n=n
+		self.fig, self.ax = plt.subplots(1, self.n, figsize=(self.dimx, self.dimy))
+		for i in range(n):
+			self.ax[i].set_xscale("log", nonposx='clip')
+			self.ax[i].set_yscale("log", nonposy='clip')
+			self.ax[i].set_title(title, fontsize=self.fontsize)
+			self.ax[i].set_xlabel(xlabel[i], fontsize=self.fontsize)
+			self.ax[i].set_ylabel(ylabel[i], fontsize=self.fontsize)
+		
+		#self.ax.set_xticks()
+		#self.ax.set_yticks()
 
-	def addpanel(self, yvar, data):
-		self.panels.append(Panel(yvar, self.param, data))
-
-class Panel(object):
-	def __init__(self, yvar, param, data):
-		self.xvar=data.varoptions['xVar'][0]
-		self.yvar=yvar
-		print(self.xvar, self.yvar)
-		self.x = []
-		self.y = []
-		for i, val in enumerate(data.data[yvar]):
-			print(i)
-			for figopt in param.keys():
-				print(figopt)
-				if data.data[figopt][i] != param[figopt]:
-					print('skip this line', data.data[figopt][i])
-					break
-			print('added this line' )
-			self.x.append(data.data[self.xvar][i])
-			self.y.append(val)
-		print(self.x,self.y)
-			#or varop in data.varoptions['InLoop']:
-			#	print(varop, fig.param.keys())
-			#	if varop in fig.param.keys():
-			#		print(varop, data.data[varop][i], fig.param[varop])
-			#		if data.data[varop][i] != fig.param[varop] :
-			#			print(i, val, data.data[self.xvar][i], val)
-				#if field[i] == f and methods[i] == mtd and gridnames[i] == grd:
-				#	x.append(gridres[i])
-				#		ymax.append(maxerrors[i])
-				#
-				#figure.plot( 0, x, ymax, label=name, i=c)
-				#figure.plot( 1, x, yrms, label=name, i=c)
-				#c = c + 1
-				
-				#plt.show()
+	def plot(self, pan, x, y, label, i):
+		
+		if len(x) == 0:
+			return
+		x, y = (list(t) for t in zip(*sorted(zip(x,y))))
+		i=i % 5
+		
+		if pan > 0:
+			print(label)
+			self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i], label=label)
+		else:
+			self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i])
+		
+		return
+	
+	def finish(self, outname):
+		self.fig.legend(fontsize=self.fontsmall, loc = "center right", borderaxespad=0.0)
+		self.fig.subplots_adjust(right=0.85)
+		self.fig.subplots_adjust(left=0.05)
+		#for i in range(self.n):
+		#	self.ax[i].set_frame_on(False)
+		print(outname)
+		self.fig.savefig(outname)
+		return
+	

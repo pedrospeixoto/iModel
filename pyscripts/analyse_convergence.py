@@ -55,7 +55,7 @@ data.OrganizeOptions()
 # Decide what to plot based on
 # load user inner/outer loops for plotting - inner is within legend (each graph), outer
 # Configure the figures to be plotted
-data.ConfigFigures(input_filename)
+data.ConfigFigures()
 
 #Loop over outer loop
 #print(data.varoptions["OutLoop"])
