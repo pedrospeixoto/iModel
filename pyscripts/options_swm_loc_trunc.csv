@@ -1,0 +1,5 @@
+#Graphing Structure, Inloop - goes into a graph, MidLoop - goes into separate panels and defines float var to be ploted,OutLoop - goes into different figures
+InLoop,Methods,Grid
+MidLoop,MaxError,RMSError
+OutLoop,Field
+xVar,Mesh

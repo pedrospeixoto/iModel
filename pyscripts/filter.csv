@@ -1,4 +1,4 @@
 #Filtering, Fist item is a label that should match data source heading, Use comma to separate options in list, use all to obtain all possible attibutes
 Grid,all
 Methods,all
-Field,h_ed,pv_tr
+Field,q_ed,q_hx,q_tr,abs_vort,q_grad_tr,uhq_perp

@@ -83,6 +83,7 @@ class imodelData(object):
 			next(reader) #skip first line that has comments
 			
 			for row in reader:
+				print(row[0], row[1:])
 				self.options[row[0]]=row[1:]
 
 			self.xvar=self.options[self.xvarname][0]
@@ -94,7 +95,7 @@ class imodelData(object):
 	def OrganizeOptions(self):
 		#Get unique values from data to be used as options
 		print()
-		print("Options to filter")
+		print("Variable options with filter")
 		
 		d = {}
 		
@@ -118,7 +119,23 @@ class imodelData(object):
 			#Sort and make unique to create list of options
 			y=sorted(set(y))
 			print(x, y)
-			d[x]=y
+			#Filter
+			if x in self.filters.keys() :
+				z=[]
+				for j in self.filters[x]:
+					#	print(j, j in y, y)
+					if j in y:
+						z.append(j)
+				if len(z)==0:
+					z=y
+					#print("No filter applied")	
+				else:
+					print("Filtred: ", z)	
+			else:
+				z=y
+
+			
+			d[x]=z
 
 		print()
 		self.varoptions=d
@@ -175,30 +192,30 @@ class imodelData(object):
 			#Define panels based on midloop options
 			n=len(self.options[self.midloopname])
 			figure = PlotterPanel( n, title, [self.xvar]*n, self.options[self.midloopname])
-			c = 0
+			
 			
 			#Plot data for each panel
 			for i, pan in enumerate(self.options[self.midloopname]): #Panel 
+				c = 0	
+				#index dataframe to make it easier to get options
+				dataindex = datalocal.set_index(self.inlabel).sort_index()
 					
-					#index dataframe to make it easier to get options
-					dataindex = datalocal.set_index(self.inlabel).sort_index()
-					
-					#Loop over inner options and plot each line
-					#print(dataindex)
-					for opt in self.inopt:
-						name=""
-						for o in opt: #Join labels to get a full name
-							name=name+self.fancynames.get(o, o).strip()+"_"
-						name=name[:-1]
-						
-						x=dataindex.loc[opt][self.xvar].values.T
-						y=dataindex.loc[opt][pan].values
-						figure.plot( i, x, y, label=name, i=c)
-						c=c+1
+				#Loop over inner options and plot each line
+				#print(dataindex)
+				for opt in self.inopt:
+					name=""
+					for o in opt: #Join labels to get a full name
+						name=name+self.fancynames.get(o, o).strip()+"_"
+					name=name[:-1]
+					name=self.fancynames.get(name,name)
+					x=dataindex.loc[opt][self.xvar].values.T
+					y=dataindex.loc[opt][pan].values
+					figure.plot( i, x, y, label=name, i=c)
+					c=c+1
 								
 			outname=self.datafile.replace('.txt','')
-			name=name.replace(" ", "_").replace('_', '')
-			outname=outname+"_"+name+".eps"
+			title=title.replace(" ", "")
+			outname=outname+"_"+title+".eps"
 							
 			figure.finish(outname)
 

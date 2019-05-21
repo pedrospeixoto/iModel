@@ -25,14 +25,24 @@ if len(sys.argv) <= 1 :
 	
 if len(sys.argv) > 1:
 	input_filename = sys.argv[1]
+
+if len(sys.argv) <= 2 :
+	print("I need a 2nd argument:")
+	print("A filename containing the options of graphing (see options_template.csv")
+	sys.exit(1)
 	
+if len(sys.argv) > 1:
+	input_filename = sys.argv[1]
+	opt_filename = sys.argv[2]
+
+#Get data
 data=imodelData(input_filename)
 
 #Dictionary for fancy naming
 data.FancyNames("fancy.csv") #Load naming convention
 
 # User inputs
-data.UserOptions("options.csv") #load user options
+data.UserOptions(opt_filename) #load user options
 
 #User filters
 data.UserFilters("filter.csv") #load user filters
