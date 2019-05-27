@@ -10,6 +10,8 @@ swm_tc2_dt100_HTC_vrectrsk_crecgass_sinttrsk_grdtrsk_areageo_HR95JT_,Gass-pv-HR9
 swm_tc2_dt100_HTC_vrectrsk_crecgass_sinttrsk_grdtrsk_areageo_icos_pol_scvt_h1_,Gass-pv-SCVT
 swm_tc2_dt100_HTC_vrectrsk_crectrsk_sinttrsk_grdtrsk_areageo_HR95JT_,Trsk-pv-HR95
 swm_tc2_dt100_HTC_vrectrsk_crectrsk_sinttrsk_grdtrsk_areageo_icos_pol_scvt_h1_,Trsk-pv-SCVT
+swm_tc34_dt400_HTC_vrectrsk_crecgass_sinttrsk_grdtrsk_areageo,Gass19
+swm_tc34_dt400_HTC_vrectrsk_crectrsk_sinttrsk_grdtrsk_areageo,Trsk10
 ,
 ,
 ,
@@ -25,7 +27,8 @@ swm_tc2_HTC_vrectrsk_crectrsk_sinttrsk_grdtrsk_areageo_icos_pol_scvt_h1_,Trsk-pv
 icos_pol_scvt_h1, SCVT
 HR95JT, HR95
 ,
-,
+ExtraData,10-folding(days)
+Depth,Depth(m)
 ,
 ,
 abs_vort, Absolute Vorticity

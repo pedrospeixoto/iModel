@@ -44,6 +44,7 @@ class imodelData(object):
 	inloopname="InLoop"
 	midloopname="MidLoop"
 	xvarname = "xVar"
+	scalename = "Scale"
 
 	def __init__(self, input_filename): #Read data file
 		self.datafile = input_filename
@@ -87,7 +88,11 @@ class imodelData(object):
 				self.options[row[0]]=row[1:]
 
 			self.xvar=self.options[self.xvarname][0]
-
+			self.logscale=[0,0]
+			self.logscale[0]=self.options[self.scalename][0]=="log"
+			self.logscale[1]=self.options[self.scalename][1]=="log"
+			
+			print()
 			print("Graph nesting:")
 			print(self.options)
 			print()
@@ -181,6 +186,8 @@ class imodelData(object):
 				y=self.fancynames.get(x,x)
 				title=title+" "+self.outlabel[i]+str(y)+" "
 			print(title)
+			#Hand tunned title
+			title="Small equiv depth test case dt400sec (zoom)"
 
 			#Filter data frame for this case
 			datalocal=self.data
@@ -191,7 +198,12 @@ class imodelData(object):
 			
 			#Define panels based on midloop options
 			n=len(self.options[self.midloopname])
-			figure = PlotterPanel( n, title, [self.xvar]*n, self.options[self.midloopname])
+			#Set pretty y-labels
+			ylabels=self.options[self.midloopname].copy()
+			for ilab, lab in enumerate(ylabels):
+				ylabels[ilab]=self.fancynames.get(lab,lab)
+
+			figure = PlotterPanel( n, title, [self.xvar]*n, ylabels, self.logscale)
 			
 			
 			#Plot data for each panel
@@ -210,6 +222,15 @@ class imodelData(object):
 					name=self.fancynames.get(name,name)
 					x=dataindex.loc[opt][self.xvar].values.T
 					y=dataindex.loc[opt][pan].values
+
+					if pan=="ExtraData": #Calculate e-folding
+						z=[]
+						for l, yi in enumerate(y):
+							dt=dataindex.loc[opt]["dt"].values[l]
+							zi=(1/(math.log10(1/yi)/float(dt)))/24.0/60.0/60.0
+							z.append(zi)
+							print(l, dt, yi, zi, math.log(1/yi), x[l])
+						y=z
 					figure.plot( i, x, y, label=name, i=c)
 					c=c+1
 								
@@ -236,12 +257,25 @@ class PlotterPanel(object):
 	markers = ['.', ',', 'o', 'v', '+', 'x']
 	n=1
 	
-	def __init__(self, n, title, xlabel, ylabel):
+	def __init__(self, n, title, xlabel, ylabel, logscale):
 		self.n=n
-		self.fig, self.ax = plt.subplots(1, self.n, figsize=(self.dimx, self.dimy))
+		self.fig, self.ax = plt.subplots(1, self.n) #, figsize=(self.dimx, self.dimy))
+		#self.fig, self.ax = plt.subplots(1, self.n, figsize=(self.dimx, self.dimy))
+		self.ax=[self.ax, self.ax] #This is just to allow a single panel figure with subscriptable axes
+
 		for i in range(n):
-			self.ax[i].set_xscale("log", nonposx='clip')
-			self.ax[i].set_yscale("log", nonposy='clip')
+			#log scale
+			if logscale[0]:
+				self.ax[i].set_xscale("log", nonposx='clip')
+			else: #linear scale
+				self.ax[i].set_xscale("linear", nonposx='clip')
+			
+			#log scale
+			if logscale[1]:
+				self.ax[i].set_yscale("log", nonposy='clip')
+			else: #linear scale
+				self.ax[i].set_yscale("linear", nonposy='clip')
+
 			self.ax[i].set_title(title, fontsize=self.fontsize)
 			self.ax[i].set_xlabel(xlabel[i], fontsize=self.fontsize)
 			self.ax[i].set_ylabel(ylabel[i], fontsize=self.fontsize)
@@ -256,7 +290,7 @@ class PlotterPanel(object):
 		x, y = (list(t) for t in zip(*sorted(zip(x,y))))
 		i=i % 5
 		
-		if pan > 0:
+		if pan > 0 or self.n==1:
 			print(label)
 			self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i], label=label)
 		else:
@@ -266,8 +300,8 @@ class PlotterPanel(object):
 	
 	def finish(self, outname):
 		self.fig.legend(fontsize=self.fontsmall, loc = "center right", borderaxespad=0.0)
-		self.fig.subplots_adjust(right=0.85)
-		self.fig.subplots_adjust(left=0.05)
+		#self.fig.subplots_adjust(right=0.85)
+		#self.fig.subplots_adjust(left=0.05)
 		#for i in range(self.n):
 		#	self.ax[i].set_frame_on(False)
 		print(outname)

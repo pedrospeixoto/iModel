@@ -2,9 +2,9 @@
 !Test case / Test local truncation 0/1 (only possible in some test cases)
 34 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-12 12
+12 120
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-100 0 0
+400 0 0
 !Scalar/vector location (HC or HTC)
 HTC
 !Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
@@ -24,7 +24,7 @@ geo
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32, 33, 34
-1.0
+10.0
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
 0.0
 !Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter
