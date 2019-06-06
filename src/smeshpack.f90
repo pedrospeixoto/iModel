@@ -61,13 +61,11 @@ module smeshpack
 
   !Intepolation for local refinement
   use refinter, only: &
-   andes_density_table3, &
-   dens_andes2, &
+   andes_density_table, &
+   dens_andes, &
    densf, &
    densftable, &
-   earth_elevation, &
-   interpol_densf, &
-   latmax, latmin, lonmax, lonmin
+   interpol_densf
   implicit none
 
 contains 
@@ -1985,10 +1983,11 @@ contains
        if(.not.allocated(mesh%densf_table))then
          allocate (mesh%densf_table(n_lat*n_lon, 3))
          call getunit(iunit3)
-         filename2 = trim(datadir)//"densf_table.dat"
+         filename2 = trim(altdir)//"densf_table.dat"
          call densftable(filename2, iunit3)
-         open(iunit3, file=filename2)
-         read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
+         call getunit(iunit3)
+         open(iunit3, file=filename2,status='old')
+           read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
          close(iunit3) 
        end if
     end if
@@ -1997,8 +1996,7 @@ contains
        if(.not.allocated(mesh%densf_table))then
          allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
          call getunit(iunit4)
-         call earth_elevation(iunit4, mesh%densf_table)
-         call andes_density_table3(mesh%densf_table)
+         call andes_density_table(mesh%densf_table,iunit4)
        end if
    end if
 
@@ -2597,9 +2595,7 @@ contains
        else if(refin =="readref")then
                 dens_f = interpol_densf([lat,lon], mesh%densf_table, latmin, latmax, lonmin, lonmax, n_lat, n_lon)
        else if(refin =="readref_andes")then
-                !dens_f = dens_andes([lat,lon], mesh%densf_table)
-                !dens_f = dens_andes1([lat,lon], mesh%densf_table)
-                dens_f = dens_andes2([lat,lon], mesh%densf_table)
+                dens_f = dens_andes([lat,lon], mesh%densf_table)
        end if
     end if
     return
