@@ -14,14 +14,8 @@ module refinter
         lonmin, &
         lonmax, &
         altdir, &
-        nx_andes, &
-        ny_andes, &
         nlat_alt, &
-        nlon_alt, &
-        latmin_andes, &
-        latmax_andes, &
-        lonmin_andes, &
-        lonmax_andes
+        nlon_alt
     implicit none
 
 contains
@@ -100,8 +94,9 @@ contains
         real (kind=8) :: dx, dy
         real (kind=8), dimension(1:n_lat)  :: x
         real (kind=8), dimension(1:n_lon)  :: y
-        real (kind=8), dimension(n_lat*n_lon, 3)  :: table
+        real (kind=8), allocatable  :: table(:,:)
 
+        allocate(table(n_lat*n_lon, 3))
         xmin = latmin
         xmax = latmax
         ymin = lonmin
@@ -132,14 +127,14 @@ contains
         do i = 1, nx*ny
             table(i,3) = densf([table(i,1), table(i,2)]) !exact value
         end do
-  
+
         !Output data to a file
         open(iunit, file=filename)
         do i=1, nx*ny
-            write(iunit,*) table(i,1), table(i,2), table(i,3)
+           write(iunit,*) table(i,1), table(i,2), table(i,3)
         end do
         close(iunit)
-   
+        deallocate(table)
     end subroutine densftable
 
 
@@ -379,7 +374,7 @@ contains
     !--------------------------------------------------------------------------
     ! Andes density data for interpolation
     !--------------------------------------------------------------------------
-    subroutine andes_density_table(alt_table)
+    subroutine andes_density_table3(alt_table)
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
         integer :: i, j
         real (kind=8) :: maxx, minn, lat, lon, latc, lonc
@@ -467,7 +462,7 @@ contains
         call moving_average1(alt_table, gammas)
         call moving_average2(alt_table, gammas)
 
-    end subroutine andes_density_table
+    end subroutine andes_density_table3
 
 
     !--------------------------------------------------------------------------
@@ -529,8 +524,9 @@ contains
     end subroutine andes_density_table2
 
 
-    subroutine andes_density_table3(alt_table)
+    subroutine andes_density_table(alt_table, iunit)
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
+        integer, intent(in) :: iunit 
         integer :: i, j, k, n, m, l,l2,l3
         real (kind=8) :: maxx, lat, lon, latc, lonc
         real (kind=8) :: dists, maxdist, gammas, epsilons
@@ -541,7 +537,7 @@ contains
         real (kind=8), dimension(:,:), allocatable  :: aux2
         real (kind=8) :: temp
 
-
+        call earth_elevation(iunit, alt_table)
         allocate (aux(nlat_alt, nlon_alt))
         allocate (aux2(nlat_alt, nlon_alt))
 
@@ -712,13 +708,13 @@ contains
 
         deallocate(aux)
         deallocate(aux2)
-    end subroutine andes_density_table3
+    end subroutine andes_density_table
 
 
     !--------------------------------------------------------------------------
     ! Andes density function
     !--------------------------------------------------------------------------
-    real (kind=8) function dens_andes(x, dens_table) result(densf)
+    real (kind=8) function dens_andes2(x, dens_table) result(densf)
         real (kind=8), dimension(1:2), intent(in) :: x
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(in) :: dens_table
         real (kind=8) :: lat, lon
@@ -730,7 +726,7 @@ contains
 
         densf = interpol_densf([lat,lon], dens_table, -90._r8, 90._r8, -180._r8, 180._r8, nlat_alt, nlon_alt)
 
-    end function dens_andes
+    end function dens_andes2
 
 
 
@@ -777,7 +773,7 @@ contains
     !--------------------------------------------------------------------------
 
 
-    real (kind=8) function dens_andes2(x, dens_table) result(dens_f)
+    real (kind=8) function dens_andes(x, dens_table) result(dens_f)
         real (kind=8), dimension(1:2), intent(in) :: x
         real (kind=8), dimension(1:3) :: p, pc
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(in) :: dens_table
@@ -823,7 +819,7 @@ contains
             dens_f=b**4/gammas**4
         end if
 
-    end function dens_andes2
+    end function dens_andes
 
     !--------------------------------------------------------------------------
     !--------------------------------------------------------------------------
