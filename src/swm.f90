@@ -1884,8 +1884,8 @@ contains
           h_ct=((u0**2)/2._r8)*gravi
           eta_ct=(2.*u0/erad)
         elseif(testcase==34)then
-       	                                !F-sphere
-       	                                !fcte=1.4584e-4_r8
+       	  !F-sphere
+       	  !fcte=1.4584e-4_r8
           !fsphere=2
           !u0=200
           !h_ct=((u0**2)/2._r8)*gravi

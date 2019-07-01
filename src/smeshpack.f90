@@ -1917,7 +1917,7 @@ contains
        !Stop criteria - minimum energy
        !epsmin=mesh%meanvdist*0.000001_r8
 
-       !If disrtotion used - prefered due to finer grids
+       !If distortion used - prefered due to finer grids
        mesh%optpar=0.1_r8   !Miura
        !Stop criteria - difference between energies
        epsdif=mesh%meanvdist*eps/10 !100_r8

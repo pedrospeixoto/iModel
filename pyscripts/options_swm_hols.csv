@@ -1,6 +1,6 @@
 #Graphing Structure, Inloop - goes into a graph, MidLoop - goes into separate panels and defines float var to be ploted,OutLoop - goes into different figures
-InLoop,Methods
-MidLoop,ExtraData
-OutLoop,TCase,nTime,TimeDays,dt
+InLoop,Methods,Grid
+MidLoop,10Folding
+OutLoop,TCase,Mesh
 xVar,Depth
 Scale,lin,log

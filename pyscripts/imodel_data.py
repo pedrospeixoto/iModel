@@ -31,6 +31,7 @@ import matplotlib.pyplot as plt
 from matplotlib.figure import Figure
 from matplotlib.lines import Line2D
 
+from label_line import labelLinesEnd
 
 class imodelData(object):
 	
@@ -49,6 +50,7 @@ class imodelData(object):
 	def __init__(self, input_filename): #Read data file
 		self.datafile = input_filename
 		self.data = pd.read_csv(input_filename, delim_whitespace=True)
+		
 		#print(self.data.dtypes)
 		#print(self.data.values)
 		print("Data file header:")
@@ -173,6 +175,23 @@ class imodelData(object):
 
 		return
 
+	def CalcFoldingTimes(self):
+		data=self.data
+		dtvec=data["dt"].values
+		extra_datavec=data["ExtraData"].values
+		z=[]
+		print("Adding 10-folding time column to data based on ExtraData as 10Folding")
+		for l, yi in enumerate(extra_datavec):
+			dt=dtvec[l]
+			if yi < 1.000000:
+				zi=(1/(math.log10(1/yi)/float(dt)))/24.0/60.0/60.0
+			else:
+				zi=np.nan
+				
+			z.append(zi)
+			#print(l, dt, yi, zi, math.log(1/yi))
+		self.data['10Folding']=z
+
 	def BuildFigures(self):
 		print("")
 		print("Printing figures")
@@ -181,13 +200,16 @@ class imodelData(object):
 		
 		for out in self.outopt:
 			#Set title
-			title=""
+			title="Small Equiv Depth "
 			for i, x in enumerate(out):
 				y=self.fancynames.get(x,x)
 				title=title+" "+self.outlabel[i]+str(y)+" "
 			print(title)
+			zoom = False
+			if zoom:
+				title = title+" (zoom)"
 			#Hand tunned title
-			title="Small equiv depth test case dt400sec (zoom)"
+			#title="Small equiv depth test case"
 
 			#Filter data frame for this case
 			datalocal=self.data
@@ -198,42 +220,48 @@ class imodelData(object):
 			
 			#Define panels based on midloop options
 			n=len(self.options[self.midloopname])
+			print("Number of panels: ", n)
+
 			#Set pretty y-labels
 			ylabels=self.options[self.midloopname].copy()
 			for ilab, lab in enumerate(ylabels):
 				ylabels[ilab]=self.fancynames.get(lab,lab)
+			print(ylabels)
 
 			figure = PlotterPanel( n, title, [self.xvar]*n, ylabels, self.logscale)
-			
-			
+
 			#Plot data for each panel
 			for i, pan in enumerate(self.options[self.midloopname]): #Panel 
 				c = 0	
 				#index dataframe to make it easier to get options
 				dataindex = datalocal.set_index(self.inlabel).sort_index()
-					
+				
 				#Loop over inner options and plot each line
 				#print(dataindex)
 				for opt in self.inopt:
 					name=""
 					for o in opt: #Join labels to get a full name
+						o=str(o)
 						name=name+self.fancynames.get(o, o).strip()+"_"
 					name=name[:-1]
 					name=self.fancynames.get(name,name)
-					x=dataindex.loc[opt][self.xvar].values.T
-					y=dataindex.loc[opt][pan].values
+					#print(opt, name)
+					try:
+						#print(opt)
+						x=dataindex.loc[opt][self.xvar].values.T
+						y=dataindex.loc[opt][pan].values
+					except:
+						continue
 
-					if pan=="ExtraData": #Calculate e-folding
-						z=[]
-						for l, yi in enumerate(y):
-							dt=dataindex.loc[opt]["dt"].values[l]
-							zi=(1/(math.log10(1/yi)/float(dt)))/24.0/60.0/60.0
-							z.append(zi)
-							print(l, dt, yi, zi, math.log(1/yi), x[l])
-						y=z
-					figure.plot( i, x, y, label=name, i=c)
+					if zoom:
+						n=7
+					else:
+						n=len(x)
+
+					figure.plot( i, x, y, label=name, i=c, nzoom=n)
+
 					c=c+1
-								
+
 			outname=self.datafile.replace('.txt','')
 			title=title.replace(" ", "")
 			outname=outname+"_"+title+".eps"
@@ -251,7 +279,7 @@ class PlotterPanel(object):
 	fontlarge=20
 	fontsmall=14
 	dimx=18
-	dimy=8
+	dimy=16
 	colors = ['b', 'g', 'r', 'c', 'm', 'y', 'k']
 	linestyles = ['-', '--', ':', '-.', '-']
 	markers = ['.', ',', 'o', 'v', '+', 'x']
@@ -283,27 +311,44 @@ class PlotterPanel(object):
 		#self.ax.set_xticks()
 		#self.ax.set_yticks()
 
-	def plot(self, pan, x, y, label, i):
+	def plot(self, pan, x, y, label, i, nzoom):
 		
 		if len(x) == 0:
 			return
 		x, y = (list(t) for t in zip(*sorted(zip(x,y))))
 		i=i % 5
-		
+		n=len(x)
+
+		if nzoom < n:
+			n = nzoom
+
 		if pan > 0 or self.n==1:
 			print(label)
-			self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i], label=label)
+			#n=9
+			#self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i], label=label)
+			self.ax[pan].plot(x[0:n], y[0:n], marker=self.markers[i], linestyle=self.linestyles[i], label=label)
 		else:
-			self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i])
+			#self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i])
+			self.ax[pan].plot(x[0:n], y[0:n], marker=self.markers[i], linestyle=self.linestyles[i])
 		
+
+		#Add label
+		dx=(x[n-1]-x[n-2])/5.0
+		xlab=x[n-1]+dx
+		ylab=y[n-1]
+		self.ax[pan].set_xlim(right=xlab+5*dx)
+		self.ax[pan].text(xlab,ylab,label,backgroundcolor=self.ax[pan].get_facecolor())
+
 		return
 	
 	def finish(self, outname):
-		self.fig.legend(fontsize=self.fontsmall, loc = "center right", borderaxespad=0.0)
+		self.fig.legend(loc='upper left', bbox_to_anchor=(0.2, 0.90))
 		#self.fig.subplots_adjust(right=0.85)
 		#self.fig.subplots_adjust(left=0.05)
 		#for i in range(self.n):
 		#	self.ax[i].set_frame_on(False)
+		
+
 		print(outname)
 		self.fig.savefig(outname)
 		return
