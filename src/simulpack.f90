@@ -11,6 +11,7 @@ module simulpack
   !Global constants
   use constants, only: &
        datadir, &
+       altdir, &
        deg2rad, &
        eps, &
        erad, &
@@ -21,6 +22,8 @@ module simulpack
        rad2deg, &
        nlat_alt, &
        nlon_alt, &
+       n_lat, &
+       n_lon, &
        simulcase
 
   !Data structures
@@ -98,8 +101,8 @@ module simulpack
 
   !Intepolation for local refinement
   use refinter, only: &
-    andes_density_table3, &
-    earth_elevation
+    andes_density_table, &
+    densftable
 
   implicit none
 
@@ -448,7 +451,7 @@ contains
     integer:: iunit
     integer:: iunit2
     integer:: izero
-    character (len=256):: filename
+    character (len=256):: filename, filename2
 
     !Field parameters and aux vars
     real (r8):: tmpmin
@@ -521,15 +524,24 @@ contains
     offsethx%n=mesh%nv
     offsethx%pos=0
 
-    if(trim(mesh%pos)=="readref_andes")then
+    if(trim(mesh%pos)=="readref_andes" .or. trim(mesh%pos)=="readref")then
        if(.not.allocated(mesh%densf_table))then
-         print*, "Reading Andes density table ..."
          allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
          call getunit(iunit2)
-         call earth_elevation(iunit2, mesh%densf_table)
-         !call andes_density_table(mesh%densf_table)
-         !call andes_density_table2(mesh%densf_table)
-         call andes_density_table3(mesh%densf_table)
+
+         if(trim(mesh%pos)=="readref_andes")then
+           call andes_density_table(mesh%densf_table,iunit2)
+
+         else !trim(mesh%pos)=="readref"
+           filename2 = trim(altdir)//"densf_table.dat"
+           call getunit(iunit2)
+           call densftable(filename2, iunit2)
+           call getunit(iunit2)
+           open(iunit2, file=filename2,status='old')
+             read(iunit2,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
+           close(iunit2) 
+         endif
+
        end if
 
          allocate(offsethx%f(1:offsethx%n))
