@@ -66,6 +66,10 @@ program imodel
     swm_horiz_loc_trunc_er, &
     swm_normal_mode_analysis
 
+  !High order testing module
+  use highorder, only: &
+       highordertests  
+       
   !Variable declaration
   implicit none
 
@@ -147,6 +151,8 @@ program imodel
   case(16) !Superconvergence tests of poisson equation
     call poisson_main(mesh)
 
+  case(17) !High-order transport
+    call highordertests(mesh)
   case default
      print*, "Please select a proper simulation case ...:", simulcase
   end select
