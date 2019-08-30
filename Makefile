@@ -85,6 +85,7 @@ bin/transport.obj \
 bin/poisson.obj \
 bin/multigrid.obj \
 bin/eispack.obj \
+bin/highorder.obj \
 
 #Compile and build all
 all: header config bin/imodel ending
@@ -187,6 +188,11 @@ bin/swm_operators.obj: src/swm_operators.f90
 bin/swm.obj: src/swm.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv swm.mod bin/.
+	
+#High-Order transport 	
+bin/highorder.obj: src/highorder.f90 
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv highorder.mod bin/.
 
 
 #Main executable
