@@ -12,7 +12,7 @@ none
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
 trsk 1.0
 !Coriolis vec reconstruction method
-gass
+trsk
 !Scalar interpolations
 trsk
 !Gradient discrete method
@@ -24,7 +24,7 @@ geo
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32, 33, 34
-0.001
+10.0
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
 0.0
 !Potential vorticity correction (none, apvm, clust) / CLUST parameter b or apvm parameter

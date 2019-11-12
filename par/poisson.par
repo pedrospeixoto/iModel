@@ -2,7 +2,7 @@
 !Test to be done (1-truncation, 2- convergence, 3-EV analysis) 
 2
 !Scalar/vector field used
-4
+9
 !Discretizations to cell centroids (1-yes, 0-no)
 0
 !plots
@@ -22,7 +22,8 @@
   !   5-Exponential
   !   6-Linear in R3
   !   7-Constant=1
-  !   8- Trigonom oscilation (beta of HR95)
+  !   8-Trigonom oscilation (beta of HR95)
+  !   9-Du-Gunzburg 2003
     
 !List of Vector Fields for vector interpolation and divergence tests
   !	  1-Test case 1 - non div 
