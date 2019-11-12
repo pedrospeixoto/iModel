@@ -4,6 +4,7 @@ module refinter
         pi, &
         datadir, &
         pio2, &
+        pi2, &
         r8, &
         rad2deg, &
         deg2rad, &
@@ -212,319 +213,190 @@ contains
 
     end subroutine earth_elevation
 
-
-    !--------------------------------------------------------------------------
-    ! Moving average
-    !--------------------------------------------------------------------------
-    subroutine moving_average1(alt_table, gammas)
-        real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
-        real (kind=8), intent(in) :: gammas
-        integer :: i, j, k, m, n
-        integer :: l, l2, l3, l4,l2aux,l3aux
-        real (kind=8), dimension(:,:), allocatable  :: aux
-        real (kind=8), dimension(:,:), allocatable  :: aux2
-        real (kind=8) :: temp, alpha
-
-        allocate (aux(nlat_alt, nlon_alt))
-        allocate (aux2(nlat_alt, nlon_alt))
-   
-        k = 1
-        do i = 1, nlat_alt
-            do j = 1, nlon_alt
-         
-                aux(i,j) = alt_table(k,3)
-                aux2(i,j) = alt_table(k,3)
-                k = k + 1
-            end do
-        end do
-
-        l = 50
-        l2 = 90  !90
-        l3 = 90 !90
-        l4 = 20
-
-        do i = l, nlat_alt-l
-            do j = l, nlon_alt-l
-
-                if(aux(i,j) == 500._r8/6320._r8)then
-
-                    temp =  0._r8
-                    do m = 0,l2-1
-                        do n = 0,l2-1
-                            temp = temp + aux(i-(l2-1)/2+m, j-(l2-1)/2+n)
-                        end do
-                    end do
-                    temp = temp - aux(i,j)
-                    aux2(i,j) = temp/(l2**2-1)
-	
-                end if
- 
-                alpha = 5500._r8/6320._r8
-                !alpha = alpha**(0.25)
-                if(aux(i,j) == alpha*1._r8/gammas**4)then
-                    ! if(aux(i,j) == 1._r8/gammas**4)then
-
-                    temp =  0._r8
-                    do m = 0,l3-1
-                        do n = 0,l3-1
-                            temp = temp + aux(i-(l3-1)/2+m, j-(l3-1)/2+n)
-                        end do
-                    end do
-                    temp = temp - aux(i,j)
-                    aux2(i,j) = temp/(l3**2-1)
-
-                end if
-
-
-            !if(aux(i,j) > 500._r8/6320._r8)then
-
-            !         temp =  0._r8
-            !          do m = 0,l4-1
-            !          do n = 0,l4-1
-            !           temp = temp + aux(i-(l4-1)/2+m, j-(l4-1)/2+n)
-            !        end do
-            !     end do
-            !    temp = temp - aux(i,j)
-             !   aux2(i,j) = temp/(l4**2-1)
- 
-            !end if
-
-
-
-
-            end do
-        end do
-
-        k = 1
-        do i = 1, nlat_alt
-            do j = 1, nlon_alt
-                alt_table(k,3) = aux2(i,j)
-                k = k + 1
-            end do
-        end do
-
-        deallocate(aux)
-        deallocate(aux2)
-
-    end subroutine moving_average1
-
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-    !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!
-
-    subroutine moving_average2(alt_table, gammas)
-        real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
-        real (kind=8), intent(in) :: gammas
-        integer :: i, j, k, m, n
-        integer :: l, l2
-        real (kind=8), dimension(:,:), allocatable  :: aux
-        real (kind=8), dimension(:,:), allocatable  :: aux2
-        real (kind=8) :: temp
-
-
-        allocate (aux(nlat_alt, nlon_alt))
-        allocate (aux2(nlat_alt, nlon_alt))
-   
-
-        k = 1
-        do i = 1, nlat_alt
-            do j = 1, nlon_alt
-         
-                aux(i,j) = alt_table(k,3)
-                aux2(i,j) = alt_table(k,3)
-                k = k + 1
-            end do
-        end do
-
-        l = 17
-        do i = l, nlat_alt-l
-            do j = l, nlon_alt-l
-
-
-                if(aux(i,j) > 500._r8/6320._r8)then
-
-                    temp =  0._r8
-                    do m = 0,l-1
-                        do n = 0,l-1
-                            temp = temp + aux(i-(l-1)/2+m, j-(l-1)/2+n)
-                        end do
-                    end do
-                    temp = temp - aux(i,j)
-                    aux2(i,j) = temp/(l**2-1)
-
-                end if
-
-            end do
-        end do
-
-        k = 1
-        do i = 1, nlat_alt
-            do j = 1, nlon_alt
-                alt_table(k,3) = aux2(i,j)
-                k = k + 1
-            end do
-        end do
-
-        deallocate(aux)
-        deallocate(aux2)
-
-    end subroutine moving_average2
-
-
-    !--------------------------------------------------------------------------
-    ! Andes density data for interpolation
-    !--------------------------------------------------------------------------
-    subroutine andes_density_table3(alt_table)
-        real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
-        integer :: i, j
-        real (kind=8) :: maxx, minn, lat, lon, latc, lonc
-        real (kind=8) :: dists, maxdist, gammas, epsilons
-        real (kind=8), dimension(1:3) :: p
-        real (kind=8), dimension(1:3) :: pc
-        real (kind=8) :: coslat, alpha
-
-        latc=-20.0*pi/180._r8
-        lonc=-60.0*pi/180._r8
-        maxdist = pi/6._r8
-        epsilons = pi/12._r8
-        alpha = 5500._r8/6320._r8
-        !alpha = alpha**(0.25)
-        minn = 0._r8
-        maxx = 0._r8
-
-        latc=-20.0*pi/180._r8
-        lonc=-60.0*pi/180._r8
-        coslat = dcos(latc)
-        pc(1) = coslat*dcos(lonc)
-        pc(2) = coslat*dsin(lonc)
-        pc(3) = dsin(latc)
-
-
-
-        do i = 1, nlat_alt*nlon_alt
-            lat = alt_table(i,1)
-            lon = alt_table(i,2)
-            lat = lat*deg2rad
-            lon = lon*deg2rad
-
-            coslat = dcos(lat)
-            p(1) = coslat*dcos(lon)
-            p(2) = coslat*dsin(lon)
-            p(3) = dsin (lat)
-
-            !Distance to center
-            dists = dsqrt((p(1)-pc(1))**2+(p(2)-pc(2))**2+(p(3)-pc(3))**2)
-            ! dists = dsqrt((lat-latc)**2+(lon-lonc)**2)
-      
-            if(dists<=maxdist)then
-                if(alt_table(i,3) < minn) then
-                    minn = alt_table(i,3)
-
-                else if(alt_table(i,3) > maxx) then
-                    maxx = alt_table(i,3)
-                end if
-            end if
-        end do
-
-
-        gammas = 3._r8
-
-        do i = 1, nlat_alt*nlon_alt
-            lat = alt_table(i,1)
-            lon = alt_table(i,2)
-            lat = lat*deg2rad
-            lon = lon*deg2rad
-
-            coslat = dcos(lat)
-            p(1) = coslat*dcos(lon)
-            p(2) = coslat*dsin(lon)
-            p(3) = dsin(lat)
-
-            !Distance to center
-            dists = dsqrt((p(1)-pc(1))**2+(p(2)-pc(2))**2+(p(3)-pc(3))**2)
-            !dists = dsqrt((lat-latc)**2+(lon-lonc)**2)
-
-            if(dists<=maxdist)then
-                if(alt_table(i,3) <= 500._r8 )then
-                    alt_table(i,3) = 500._r8
-                end if
- 
-                alt_table(i,3) = alt_table(i,3)/maxx
-
-            else
-                alt_table(i,3) = alpha*1._r8/gammas**4
-               !alt_table(i,3) = 1._r8/gammas**4
-            end if
-
-        end do
-
-
-        call moving_average1(alt_table, gammas)
-        call moving_average2(alt_table, gammas)
-
-    end subroutine andes_density_table3
-
-
-    !--------------------------------------------------------------------------
-    !--------------------------------------------------------------------------
-    !--------------------------------------------------------------------------
-    !--------------------------------------------------------------------------
-
-
-    subroutine andes_density_table2(alt_table)
-        real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
-        integer :: i, j
-        real (kind=8) :: maxx, minn, lat, lon, latc, lonc
-        real (kind=8) :: dists, maxdist, gammas, epsilons
-        real (kind=8), dimension(1:3) :: p
-        real (kind=8), dimension(1:3) :: pc
-        real (kind=8) :: coslat
-
-        latc=-20.0*pi/180._r8
-        lonc=-60.0*pi/180._r8
-        maxdist = pi/6._r8
-        epsilons = pi/12._r8
-
-        coslat = dcos(latc)
-        pc(1) = coslat*dcos(lonc)
-        pc(2) = coslat*dsin(lonc)
-        pc(3) = dsin(latc)
-
-        minn = 0._r8
-        maxx = 0._r8
-
-
-        do i = 1, nlat_alt*nlon_alt
-            lat = alt_table(i,1)
-            lon = alt_table(i,2)
-            lat = lat*deg2rad
-            lon = lon*deg2rad
-
-            coslat = dcos(lat)
-            p(1) = coslat*dcos(lon)
-            p(2) = coslat*dsin(lon)
-            p(3) = dsin(lat)
-      
-            dists = dsqrt((p(1)-pc(1))**2+(p(2)-pc(2))**2+(p(3)-pc(3))**2)
-
-            if(dists<=maxdist)then
-                if(alt_table(i,3) > maxx) then
-                    maxx = alt_table(i,3)
-                end if
-            end if
-        end do
-
-
-        do i = 1, nlat_alt*nlon_alt
-            if(alt_table(i,3) <= 200._r8) then
-                alt_table(i,3) = 200._r8
-            end if
-            alt_table(i,3) = alt_table(i,3)/maxx
-        end do
-    end subroutine andes_density_table2
-
-
     subroutine andes_density_table(alt_table, iunit)
+      real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
+      integer, intent(in) :: iunit
+      integer :: i, j, k, n, m, l, l2, l3
+      real (kind=8) :: maxx, lat, lon, latc, lonc
+      real (kind=8) :: dists, maxdist, maxdist2, gammas, epsilons, Fo
+      real (kind=8), dimension(1:3) :: p
+      real (kind=8), dimension(1:3) :: pc
+      real (kind=8) :: coslat, a, b, c, sx, corte, alpha, beta,corte2
+      real (kind=8), dimension(:,:), allocatable  :: topo, topo2, aux, aux2
+      real (kind=8), dimension(:,:), allocatable  :: grad_table, grad
+      real (kind=8) :: temp, dx, dy, gx, gy, dlat, dlon, x, lambda
+      character (len=100) :: filename
+
+      call earth_elevation(iunit, alt_table)
+      allocate (topo(nlat_alt, nlon_alt))
+      allocate (topo2(nlat_alt, nlon_alt))
+      allocate (aux(nlat_alt, nlon_alt))
+      allocate (aux2(nlat_alt, nlon_alt))
+      
+      ! Parameters
+      latc=-20.0*deg2rad
+      lonc=-70.0*deg2rad
+      coslat = dcos(latc)
+      pc(1) = coslat*dcos(lonc)
+      pc(2) = coslat*dsin(lonc)
+      pc(3) = dsin(latc)
+
+      maxdist = 45.d0*deg2rad
+      maxdist2 = 28.d0*deg2rad
+      epsilons = 15.d0*deg2rad
+      gammas = 2._r8
+
+      corte = 500.d0
+      corte2 = 0.d0
+
+      dlat = pi/(nlat_alt-1)
+      dlon = pi2/(nlon_alt-1)
+
+      !call bump(maxdist2*rad2deg,(maxdist2+epsilons)*rad2deg)
+      !c = int_phi(1.d0, 0.d0, 1.d0)
+
+      ! Saves the topography data
+      k = 1
+      do i = 1, nlat_alt
+        do j = 1, nlon_alt
+          topo(i,j) = alt_table(k,3)
+          k = k + 1
+        end do
+      end do
+
+      aux = 0.d0
+      do i = 1, nlat_alt
+        lat = -pio2 + (i-1)*dlat
+        do j = 1, nlon_alt
+          lon = -pi + (j-1)*dlon
+          coslat = dcos(lat)
+          p(1) = coslat*dcos(lon)
+          p(2) = coslat*dsin(lon)
+          p(3) = dsin(lat)
+          dists = dsqrt((p(1)-pc(1))**2+(p(2)-pc(2))**2+(p(3)-pc(3))**2)
+          !aux3(i,j) = xsi((dists-maxdist2)/epsilons,c)
+          if(dists<=maxdist2)then
+            aux(i,j) = 1.d0
+           else if(dists<=maxdist2+epsilons)then
+             sx = (maxdist2+epsilons-dists)/epsilons
+             aux(i,j) = sx
+          endif
+        enddo
+      enddo
+
+
+
+      do i = 1, nlat_alt
+        lat = -pio2 + (i-1)*dlat
+        do j = 1, nlon_alt
+          lon = -pi + (j-1)*dlon
+          coslat = dcos(lat)
+          p(1) = coslat*dcos(lon)
+          p(2) = coslat*dsin(lon)
+          p(3) = dsin(lat)
+          dists = dsqrt((p(1)-pc(1))**2+(p(2)-pc(2))**2+(p(3)-pc(3))**2)
+
+          if(dists<=maxdist)then
+            if(topo(i,j)<=corte .or. lon*rad2deg>-62.d0 .or.lon*rad2deg<-82.d0 .or.lat*rad2deg>15.d0 .or.lat*rad2deg<-55.d0)then
+              topo(i,j) = 0.d0
+            ! Remove Mount Roraima
+            else if(lat*rad2deg > -5.d0 .and. lat*rad2deg < 10.d0 .and. lon*rad2deg > -68.d0 .and. lon*rad2deg < -50.d0 )then
+              topo(i,j) = 0.d0
+            end if    
+          else 
+            topo(i,j) = 0.d0
+          end if
+
+          if(topo(i,j)>0.d0)then
+            topo(i,j) = 1.d0
+          endif 
+        enddo
+      enddo
+
+      !topo = topo/maxval(topo)
+      !filename = "topo.dat"
+      !open(4, file=filename)
+      !  do i=1, nlat_alt
+      !      write(4,*) topo(i,:)
+      !  end do
+      !close(4)
+
+
+      Fo = 0.25d0
+      do l = 1, 500
+        do i = 2, nlat_alt-1
+          do j = 2, nlon_alt-1
+            topo2(i,j) = (1-4.d0*Fo)*topo(i,j) + Fo*(topo(i+1,j)+topo(i-1,j)+topo(i,j+1)+topo(i,j-1))
+          enddo
+        enddo
+        topo = topo2
+      enddo
+
+      l = 55
+      !do i = l, nlat_alt-l
+      !  do j = l, nlon_alt-l
+      !    temp =  0._r8
+      !    do m = 0, l-1
+      !      do n = 0, l-1
+      !        temp = temp + topo(i-(l-1)/2+m, j-(l-1)/2+n)
+      !      end do
+      !    end do
+      !    topo2(i,j) = temp/l**2
+      !  end do
+      !end do
+
+
+      l = 55!15
+      do i = l, nlat_alt-l
+        do j = l, nlon_alt-l
+          temp =  0._r8
+          do m = 0, l-1
+            do n = 0, l-1
+              temp = temp + aux(i-(l-1)/2+m, j-(l-1)/2+n)
+            end do
+          end do
+          aux2(i,j) = temp/l**2
+        end do
+      end do
+
+      aux = aux2
+      aux = aux/maxval(aux)
+
+      topo = topo2
+      topo = topo/maxval(topo)
+
+      !aux = 1.d0/gammas**4 + (1-1.d0/gammas**4)*aux
+      !topo = 1.d0/gammas**4 + (1-1.d0/gammas**4)*topo      
+      lambda = 0.6d0 
+      topo = 1.d0/gammas**4 + (1.d0-1.d0/gammas**4)*(lambda*topo+(1.d0-lambda)*aux)
+
+      !filename = "topo2.dat"
+      !open(4, file=filename)
+      !  do i=1, nlat_alt
+      !      write(4,*) topo(i,:)
+      !     !write(4,*) aux(i,:)
+      !  end do
+      !close(4)
+
+      !stop
+
+      ! Update values in the table
+      k = 1
+      do i = 1, nlat_alt
+        do j = 1, nlon_alt
+            alt_table(k,3) = topo(i,j)
+            !alt_table(k,3) = aux(i,j)
+            k = k + 1
+        end do
+      end do
+
+      deallocate(topo)
+      deallocate(topo2)
+      deallocate(aux)
+      deallocate(aux2)
+    end subroutine andes_density_table
+
+    subroutine andes_density_table2(alt_table, iunit)
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(inout) :: alt_table
         integer, intent(in) :: iunit 
         integer :: i, j, k, n, m, l,l2,l3
@@ -708,72 +580,29 @@ contains
 
         deallocate(aux)
         deallocate(aux2)
-    end subroutine andes_density_table
+    end subroutine andes_density_table2
 
 
     !--------------------------------------------------------------------------
     ! Andes density function
     !--------------------------------------------------------------------------
-    real (kind=8) function dens_andes2(x, dens_table) result(densf)
+    real (kind=8) function dens_andes(x, dens_table) result(densf)
         real (kind=8), dimension(1:2), intent(in) :: x
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(in) :: dens_table
         real (kind=8) :: lat, lon
-    
+
         lat = x(1)
         lon = x(2)
         lat = lat*rad2deg
         lon = lon*rad2deg
-
         densf = interpol_densf([lat,lon], dens_table, -90._r8, 90._r8, -180._r8, 180._r8, nlat_alt, nlon_alt)
+    end function dens_andes
 
-    end function dens_andes2
-
-
-
-    real (kind=8) function dens_andes1(x, dens_table) result(densf)
-        real (kind=8), dimension(1:2), intent(in) :: x
-        real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(in) :: dens_table
-        real (kind=8) :: lat, lon, latc, lonc
-        real (kind=8) :: dists, maxdist, gammas, epsilons, coslat
-        real (kind=8), dimension(1:3) :: p
-        real (kind=8), dimension(1:3) :: pc
-
-        latc=-20.0*pi/180._r8
-        lonc=-60.0*pi/180._r8
-        maxdist = pi/6._r8
-        epsilons = pi/12._r8
-        gammas = 3._r8
-
-        lat = x(1)
-        lon = x(2)
-        coslat = dcos(lat)
-        p(1) = coslat*dcos(lon)
-        p(2) = coslat*dsin(lon)
-        p(3) = dsin(lat)
-
-        coslat = dcos(latc)
-        pc(1) = coslat*dcos(lonc)
-        pc(2) = coslat*dsin(lonc)
-        pc(3) = dsin(latc)
-
-        dists = dsqrt((p(1)-pc(1))**2+(p(2)-pc(2))**2+(p(3)-pc(3))**2)
-
-        if(dists<=maxdist+epsilons)then
-            lat = lat*rad2deg
-            lon = lon*rad2deg
-            densf = interpol_densf([lat,lon], dens_table, -90._r8, 90._r8, -180._r8, 180._r8, nlat_alt, nlon_alt)
-        else
-            densf = 1._r8/gammas**4
-        end if
-
-    end function dens_andes1
 
     !--------------------------------------------------------------------------
     ! Andes density function 2
     !--------------------------------------------------------------------------
-
-
-    real (kind=8) function dens_andes(x, dens_table) result(dens_f)
+    real (kind=8) function dens_andes2(x, dens_table) result(dens_f)
         real (kind=8), dimension(1:2), intent(in) :: x
         real (kind=8), dimension(1:3) :: p, pc
         real (kind=8), dimension(nlat_alt*nlon_alt,3), intent(in) :: dens_table
@@ -819,7 +648,7 @@ contains
             dens_f=b**4/gammas**4
         end if
 
-    end function dens_andes
+    end function dens_andes2
 
     !--------------------------------------------------------------------------
     !--------------------------------------------------------------------------
@@ -881,15 +710,6 @@ contains
             end if
         end do
 
-        !Output data to a file
-        !filename = "topo.dat"
-        !open(13, file=filename)
-        !  do i=1, nlat_alt*nlon_alt
-        !    write(13,*) alt_table(i,1), alt_table(i,2), alt_table(i,3)
-        !  end do
-        !close(13)
-        !print*, minval(alt_table(:,3)),maxval(alt_table(:,3))
-
         k = 1
         do i = 1, nlat_alt
             do j = 1, nlon_alt
@@ -950,14 +770,6 @@ contains
           end do
         end do
 
-        !print*, minval(alt_table(:,3)),maxval(alt_table(:,3))
-        !Output data to a file
-        !filename = "topo2.dat"
-        !open(11, file=filename)
-        !  do i=1, nlat_alt*nlon_alt
-        !    write(11,*) alt_table(i,1), alt_table(i,2), alt_table(i,3)
-        !  end do
-        !close(11)
 
         deallocate(aux)
         deallocate(aux2)
@@ -978,5 +790,6 @@ contains
 
         densf = interpol_densf([lat,lon], alt_table, -90._r8, 90._r8, -180._r8, 180._r8, nlat_alt, nlon_alt)
     end function smooth_andean_mountain
+
 
 end module refinter

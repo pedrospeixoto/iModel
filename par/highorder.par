@@ -1,0 +1,14 @@
+!Parameters for the transport deformation test model
+!Ordem do método (2-segunda ordem, 3-terceira ordem, 4-quarta ordem)
+2
+!Raio da esfera em estudo (U=Unitario ou T=Terra)
+U
+!Case for velocity field (1-ndiv, 2-ndiv, 3-div, 4-divrot, 5-Rot, 6-RossHarw, 7-RotVarSpeed)
+5
+!Initial condition (scalar field- 1-cosbel, 2-gauss, 3-cylinder, 4-one gauss) 
+2
+!Number of time steps (ex 64) and 1-adjust by 2^(glevel-5) or 0-no adjust 
+2048 0
+!Staggering (HC, HA)
+HC
+
