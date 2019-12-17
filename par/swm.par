@@ -2,7 +2,7 @@
 !Test case / Test local truncation 0/1 (only possible in some test cases)
 2 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-12 12
+12 2000
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
 100 0 0
 !Scalar/vector location (HC or HTC)
@@ -20,7 +20,7 @@ trsk
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
-4 1 1
+200 1 1
 !Diffusion coef - Leave zero for no diffusion - not debugged!
 0
 !Hollingsworth coef - Only for test case 32, 33, 34
