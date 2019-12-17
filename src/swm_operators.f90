@@ -442,8 +442,9 @@ contains
       vtr%p(k)%v=vtr%p(k)%v/mesh%tr(k)%areag !/erad !(TODO: check this erad)
        !print*, k, norm(vtr%p(k)%v), norm(vtr%p(k)%v)/erad
        !print*, k, q_grad_tr%p(k)%v
+      vtr%p(k)%v=proj_vec_sphere(vtr%p(k)%v, mesh%tr(k)%c%p)
     end do
-       !$omp end parallel do
+    !$omp end parallel do
 
     return
 
@@ -1115,7 +1116,7 @@ contains
       k2=mesh%ed(l)%sh(2)
       signcor=dsign( 1._r8, dot_product(mesh%ed(l)%nr, &
         mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
-      fed%f(l)=signcor*(ftr%f(k2)-ftr%f(k1))/mesh%edhx(l)%leng !/erad
+      fed%f(l)=signcor*(ftr%f(k2)-ftr%f(k1))/mesh%edhx(l)%leng/erad
     end do
        !$omp end parallel do
 
