@@ -226,6 +226,7 @@ module swm_data
   type(scalar_field):: q_ed  !pv on edges
   type(scalar_field):: q_ed_exact  !pv on edges
   type(scalar_field):: q_ed_error  !pv on edges
+  type(scalar_field):: zeta  !relative vorticity - on triangles
 
 
   type(scalar_field):: q_grad_ed  !grad pv on edges
@@ -267,6 +268,12 @@ module swm_data
   type(scalar_field):: lapu
   type(scalar_field):: lapu_exact
   type(scalar_field):: lapu_error
+
+  !Gradient of divergence (at edges) - used in diffusion
+  type(scalar_field):: grad_ed_div
+
+  !Gradient of relative vorticity (at edges) - used in diffusion
+  type(scalar_field):: grad_ed_vort
 
   !Trsk consistency index
   type(scalar_field):: trskind !Low values indicate godd for trisk
@@ -793,7 +800,8 @@ contains
     eta%n=mesh%nt
     eta%pos=1
     eta%name="eta"
-    allocate(eta%f(1:eta%n), stat=ist)
+    allocate(eta%f(1:eta%n), zeta%f(1:eta%n), stat=ist)
+    zeta = eta
 
     if(test_lterror==1)then
       allocate(eta_exact%f(1:eta%n), stat=ist)
@@ -919,6 +927,19 @@ contains
     divu%name="divu"
     allocate(divu%f(1:divu%n), stat=ist)
 
+    !Gradient of divergence
+    grad_ed_div%n=mesh%ne
+    grad_ed_div%pos=edpos
+    allocate(grad_ed_div%f(1:grad_ed_div%n), stat=ist)
+    grad_ed_div%f = 0._r8
+
+    !Gradient of vorticity
+    grad_ed_vort%n=mesh%ne
+    grad_ed_vort%pos=edpos
+    allocate(grad_ed_vort%f(1:grad_ed_vort%n), stat=ist)
+    grad_ed_vort%f = 0._r8
+
+    !Laplacian at edges
     lapu%n=mesh%ne
     lapu%pos=edpos
     lapu%name="lapu"
@@ -997,8 +1018,9 @@ contains
     !$OMP SHARED(u_error, u_exact, uh, uhq_perp) &
     !$OMP SHARED(v_hx, v_ed, vhq_hx) &
     !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed, h_rhb) &
-    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed) &
+    !$OMP SHARED(h_tr, zeta, eta, eta_ed, q_tr, q_ed) &
     !$OMP SHARED(ke_hx, ke_tr, ghbK, grad_ghbK, hbt, bt) &
+    !$OMP SHARED(grad_ed_div, grad_ed_vort) &
     !$OMP SHARED(divuh, q_tr_exact, q_tr_error, q_grad_ed, divu, lapu ) &
     !$OMP SHARED(massf0, massf1, massf2, massf3) &
     !$OMP SHARED(momf0, momf1, momf2, momf3)
@@ -1026,6 +1048,7 @@ contains
 
     !Vorticity
     eta%f=0._r8
+    zeta%f=0._r8
     eta_ed%f=0._r8
     q_tr%f=0._r8
     q_ed%f=0._r8
@@ -1046,6 +1069,10 @@ contains
 
     !Laplacian
     lapu%f=0._r8
+
+    !Gradients
+    !grad_ed_div%f =0._r8
+    !grad_ed_vort%f =0._r8
 
     !PV analysis
     q_tr_exact=q_tr
