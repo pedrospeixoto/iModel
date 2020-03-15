@@ -733,6 +733,125 @@ contains
 
   end subroutine laplacian_hx
 
+
+  subroutine grad_ed_tg(f, grad_tg, mesh)
+    !---------------------------------------------------------------
+    !Calculate tangent component of the gradient of the field f at edges
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in) :: f         !given field
+    type(scalar_field), intent(inout):: grad_tg !gradient at edges - must be already allocated
+
+    integer(i4) :: k1, k2, l
+    real(r8) :: f1, f2
+    real(r8) :: grad_t, signcor
+
+    !Compute the tangential component of the gradient of f
+    do l=1, mesh%ne
+      !Calculate tangent part
+      grad_t=0._r8
+      !Calculate gradient of relative vorticity for this edge
+      if(useStagHC)then
+        k1=mesh%edhx(l)%v(1)
+        k2=mesh%edhx(l)%v(2)
+        !Get field values
+        f1=f%f(k1)
+        f2=f%f(k2)
+        signcor=dsign( 1._r8, dot_product(mesh%edhx(l)%tg, &
+          mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
+        grad_t=signcor*(f2-f1)
+      elseif(useStagHTC)then
+        k1=mesh%ed(l)%sh(1)
+        k2=mesh%ed(l)%sh(2)
+        !Get field values
+        f1=f%f(k1)
+        f2=f%f(k2)
+        signcor=dsign( 1._r8, dot_product(mesh%ed(l)%nr, &
+          mesh%tr(k2)%c%p-mesh%tr(k1)%c%p ))
+        grad_t=signcor*(f2-f1)
+      end if
+      grad_t=grad_t/(mesh%edhx(l)%leng*erad)
+      grad_tg%f(l) = grad_t
+    end do
+  end subroutine grad_ed_tg
+
+
+  subroutine rel_vort_tr(u, zeta, mesh)
+    !---------------------------------------------------------------
+    !Calculate fields at triangles
+    !  relative vorticity at triangle cc based on edge velocities
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in):: u ! velocity at cell edges
+    type(scalar_field), intent(inout):: zeta !relative vorticity at tr cc
+
+    integer(i4):: k, l, ed
+    real(r8):: signcor
+
+    !OPENMP PARALLEL DO
+    !$omp parallel do &
+    !$omp default(none) &
+    !$omp shared(mesh, u, zeta) &
+    !$omp shared(useStagHTC, useStagHC, useTiledAreas) &
+    !$omp private(l, ed, signcor) &
+    !$omp schedule(static)
+    do k=1, mesh%nt
+      !print*, k, omp_get_thread_num()
+      !First calculate relative vorticity
+      zeta%f(k)=0.
+      !print*, k
+      !loop over triangle edges
+      do l=1, 3
+        ed=mesh%tr(k)%ed(l)
+        !if(stag=="HTC")then
+        if(useStagHTC)then
+          signcor=mesh%tr(k)%tg(l)
+          zeta%f(k)=zeta%f(k)+u%f(ed)*mesh%ed(ed)%leng*signcor
+           !print*, eta%f(k)
+        elseif(useStagHC)then
+          signcor=dsign( 1._r8, real(mesh%tr(k)%tg(l), r8)* &
+          dot_product(mesh%edhx(ed)%nr, mesh%ed(ed)%tg))
+          zeta%f(k)=zeta%f(k)+u%f(ed)*mesh%ed(ed)%leng*signcor
+        end if
+      end do
+      !This is the relative vort.
+      if(useTiledAreas)then
+        zeta%f(k)=zeta%f(k)/mesh%tr(k)%areat/erad
+      else
+        zeta%f(k)=zeta%f(k)/mesh%tr(k)%areag/erad
+      endif
+    end do
+    !$omp end parallel do
+    return
+  end subroutine rel_vort_tr
+
+
+  subroutine laplacian_ed(u, lapu, div, vort, grad_ed_div, grad_ed_vort, mesh)
+    !---------------------------------------------------------------
+    !Calculate diffusion (Laplacian) of field u at edges
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in) :: u      !given field
+    type(scalar_field), intent(inout):: lapu !laplacian - must be already allocated
+
+    !auxiliary fields - must be already allocated
+    type(scalar_field), intent(in) :: div   !divergence of u - must be already computed
+    type(scalar_field), intent(in) :: vort  !relative vorticity of u - must be already computed
+    type(scalar_field), intent(inout) :: grad_ed_div  ! gradient of divergence
+    type(scalar_field), intent(inout) :: grad_ed_vort ! gradient of relative vorticity
+
+    !Calculate the gradient of divergence
+    call grad_ed(div, grad_ed_div, mesh)
+
+    !Compute the gradient of vorticity
+    call grad_ed_tg(vort, grad_ed_vort, mesh)
+
+    !Global vector laplacian
+    lapu%f = grad_ed_div%f - grad_ed_vort%f
+    return
+  end subroutine laplacian_ed
+
+
   subroutine kinetic_energy_tr(u, ke, mesh)
     !---------------------------------------------------------------
     !Calculate kinetic energy at triangles
