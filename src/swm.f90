@@ -2513,11 +2513,17 @@ contains
     !Calculate divergence of velocity - used in difusion and for diagnostics
     call div_hx(u, divu, mesh)
 
+    !Calculate relative vorticity of velocity - used in difusion and for diagnostics
+    call rel_vort_tr(u, zeta, mesh)
+
     !------------------------------------------
     !Diffusion
     !------------------------------------------
-    if(difus>0)then !Needs verification!!!
-      call laplacian_hx(u, eta, lapu, mesh)
+
+    if(difus>0)then 
+      !call laplacian_hx(u, eta, lapu, mesh)
+      !print*,difus
+      call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
       momeq=momeq + difus*lapu%f
     end if
 
