@@ -1,6 +1,6 @@
 !Grid parameters 
 !Number of vertices (may be changed if icos/octg mesh is chosen) 
-2000
+10000
 !Kind of mesh use: icos, octg, read, rand
 read
 !Position: eqs, pol, ran, ref, readref, readref_andes

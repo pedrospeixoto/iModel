@@ -279,10 +279,12 @@ contains
           max_gradke=max(max_gradke, abs(gradke_tmp/mesh%ed(l)%leng/erad))
         end do
 
-        call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
-          errormaxrel_u, error2_u,  errormaxrel, error2, &
-          (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
-          (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
+        if( mod(k,nprints)==0 )then
+          call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
+            errormaxrel_u, error2_u,  errormaxrel, error2, &
+            (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
+            (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
+        end if
 
         if((errormaxrel_h > 20.0 .or. isnan(errormaxrel_h)).and. k > 3 )then
 

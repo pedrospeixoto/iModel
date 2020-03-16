@@ -644,6 +644,11 @@ contains
        !print*, atmp
     end if
 
+    if( difus>0 ) then
+      write(atmp,'(f10.3)') real(difus)
+      swmname=trim(swmname)//"_dif"//trim(adjustl(trim(atmp)))
+    end if
+
     RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
     RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
       .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &
