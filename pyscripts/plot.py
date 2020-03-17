@@ -35,8 +35,6 @@ if len(sys.argv) > 1:
 	input_filename = sys.argv[1]
 	opt_filename = sys.argv[2]
 
-#set title
-title="Small equiv depth test case dt400sec zoom"
 
 #Get data
 data=imodelData(input_filename)
