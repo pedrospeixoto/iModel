@@ -38,17 +38,18 @@ input_files = sys.argv[2:]
 #Get data
 data=imodelData(input_files)
 
-#Calculate 10-folding times, if required
-data.CalcFoldingTimes()
-
 #Dictionary for fancy naming
 data.FancyNames("fancy.csv") #Load naming convention
 
 # User inputs
 data.UserOptions(opt_filename) #load user options
 
-#User filters
-data.UserFilters("filter.csv") #load user filters
 
 #Organize all options
-data.OrganizeOptions()
+#data.OrganizeOptions()
+
+# Decide what to plot based on
+# load user inner/outer loops for plotting - inner is within legend (each graph), outer
+# Configure the figures to be plotted
+title="Evolution TC2"
+fig = data.BuildFigures(title)

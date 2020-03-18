@@ -2962,7 +2962,7 @@ contains
     !File for errors
     filename=trim(datadir)//trim(swmname)//"_evolution_"//trim(mesh%name)//".txt"
     buffer="        n        mvdist  tcase       k       nt    "//&
-      "     dt(s)                 cfl                time(dys)  "//&
+      "     dt                 cfl               TimeDays  "//&
       "        errormax_h       error2_h               errormax_u     "//&
       "   error2_u               errormax_pv       error2_pv            "//&
       " mass              Penergy      "//&
