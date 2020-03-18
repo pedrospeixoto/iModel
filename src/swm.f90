@@ -2522,7 +2522,7 @@ contains
     !Diffusion
     !------------------------------------------
 
-    if(difus>0)then 
+    if(difus /= 0)then 
       !call laplacian_hx(u, eta, lapu, mesh)
       !print*,difus
       call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
