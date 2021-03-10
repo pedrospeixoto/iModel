@@ -1,4 +1,4 @@
-module swm_physics
+module moist_swm
   !=============================================================================
   !  Moist Shallow Water Model
   ! 
@@ -67,8 +67,7 @@ module swm_physics
     andean_mountain_data, &
     smooth_andean_mountain, &
     earth_elevation, &
-    interpol_densf, &
-    andes_density_table3
+    interpol_densf
 
     !=============================================================================
     !Moist shallow water model variables
@@ -633,10 +632,9 @@ subroutine initialize_global_moist_swm_vars()
     lond = 0._r8*deg2rad
 
     select case(testcase)
-    !-------------------------------------------------------------------------------  
-    ! Steady state 
-    !-------------------------------------------------------------------------------  
-
+    !======================================================================================
+    ! Steady state - from Zerroukat and Allen JCP 2015
+    !======================================================================================
     case(2)
       !Field at cell's center
       u0    = 20._r8
@@ -705,160 +703,10 @@ subroutine initialize_global_moist_swm_vars()
       Qc_exact = Qc
       Qr_exact = Qr
 
-
-    !-------------------------------------------------------------------------------  
-    ! Steady state - rotated
-    !-------------------------------------------------------------------------------      
-    case(3)
-      !Field at cell's center
-      u0    = 20._r8
-      phi0  = 3._r8*10**4 
-      w     = omega*erad*u0 + u0*u0*0.5_r8
-      sigma = w/10._r8
-      temp0 = phi0*phi0/300._r8
-      !xsi = 0.01_r8
-      xsi = 0.000_r8
-
-      ! Calculate rotation matrix
-      lat0 = -45._r8*deg2rad
-      lon0 = 0._r8!-90._r8*deg2rad
-      Rmat(1:3,1:3)=0._r8
-      Rmat(1,1)=dcos(lat0)*dcos(lon0)
-      Rmat(1,2)=-dsin(lon0)*dcos(lat0)
-      Rmat(1,3)=-dsin(lat0)
-      Rmat(2,1)=dsin(lon0)
-      Rmat(2,2)=dcos(lon0)
-      Rmat(3,1)=dsin(lat0)*dcos(lon0)
-      Rmat(3,2)=-dsin(lat0)*dsin(lon0)
-      Rmat(3,3)=dcos(lat0)
-        
-      !Inverse rotation
-      RmatT=transpose(Rmat)
-      alpha =-45._r8*deg2rad
-
-      fsphere=3
-
-      do i=1, mesh%nv
-        lon = mesh%v(i)%lon
-        lat = mesh%v(i)%lat
-        sinn = -dcos(lon)*dcos(lat)*dsin(alpha) + dsin(lat)*dcos(alpha)
-        coss =  dcos(lat)*dcos(alpha) + dcos(lon)*dsin(lat)*dsin(alpha)
-
-        vectmp = mesh%v(i)%p
-        vectmp = matmul(RmatT,vectmp)
-        call cart2sph (vectmp(1), vectmp(2), vectmp(3), lon, lat )
-
-        sinn = sin(lat)
-        coss = cos(lat)
-
-        h%f(i) = (phi0 -(w+sigma)*sinn**2)*gravi
-        bt%f(i) = 0._r8 
-
-        theta%f(i) = temp0 + sigma*(coss**2)*((w+sigma)*(coss**2) + (phi0-w-sigma)*2._r8 )
-        theta%f(i) = theta%f(i)/( phi0**2 + ((w+sigma)**2)*sinn**4 -2._r8*phi0*(w+sigma)*sinn**2)
-        Qv%f(i) = (1._r8-xsi)*qsat(theta%f(i),h%f(i),bt%f(i),1._r8)
-
-        !Fluxes
-        hQv%f(i) = h%f(i)*Qv%f(i)
-        hQc%f(i) = h%f(i)*Qc%f(i)
-        hQr%f(i) = h%f(i)*Qr%f(i)
-        htheta%f(i) = h%f(i)*theta%f(i)
-      end do
-
-      print*,minval(theta%f),maxval(theta%f)
-      !stop
-      q0 = 0.02_r8/maxval(qv%f)
-      print*,maxval(qv%f)
-      Qv%f = q0*Qv%f
-      hQv%f = q0*hQv%f
-
-      !Velocity
-      if(useStagHTC)then
-        do l=1, mesh%ne
-          lat = mesh%ed(l)%c%lat
-          lon = mesh%ed(l)%c%lon
-          utmp=u0*(cos(lat)*cos(alpha) + cos(lon)*sin(lat)*sin(alpha))
-          vtmp=-u0*(sin(lon)*sin(alpha))
-          call convert_vec_sph2cart(utmp, vtmp, mesh%ed(l)%c%p, vectmp)
-          v_ed%p(l)%v=vectmp
-          u%f(l)=dot_product(vectmp,mesh%ed(l)%tg)
-        end do
-
-      elseif(useStagHC)then
-        do l=1, mesh%ne
-          !vectmp=mesh%edhx(l)%c%p
-          !vectmp = matmul(RmatT,vectmp)
-          !call cart2sph(vectmp(1),vectmp(2),vectmp(3),lon,lat)
-          !utmp = u0*dcos(lat)
-          !vtmp = 0._r8
-          !call convert_vec_sph2cart(utmp, vtmp, mesh%edhx(l)%c%p, vectmp)
-          !v_ed%p(l)%v=vectmp
-          !u%f(l)=dot_product(vectmp,mesh%edhx(l)%nr)
-       end do
-      end if
-
-      h_exact = h
-      u_exact = u
-      theta_exact = theta
-      Qv_exact = Qv
-      Qc_exact = Qc
-      Qr_exact = Qr
-
     !======================================================================================
-    ! Flow over Andes mountain
+    ! Flow over a mountain - from Zerroukat and Allen JCP 2015
     !======================================================================================
-    case(10)
-    ! Calculate rotation matrix
-    lat0 = 0._r8*deg2rad
-    lon0 = 0._r8!-90._r8*deg2rad
-    Rmat(1:3,1:3)=0._r8
-    Rmat(1,1)=dcos(lat0)*dcos(lon0)
-    Rmat(1,2)=-dsin(lon0)*dcos(lat0)
-    Rmat(1,3)=-dsin(lat0)
-    Rmat(2,1)=dsin(lon0)
-    Rmat(2,2)=dcos(lon0)
-    Rmat(3,1)=dsin(lat0)*dcos(lon0)
-    Rmat(3,2)=-dsin(lat0)*dsin(lon0)
-    Rmat(3,3)=dcos(lat0)
-    
-    Rmat(1,1)=1.d0
-    Rmat(1,2)=0.d0
-    Rmat(1,3)=0.d0
-    Rmat(2,1)=0.d0
-    Rmat(2,2)=dcos(lat0)
-    Rmat(2,3)=-dsin(lat0)
-    Rmat(3,1)=0.d0
-    Rmat(3,2)=dsin(lat0)
-    Rmat(3,3)=dcos(lat0)
-    
-    lat0 = 0._r8*deg2rad
-    Rmat2(1,1)=dcos(lat0)
-    Rmat2(1,2)=-dsin(lat0)
-    Rmat2(1,3)=0.d0
-    Rmat2(2,1)=dsin(lat0)
-    Rmat2(2,2)=dcos(lat0)
-    Rmat2(2,3)=0.d0
-    Rmat2(3,1)=0.d0
-    Rmat2(3,2)=0.d0
-    Rmat2(3,3)=1.d0
-    
-    lat0 = 60._r8*deg2rad
-    Rmat(1,1)=dcos(lat0)
-    Rmat(1,2)=0.d0
-    Rmat(1,3)=-dsin(lat0)
-    Rmat(2,1)=0.d0
-    Rmat(2,2)=1.d0
-    Rmat(2,3)=0.d0
-    Rmat(3,1)=dsin(lat0)
-    Rmat(3,2)=0.d0
-    Rmat(3,3)=dcos(lat0)   
-     
-    !Inverse rotation
-    RmatT=matmul(transpose(Rmat),transpose(Rmat2))
-    !RmatT=transpose(Rmat)
-    alpha =lat0
-
-    !fsphere=3
+    case(4)
 
     !Parameters
     u0     = 20._r8
@@ -885,9 +733,6 @@ subroutine initialize_global_moist_swm_vars()
     !Variables at Voronoi centers
     do i=1, mesh%nv
         vectmp = mesh%v(i)%p
-        !print*,vectmp
-        !vectmp = matmul(RmatT,vectmp)
-        !call cart2sph (vectmp(1), vectmp(2), vectmp(3), lon, lat )
         lon = mesh%v(i)%lon
         lat = mesh%v(i)%lat
         sinn = sin(lat)
@@ -896,12 +741,9 @@ subroutine initialize_global_moist_swm_vars()
         h%f(i) = (phi0 -w*sinn**2)*gravi
 
         r  = dsqrt((lon-lon0)**2+(lat-lat0)**2)
-        !r1 = dsqrt((lon-lon1)**2+(lat-lat0)**2)
 
         if(r<rmax)then
           bt%f(i)=2000._r8*(1._r8-r/rmax)
-        !else if(r1<rmax)then
-        !  bt%f(i)=2000._r8*(1._r8-r1/rmax)
         else
           bt%f(i)=0.
         endif
@@ -951,121 +793,10 @@ subroutine initialize_global_moist_swm_vars()
           u%f(l)=dot_product(vectmp,mesh%edhx(l)%nr)
         end do
       end if
-    !======================================================================================
-    ! Flow over Andes mountain
-    !======================================================================================
-
-    case(4,5,6)
-      !Parameters
-      u0     = 20._r8
-      phi0   = 5960._r8*grav
-      h0     = 2000._r8
-      phi_ct = (erad*omega*u0+(u0**2)/2._r8)
-      w      = omega*erad*u0 + u0*u0*0.5_r8
-      sigma  = 0._r8!w/10._r8
-      xsi    = 0.001_r8
-      mu1    = 0.05_r8
-      mu2    = 0.98_r8
-      theta_sp = -40._r8/300._r8 
-      theta_eq =  30._r8/300._r8 
-      theta_np = -20._r8/300._r8 
-      
-      if(testcase==4)then  
-        lon0  = -pi*0.5_r8
-        lat0  = pi/6._r8
-      else if(testcase==5)then  
-        lon0  = -pi*0.5_r8 - 0.35d0*pi
-        lat0  = -pi/6._r8
-      else if(testcase==6)then  
-        lon0  = -pi*0.5_r8 -0.52777d0*pi
-        lon1 = lon0 + 2.d0*pi
-        lat0  = -pi/6._r8  
-      end if
-      rmax   = pi/9._r8
-
-      !Variables at Voronoi centers
-      do i=1, mesh%nv
-        lon    = mesh%v(i)%lon
-        lat    = mesh%v(i)%lat
-        !print*,lon,lat
-        coss = cos(lat)
-        sinn = sin(lat) 
-        if(testcase==6)then  
-          !lon = lon-pi! +0.25d0*pi
-        end if
-        r = dsqrt((lon-lon0)**2+(lat-lat0)**2)
-        r1 = dsqrt((lon-lon1)**2+(lat-lat0)**2)
-        h%f(i) = (phi0 -w*sinn**2)*gravi
-
-        !Topography
-        !if(testcase==6)then !tc 6
-        !  bt%f(i)=2000._r8*smooth_andean_mountain([lat,lon], alt_table)
-        !else !tc 4 or tc5
-          if(r<rmax)then
-            bt%f(i)=2000._r8*(1._r8-r/rmax)
-          else if(r1<rmax)then
-            bt%f(i)=2000._r8*(1._r8-r1/rmax)
-          else
-            bt%f(i)=0.
-          endif
-        !endif
-        ! Correct h to allow orography
-        h%f(i)=h%f(i)-bt%f(i)
-
-        !Temperature
-        !lon = lon+pi + 0.35d0*pi
-        if(testcase==6)then  
-          lon = lon+1.d0*pi + 0.52777d0*pi !-95graus
-        else
-           lon = lon+pi + 0.35d0*pi
-        end if   
-        !lon = lon + 0.2*pi
-        !theta%f(i)=F_quad(theta_sp,(1._r8-mu1)*theta_eq,theta_np,lat) + mu1*theta_eq*dcos(lat)*dsin(lon)
-        !theta%f(i)=F_quad(theta_np,(1._r8-mu1)*theta_eq,theta_sp,lat) + mu1*theta_eq*dcos(lat)*dsin(lon)
-        theta%f(i)= mu1*theta_eq*dcos(lat)*dsin(lon)
-        !Vapour
-        Qv%f(i) = mu2*qsat(theta%f(i),h%f(i),bt%f(i),1._r8)
-        !Qv%f(i) = qsat(theta%f(i),h%f(i),bt%f(i),1._r8)
-
-        !Fluxes
-        hQv%f(i) = h%f(i)*Qv%f(i)
-        hQc%f(i) = h%f(i)*Qc%f(i)
-        hQr%f(i) = h%f(i)*Qr%f(i)
-        htheta%f(i) = h%f(i)*theta%f(i)
-      end do
-
-      q0 = 0.02_r8/maxval(qv%f)
-      Qv%f = q0*Qv%f
-      hQv%f = q0*hQv%f
-
-      print*,maxval(bt%f),minval(bt%f)
-     ! stop
-
-      if(useStagHTC)then
-        do l=1, mesh%ne
-          utmp=u0*dcos(mesh%ed(l)%c%lat)
-          vtmp=0._r8
-          call convert_vec_sph2cart(utmp, vtmp, mesh%ed(l)%c%p, vectmp)
-          v_ed%p(l)%v=vectmp
-          u%f(l)=dot_product(vectmp,mesh%ed(l)%tg)
-        end do
-
-      elseif(useStagHC)then
-        do l=1, mesh%ne
-          utmp=u0*dcos(mesh%edhx(l)%c%lat)
-          vtmp=0._r8
-          call convert_vec_sph2cart(utmp, vtmp, mesh%edhx(l)%c%p, vectmp)
-          v_ed%p(l)%v=vectmp
-          u%f(l)=dot_product(vectmp,mesh%edhx(l)%nr)
-        end do
-      end if
-
-
 
     !======================================================================================
-    ! galewski
+    ! Galewski - Jet in Southern Hemisphere
     !======================================================================================
-
     case(7,8)
       !Parameters
       !mu1    = 0.05_r8
@@ -1478,7 +1209,7 @@ subroutine initialize_global_moist_swm_vars()
     !$omp end parallel do
   end subroutine source
 
-  subroutine swm_physics_tests(meshtmp)
+  subroutine moist_swm_tests(meshtmp)
     !-----------------------------------------
     !  Main test routine tests routine
     !-----------------------------------------
@@ -1624,7 +1355,7 @@ subroutine initialize_global_moist_swm_vars()
       hQc_old=hQc
       hQr_old=hQr
     end do
-  end  subroutine swm_physics_tests
+  end  subroutine moist_swm_tests
 
 
   subroutine write_evol_file_cswm(time, iniwater, Twater, inimass, Penergy0, Kenergy0, Tenergy0, Availenergy0,&
@@ -1982,7 +1713,7 @@ subroutine plotfields_conv(k, time)
 
 
     !Standard parameters file
-    filename=trim(pardir)//"swm_physics.par"
+    filename=trim(pardir)//"moist_swm.par"
     print*,"Shallow Water Model parameters (file): ", trim(filename)
     print*
     call getunit(fileunit)
@@ -2210,7 +1941,7 @@ subroutine plotfields_conv(k, time)
 
     !Set a standart name for files
     write(atmp,'(i8)') int(testcase)
-    swmname="swm_physics_tc"//trim(adjustl(trim(atmp)))
+    swmname="moist_swm_tc"//trim(adjustl(trim(atmp)))
 
     !Print information
     print*, "Test Case     : ", testcase
@@ -2538,4 +2269,4 @@ subroutine plotfields_conv(k, time)
     !print*,iter
   end subroutine
 
-end module swm_physics
+end module moist_swm
