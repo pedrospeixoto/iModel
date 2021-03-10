@@ -7746,5 +7746,255 @@ contains
     return
 
   end subroutine plot_grad_vectorfield
+  
+
+
+  !---------------------------------------------------------------------
+  !
+  ! Hovmoller Diagrams ploting routines 
+  !
+  !---------------------------------------------------------------------
+  subroutine scalar_remap_geo2ll_hovmoller(nlon, nlat, var, mesh, var_lons, var_lats, lon_ref, lat_ref,kindinterpol, rbf_mat)
+   !---------------------------------------------------------------------
+   ! Scalar Remap Geodesic to Lon Lat
+   !
+   !   Given (nlat, nlon) sizes, a scalar variable (var) already containing
+   !   gradient estimatives and/ or the rbf matrices, and a mesh,
+   !   this routine will interpolate
+   !   a uniform global (nlat, nlon) mesh
+   !---------------------------------------------------------------------
+   !Uniform grid sizes
+   integer (i4), intent(in) :: nlon
+   integer (i4), intent(in) :: nlat
+
+   !Variable for interpolation procedure
+   type(scalar_field), intent(inout) :: var
+
+   !Mesh in which the variable belongs
+   type(grid_structure), intent(in) :: mesh
+
+   !Output variable for uniform grid
+   real (r8), intent(out) :: var_lons(0:nlon), var_lats(0:nlat)
+   real (r8), intent(in) :: lat_ref, lon_ref 
+
+   !Kind of interpolation -see scalar_interpol
+   character (len=8):: kindinterpol
+
+   !RBF matrix vector (used only on+ rbf interpolations)
+   type(rbf_matrix_structure), optional :: rbf_mat(:)
+
+   !Auxiliar varibles
+   integer (i4):: i
+   integer (i4):: j
+   real (r8):: tlat
+   real (r8):: tlon
+   real (r8):: dlat
+   real (r8):: dlon
+   real (r8):: p(1:3)
+   real (r8)::  fest
+
+   dlat=180._r8/real(nlat, r8)
+   dlon=360._r8/real(nlon, r8)
+   !Pixel registration mode (GMT)
+   tlat=-90._r8
+   tlon= lon_ref
+   do j=0,nlat
+      call sph2cart(tlon*deg2rad, tlat*deg2rad, p(1), p(2), p(3))
+      if(present(rbf_mat))then
+         fest=scalar_interpol(p, var, mesh, kindinterpol, rbf_mat)
+      else
+         fest=scalar_interpol(p, var, mesh, kindinterpol)
+      end if
+      var_lats(j)=fest
+      tlat=tlat+dlat
+   end do
+
+   tlat=lat_ref
+   tlon = -180.d0
+   do i=0,nlon
+      call sph2cart(tlon*deg2rad, tlat*deg2rad, p(1), p(2), p(3))
+      if(present(rbf_mat))then
+         fest=scalar_interpol(p, var, mesh, kindinterpol, rbf_mat)
+      else
+         fest=scalar_interpol(p, var, mesh, kindinterpol)
+      end if
+      var_lons(i)=fest
+      tlon=tlon+dlon
+   end do
+   return
+  end subroutine scalar_remap_geo2ll_hovmoller
+
+
+  subroutine plot_hovmoller_diagram(var, mesh, lat_ref, lon_ref, t)
+   !----------------------------------------------
+   ! PLOT_SCALARFIELD
+   !   Writes in 'var%name file' a uniform mesh with
+   !   nlat latitudes and nlon longitudes
+   !   using interpolation
+   !   This is intended to be used only for GMT plots
+   !---------------------------------------------
+
+   !Mesh structure
+   type(grid_structure), intent(in) :: mesh
+
+   !Variable to be plotted
+   type(scalar_field), intent(inout) :: var
+
+   integer (i4), intent(in) :: t
+
+   !Uniform grid sizes
+   integer (i4), parameter  :: nlat=720
+   integer (i4), parameter  :: nlon=1440
+
+   !Kind of interpolation -see scalar_interpol
+   !If not given, uses nearest node interpolation
+   !character (len=8), optional :: kindinterp
+   character (len=8):: kindinterpol
+
+   !Aux variable
+   type(scalar_field):: var0
+
+   !Variable for uniform grid
+   real (r4), allocatable :: buffer_lats(:),buffer_lons(:)
+   real (r8), allocatable :: var_lons(:),var_lats(:)
+   real (r8):: dlon
+   real (r8):: dlat
+   real (r8):: tlon
+   real (r8):: tlat
+   real (r8), intent(in) :: lat_ref,lon_ref
+   integer (i4):: i
+   integer (i4):: j
+   integer (i4):: k
+   integer (i4):: iunit
+   logical::  ifile
+
+   !File name for output
+   character (len=256):: filename,filename2
+
+   allocate(var_lons(0:nlon))
+   allocate(var_lats(0:nlat))
+
+   select case (var%pos)
+     case(0, 4) !Values on Voronoi cells
+        kindinterpol='neartrv'
+     case(1,5) !Values on triangles
+         kindinterpol='neartrc'
+     case(2, 6) !Values on tr edges
+         kindinterpol='neartred'
+     case(3) !Values on edges
+         kindinterpol='nearhxed'
+     case default
+      print*, "plot_scalarfield error: variable position not plottable", var%pos
+      stop
+   end select
+
+   if( len_trim(var%name)==0) then
+      filename =trim(datadir)//"scalar_"//"hovmoller_lon_"//trim(mesh%name)//".dat"
+      filename2=trim(datadir)//"scalar_"//"hovmoller_lat_"//trim(mesh%name)//".dat"
+   else
+      filename =trim(datadir)//trim(var%name)//"_"//"hovmoller_lon_"//trim(mesh%name)//".dat"
+      filename2=trim(datadir)//trim(var%name)//"_"//"hovmoller_lat_"//trim(mesh%name)//".dat"
+   end if
+   !print*, " Plotting Hovmoller diagrams ( with ", trim(kindinterpol), " ): "
+   !write(*, '(a)') "   "//trim(filename)
+   !write(*, '(a)') "   "//trim(filename2)
+
+   select case(var%pos)
+   case(1, 5) !Values on triangles
+      !If values on triangle center, and kindinterpol not 'neartrc'
+      !   interpolate with linear
+      !   to triangle vertex points (this must be improved)
+      if(trim(kindinterpol)=='neartrc')then
+         call scalar_remap_geo2ll_hovmoller(nlon, nlat, var, mesh, var_lons, var_lats, lon_ref, lat_ref,kindinterpol)
+      else
+         call scalar_remap_trc2trv(var, var0, mesh)
+         ! Remap to lat lon grid
+         kindinterpol='neartrv'
+         call scalar_remap_geo2ll_hovmoller(nlon, nlat, var, mesh, var_lons, var_lats, lon_ref, lat_ref,kindinterpol)
+      end if
+
+   case(0, 4) !Values on Voronoi cells
+      ! Remap to lat lon grid
+      call scalar_remap_geo2ll_hovmoller(nlon, nlat, var, mesh, var_lons, var_lats, lon_ref, lat_ref,kindinterpol)
+
+   case(2, 3, 6) !Values on edges
+      ! Remap to lat lon grid
+      call scalar_remap_geo2ll_hovmoller(nlon, nlat, var, mesh, var_lons, var_lats, lon_ref, lat_ref,kindinterpol)
+
+   case default
+      print*, "plot_scalarfield error: variable position not plottable", var%pos
+      stop
+   end select
+
+
+   !allocate(buffer(1, 1:nlat*nlon))
+   allocate(buffer_lons(0:nlon))
+   allocate(buffer_lats(0:nlat))
+
+   !Pixel registration mode (GMT)
+
+   !Copy data to a buffer
+   k=1
+   dlat=180._r8/real(nlat, r8)
+   dlon=360._r8/real(nlon, r8)
+   
+   !Pixel registration mode (GMT) (at midpoint of cell)
+   tlon=-180._r8
+   tlat=lat_ref
+   do i=0,nlon
+     buffer_lons(i)=var_lons(i)
+     tlon=tlon+dlon
+   end do
+
+   !Pixel registration mode (GMT) (at midpoint of cell)
+   tlon=lon_ref
+   tlat=-90._r8
+   do j=0,nlat
+     buffer_lats(j)=var_lats(j)
+     tlat=tlat+dlat
+   end do
+
+   !Write values on file
+   call getunit(iunit)
+   inquire(file=filename, exist=ifile)
+   if(ifile)then
+     if(t>0)then
+       open(iunit,file=filename, status='old', position='append')
+     else
+       open(iunit,file=filename, status='replace')
+     end if
+   else
+     open(iunit,file=filename, status='replace')
+   end if
+   do i = 0, nlon
+     write(iunit,*) buffer_lons(i)
+   end do
+   close(iunit)
+
+   !Write values on file
+   call getunit(iunit)    
+   inquire(file=filename2, exist=ifile)
+   if(ifile)then
+     if(t>0)then
+       open(iunit,file=filename2, status='old', position='append')
+     else
+       open(iunit,file=filename2, status='replace')
+     end if
+   else
+     open(iunit,file=filename2, status='replace')
+   end if
+
+   !Write whole block to file (much faster)
+   !write(iunit) buffer_lats
+   do j = 0, nlat
+      write(iunit,*) buffer_lats(j)
+   end do
+   close(iunit)
+   
+   deallocate(var_lats,var_lons)
+   deallocate(buffer_lats,buffer_lons)
+
+   return
+  end subroutine plot_hovmoller_diagram  
 
 end module interpack
