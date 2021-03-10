@@ -79,6 +79,7 @@ bin/diffoperpack.obj \
 bin/simulpack.obj \
 bin/swm_data.obj \
 bin/swm_operators.obj \
+bin/swm_matsuno.obj \
 bin/swm.obj \
 bin/moist_swm.obj \
 bin/datastructmult.obj \
@@ -185,11 +186,15 @@ bin/swm_operators.obj: src/swm_operators.f90
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv swm_operators.mod bin/.
 
-
 bin/swm.obj: src/swm.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv swm.mod bin/.
-
+	
+#Matsuno test case for the shallow water model
+bin/swm_matsuno.obj: src/swm_matsuno.f90 
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv swm_matsuno.mod bin/.
+	
 #Moist shallow water model
 bin/moist_swm.obj: src/moist_swm.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
