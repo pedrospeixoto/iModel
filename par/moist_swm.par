@@ -1,10 +1,10 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-10 0
+8 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-30 30
+8 8
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-800 0 0
+200 0 0
 !Scalar/vector location (HC or HTC)
 HTC
 !Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
@@ -35,21 +35,10 @@ none 0.5
 !--------------------------HELP----------------------------------!
 !Options
 !
-!Test Cases implemented
-1: Solid body rotation
-2 : Steady State Will92
-5 : Flow over mountain Will92
-6 : Rossby-Haurwitz Will92 
-11 : Linearized equations - for mode calculation - fsphere
-12 : Linearized equations - for mode calculation - f variable
-21 : Galewski et al Barotropically unstable jet with perturbation
-22 : Galewski et al Barotropically unstable jet without perturbation
-32 : Hollingsworth instability with tc2
-33 : Hollingsworth instability with constant h and non rotating frame
-34 : Hollingsworth instability with tc2 suppressing nonlinearities
-35 : Hollingsworth instability with tc2 and non rotationg frame suppressing nonlinearities   
-42 : Rotated Steady state localised test on f-sphere
-51 : Flow over mountain Will92 smooth mountain (Gaussian)
+!Test Cases implemented 
+2 : Steady State  - from Zerroukat and Allen JCP 2015
+4 : Flow over mountain  - from Zerroukat and Allen JCP 2015
+8 : Galewski et al Barotropically unstable jet with perturbation
 
 !Scalar/vector collocation (HC or HTC)
 HC : scalars on cell node and vectors on Voronoi cell edge midpoints
