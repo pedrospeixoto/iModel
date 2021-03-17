@@ -664,10 +664,10 @@ subroutine initialize_global_moist_swm_vars()
         htheta%f(i) = h%f(i)*theta%f(i)
       end do
 
-      print*,minval(theta%f),maxval(theta%f)
+      !print*,minval(theta%f),maxval(theta%f)
       !stop
       q0 = 0.02_r8/maxval(qv%f)
-      print*,maxval(qv%f)
+      !print*,maxval(qv%f)
       Qv%f = q0*Qv%f
       hQv%f = q0*hQv%f
 
@@ -755,7 +755,7 @@ subroutine initialize_global_moist_swm_vars()
         !lon = lon+1.d0*pi + 0.52777d0*pi !-95graus
         lon = lon+pi+pi + 30.d0*deg2rad !+ 0.52777d0*pi !-95graus
         theta%f(i)=F_quad(theta_sp,(1._r8-mu1)*theta_eq,theta_np,lat) + mu1*theta_eq*dcos(lat)*dsin(lon)
-
+        theta%f(i)= theta_sp*lat*(lat+pio2) - (1._r8-mu1)*theta_eq*(lat+pio2)*(lat-pio2) + theta_np*lat*(lat-pio2)
         !Vapour
         Qv%f(i) = mu2*qsat(theta%f(i),h%f(i),bt%f(i),1._r8)
         
@@ -770,7 +770,7 @@ subroutine initialize_global_moist_swm_vars()
       Qv%f = q0*Qv%f
       hQv%f = q0*hQv%f
 
-      print*,maxval(bt%f),minval(bt%f)
+      !print*,maxval(bt%f),minval(bt%f)
       !stop
       alpha = 0.d0
       if(useStagHTC)then
@@ -978,7 +978,7 @@ subroutine initialize_global_moist_swm_vars()
       Qv%f = q0*Qv%f
       hQv%f = q0*hQv%f
 
-      print*,q0,maxval(qv%f),minval(qv%f)
+      !print*,q0,maxval(qv%f),minval(qv%f)
       !stop 
 
     case default
@@ -1227,7 +1227,7 @@ subroutine initialize_global_moist_swm_vars()
     !Check for blow ups
     integer(i4)::blowup=0
 
-    !Error variables - for tc2 and tc3
+    !Error variables - for tc2
     real(r8):: rel_error_h
     real(r8):: rel_error_u
     real(r8):: rel_error_Qv
@@ -1284,9 +1284,10 @@ subroutine initialize_global_moist_swm_vars()
       call ode_rk4_moist_swm(time, h_old, u_old, htheta_old, hQv_old, hQc_old, hQr_old, &
                          h, u, htheta, hQv, hQc, hQr, dt)
 
-      call mass_fixer2(hQv)             
-      call mass_fixer2(hQr)
-      call mass_fixer2(hQc)
+      !Apply the monotonic filter for tracers
+      call monotonic_filter(hQv)             
+      call monotonic_filter(hQr)
+      call monotonic_filter(hQc)
 
       !call mass_fixer(hQv,hQr,hQc, iniwater)
       !call scalar_elem_divide(htheta, h, theta)
@@ -1308,21 +1309,29 @@ subroutine initialize_global_moist_swm_vars()
         rel_error_Qr = maxval(abs(Qr_error%f))
         rel_error_theta = maxval(abs(theta_error%f))/maxval(abs(theta_exact%f))
         print*, k, ntime
-        print '(a22, 3e16.8)',' h, u, theta = ',rel_error_h,rel_error_u,rel_error_theta
-        print '(a22, 3e16.8)',' qv, qc, qr = ',rel_error_Qv,rel_error_Qc,rel_error_Qr
-        print '(a22, 2e16.8)',' vapour = ',minval(qv%f),maxval(qv%f)
-        print '(a22, 2e16.8)',' cloud = ',minval(qc%f),maxval(qc%f)
-        print '(a22, 2e16.8)',' rain = ',minval(qr%f),maxval(qr%f)
+        print*, "Time (dys) :",   k*dt*sec2day, " of ", ntime*dt*sec2day
+        print*, "Step = ", k, " of ", ntime
+        print '(a33, 3e16.8)','linf errors of (h, u, theta) = ',rel_error_h,rel_error_u,rel_error_theta
+        print '(a33, 3e16.8)','linf errors of  (qv, qc, qr) = ',rel_error_Qv,rel_error_Qc,rel_error_Qr
+        !print '(a22, 2e16.8)',' height = ',minval(h%f),maxval(h%f)
+        !print '(a22, 2e16.8)',' velocity = ',minval(u%f),maxval(u%f)
+        !print '(a22, 2e16.8)',' temperature = ',minval(theta%f),maxval(theta%f)
+        !print '(a22, 2e16.8)',' vapour = ',minval(qv%f),maxval(qv%f)
+        !print '(a22, 2e16.8)',' cloud = ',minval(qc%f),maxval(qc%f)
+        !print '(a22, 2e16.8)',' rain = ',minval(qr%f),maxval(qr%f)
         call write_swmp_error_file(time)
       else 
-        print*, k, ntime
+        print*, "Time (dys) :",   k*dt*sec2day, " of ", ntime*dt*sec2day
+        print*, "Step = ", k, " of ", ntime
+        print*,'                          min               max'
         print '(a22, 2e16.8)',' height = ',minval(h%f),maxval(h%f)
         print '(a22, 2e16.8)',' velocity = ',minval(u%f),maxval(u%f)
-        print '(a22, 2e16.8)',' temp = ',minval(theta%f),maxval(theta%f)
+        print '(a22, 2e16.8)',' temperature = ',minval(theta%f),maxval(theta%f)
         print '(a22, 2e16.8)',' vapour = ',minval(qv%f),maxval(qv%f)
         print '(a22, 2e16.8)',' cloud = ',minval(qc%f),maxval(qc%f)
         print '(a22, 2e16.8)',' rain = ',minval(qr%f),maxval(qr%f)
       end if
+
       !print*,'CFL = ',cfl
       !Plot fields
       call plotfields_conv(k, time)
@@ -1345,8 +1354,8 @@ subroutine initialize_global_moist_swm_vars()
 
       !Calculate erngies
       call calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
-      print*,iniwater,Twater,(Twater-iniwater)/iniwater
-
+      print '(a33, 2e16.8)','Change in mass of h*(total water):', (Twater-iniwater)/iniwater
+      print*,''
       !update fields
       u_old=u
       h_old=h
@@ -2148,51 +2157,11 @@ subroutine plotfields_conv(k, time)
 
   end subroutine write_swmp_error_file
 
-  subroutine mass_fixer(hQv,hQr,hQc, mass_water_initial)
-    type(scalar_field), intent(inout):: hQv  
-    type(scalar_field), intent(inout):: hQc  
-    type(scalar_field), intent(inout):: hQr
-    real(kind=8):: mass_water_initial
-    integer(i4) :: i
-    real(r8):: mass_hQc, mass_hQv, mass_hQr, modified_mass_hQr
-
-    !$omp parallel do &
-    !$omp default(none) &
-    !$omp shared(mesh) &
-    !$OMP shared(hQr) &
-    !$omp schedule(static)
-
-    ! monotonic filter
-    do i = 1, mesh%nv
-      if(hQr%f(i)<0._r8)then
-        hQr%f(i) = 0._r8
-      end if
-    end do
-    !$omp end parallel do
-
-    mass_hQc = sumf_areas(hQc)
-    mass_hQv = sumf_areas(hQv)
-    mass_hQr = sumf_areas(hQr)
-    modified_mass_hQr = mass_water_initial - mass_hQc - mass_hQv
-
-    !mean_massdif_qr = massdif_qr/mesh%nv
-
-    if(abs(mass_hQr)>0.000000001)then
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh) &
-      !$omp shared(modified_mass_hQr,mass_hQr) &
-      !$OMP shared(hQr) &
-      !$omp schedule(static)
-      do i = 1, mesh%nv
-        hQr%f(i) = hQr%f(i)*modified_mass_hQr/mass_hQr
-      end do
-    !$omp end parallel do
-    end if
-
-  end subroutine
-
-  subroutine mass_fixer2(phi) 
+  
+  !================================================
+  ! Mononotic filter for tracer phi
+  !================================================
+  subroutine monotonic_filter(phi) 
     type(scalar_field), intent(inout):: phi
     type(scalar_field) :: phi_mass
     real(kind=8):: mass_water_initial
