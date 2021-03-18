@@ -61,7 +61,8 @@ module constants
   real(r8), parameter  :: grav    = 9.80616_r8
   real(r8), parameter  :: gravity = 9.80616_r8
   real(r8), parameter  :: gravi   = 1._r8/9.80616_r8
-
+  real(r8), parameter  :: gravo2   = grav*0.5_r8
+  
   ! Angular velocity of the Earth (rot/s)
   real (r8), parameter :: omega   = 7.292e-5_r8
   real (r8), parameter :: rotatn   = 7.292e-5_r8

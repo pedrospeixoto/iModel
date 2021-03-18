@@ -16,6 +16,7 @@ iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid bas
 - Multigrid solver (MSc M. Silva)
 - Transport model (Semi-Lagrangian)
 - Finite Volume Shallow Water Model 
+- Finite Volume Moist Shallow Water Model (MSc L. Santos)
 
 Additionally includes (Developed by John Thuburn):
 - A spherical shallow water model version of ENDGame model, which uses finite differences on lat-long grid (endgame/)

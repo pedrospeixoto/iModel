@@ -38,7 +38,7 @@ module swm
   !Global variables and operators for shallow water model
   use swm_data !Everything
   use swm_operators !Everything
-
+  use swm_matsuno !Everything
   !Use main grid data structures
   use datastruct, only: &
     grid_structure, &
@@ -2319,6 +2319,11 @@ contains
         h%f=100.
         h_exact=h
         u_exact=u
+      
+      case(56,57)  !Matsuno baroclinic wave test case
+        call exact_matsuno(0._r8)
+        h=h_exact
+        u=u_exact        
 
       case default
         print*, "SWM_initialize_fields error - please select a proper test case:", testcase
@@ -2706,6 +2711,11 @@ contains
 
     if(.not.plots)return
 
+    !Plots Hovmoller diagram - Matsuno test case
+    if( (testcase==56 .or.testcase==57))then
+      call matsuno_analysis(k,time)
+    endif
+    
     !Plot Fields
     !print*, k, ploterrors, useRefSol, (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol)
     !if( (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol))then
