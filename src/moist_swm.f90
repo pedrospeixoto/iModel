@@ -1754,7 +1754,9 @@ subroutine plotfields_conv(k, time)
     read(fileunit,*)  buffer
     read(fileunit,*)  nplots, nprints, iploterrors
     read(fileunit,*)  buffer
-    read(fileunit,*)  difus
+    read(fileunit,*)  diffus
+    read(fileunit,*)  buffer
+    read(fileunit,*)  hyperdiffus
     read(fileunit,*)  buffer
     read(fileunit,*)  hollgw
     read(fileunit,*)  buffer
@@ -2013,6 +2015,17 @@ subroutine plotfields_conv(k, time)
        !print*, atmp
     end if
 
+
+    if( diffus>0 ) then
+      write(atmp,'(f10.3)') real(diffus)
+      swmname=trim(swmname)//"_diffusion"!//trim(adjustl(trim(atmp)))
+    end if
+
+    if( hyperdiffus>0 ) then
+      write(atmp,'(f10.3)') real(hyperdiffus)
+      swmname=trim(swmname)//"_hyperdiffusion"!//trim(adjustl(trim(atmp)))
+    end if 
+    
     !RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23.or.testcase==60
     !RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
     !  .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &

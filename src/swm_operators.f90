@@ -851,7 +851,37 @@ contains
     return
   end subroutine laplacian_ed
 
+  subroutine hyperdiffusion_ed(lapu, lap_lapu, div_lap, vort_lap, grad_ed_div_lap, grad_ed_vort_lap, mesh)
+    !---------------------------------------------------------------
+    !Calculate hyperdiffusion of field u at edges
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in) :: lapu !given field
+    type(scalar_field), intent(inout):: lap_lapu !laplacian - must be already allocated
 
+    !auxiliary fields - must be already allocated
+    type(scalar_field), intent(inout) :: div_lap   !divergence of u - must be already computed
+    type(scalar_field), intent(inout) :: vort_lap  !relative vorticity of u - must be already computed
+    type(scalar_field), intent(inout) :: grad_ed_div_lap  ! gradient of divergence
+    type(scalar_field), intent(inout) :: grad_ed_vort_lap ! gradient of relative vorticity
+
+    !Calculate divergence of velocity - used in difusion and for diagnostics
+    call div_hx(lapu, div_lap, mesh)
+
+    !Calculate relative vorticity of velocity - used in difusion and for diagnostics
+    call rel_vort_tr(lapu, vort_lap, mesh)
+    
+    !Calculate the gradient of divergence
+    call grad_ed(div_lap, grad_ed_div_lap, mesh)
+
+    !Compute the gradient of vorticity
+    call grad_ed_tg(vort_lap, grad_ed_vort_lap, mesh)
+
+    !Global vector laplacian
+    lap_lapu%f = grad_ed_div_lap%f - grad_ed_vort_lap%f
+    return
+  end subroutine hyperdiffusion_ed
+  
   subroutine kinetic_energy_tr(u, ke, mesh)
     !---------------------------------------------------------------
     !Calculate kinetic energy at triangles

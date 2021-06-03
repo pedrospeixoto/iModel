@@ -2527,11 +2527,22 @@ contains
     !Diffusion
     !------------------------------------------
 
-    if(difus /= 0)then 
+    if(diffus /= 0)then 
       !call laplacian_hx(u, eta, lapu, mesh)
-      !print*,difus
+      !print*,diffus
       call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
-      momeq=momeq + difus*lapu%f
+      momeq=momeq + diffus*lapu%f
+    end if
+    
+    if(hyperdiffus /= 0)then
+      !print*,hyperdiffus 
+      !Computed laplacian
+      call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
+      
+      !Compute hyperdiffusion
+      call hyperdiffusion_ed(lapu, lap_lapu, div_lapu, zeta_lapu, grad_ed_div_lapu, grad_ed_vort_lapu, mesh)
+      
+      momeq=momeq - hyperdiffus*lap_lapu%f
     end if
 
     if(testcase<=1)then
@@ -3564,8 +3575,7 @@ contains
     end if
     return
   end function sec
-
-
+  
 end module swm
 !-------------------------------------------------
 
