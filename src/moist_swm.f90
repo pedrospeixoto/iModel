@@ -368,7 +368,7 @@ subroutine allocate_global_moistswm_vars()
     Su%pos=edpos
     allocate(Su%f(1:u%n), stat=ist)
 
-    IF(ist>0) STOP 'Error in allocate_globalconvvars'
+    IF(ist>0) STOP 'Error in allocate_globalmoistswmvars'
 
     call initialize_global_moist_swm_vars()
 
@@ -1259,7 +1259,7 @@ subroutine initialize_global_moist_swm_vars()
     call tendency_moist_swm(h, u, htheta, hQv, hQc, hQr, masseq%f, momeq%f, tempeq%f, vapoureq%f, cloudeq%f, raineq%f)
 
     !Plot initial fields
-    call plotfields_conv(0, 0._r8)
+    call plotfields_mswm(0, 0._r8)
     !stop 
 
     !Calculate total mass
@@ -1295,6 +1295,11 @@ subroutine initialize_global_moist_swm_vars()
       call scalar_elem_divide(hQc, h, Qc)
       call scalar_elem_divide(hQr, h, Qr)
 
+      !compute the mass of each tracer
+      Train=sumf_areas(qr)
+      Tcloud=sumf_areas(qc)
+      Tvapour=sumf_areas(qv)
+      
       if(testcase==2 .or. testcase==3)then
         h_error%f = h_exact%f - h%f
         u_error%f = u_exact%f - u%f
@@ -1308,7 +1313,7 @@ subroutine initialize_global_moist_swm_vars()
         rel_error_Qc = maxval(abs(Qc_error%f))
         rel_error_Qr = maxval(abs(Qr_error%f))
         rel_error_theta = maxval(abs(theta_error%f))/maxval(abs(theta_exact%f))
-        print*, k, ntime
+        !print*, k, ntime
         print*, "Time (dys) :",   k*dt*sec2day, " of ", ntime*dt*sec2day
         print*, "Step = ", k, " of ", ntime
         print '(a33, 3e16.8)','linf errors of (h, u, theta) = ',rel_error_h,rel_error_u,rel_error_theta
@@ -1323,32 +1328,31 @@ subroutine initialize_global_moist_swm_vars()
       else 
         print*, "Time (dys) :",   k*dt*sec2day, " of ", ntime*dt*sec2day
         print*, "Step = ", k, " of ", ntime
-        print*,'                          min               max'
+        print*,'                          min               max               mass'
         print '(a22, 2e16.8)',' height = ',minval(h%f),maxval(h%f)
         print '(a22, 2e16.8)',' velocity = ',minval(u%f),maxval(u%f)
         print '(a22, 2e16.8)',' temperature = ',minval(theta%f),maxval(theta%f)
-        print '(a22, 2e16.8)',' vapour = ',minval(qv%f),maxval(qv%f)
-        print '(a22, 2e16.8)',' cloud = ',minval(qc%f),maxval(qc%f)
-        print '(a22, 2e16.8)',' rain = ',minval(qr%f),maxval(qr%f)
+        print '(a22, 3e16.8)',' vapour = ',minval(qv%f),maxval(qv%f), Tvapour
+        print '(a22, 3e16.8)',' cloud = ',minval(qc%f),maxval(qc%f), Tcloud
+        print '(a22, 3e16.8)',' rain = ',minval(qr%f),maxval(qr%f), Train
       end if
 
       !print*,'CFL = ',cfl
       !Plot fields
-      call plotfields_conv(k, time)
+      call plotfields_mswm(k, time)
 
+      !Write errors in file
       call write_evol_file_cswm(time, iniwater, Twater, inimass, Penergy0, Kenergy0, Tenergy0, Availenergy0,&
                                    tmass, Penergy, Kenergy, Tenergy, Availenergy)
 
-      Train=sumf_areas(qr)
-      Tcloud=sumf_areas(qc)
-      Tvapour=sumf_areas(qv)
-
-      call write_evol_file_cswm2(time, Train, Tcloud, Tvapour)
+      call write_water_evol_file(time, Train, Tcloud, Tvapour)
+      
       !Calculate total mass
       Tmass=sumf_areas(h)
 
       !Calculate total water
       hwater%f = hQr%f + hQv%f + hQc%f
+      
       !call scalar_elem_divide(hwater, h, water)
       Twater = sumf_areas(hwater)
 
@@ -1417,10 +1421,10 @@ subroutine initialize_global_moist_swm_vars()
   close(errorsunit)
 end subroutine write_evol_file_cswm
 
-subroutine write_evol_file_cswm2(time, train, tcloud, tvapour)
+subroutine write_water_evol_file(time, train, tcloud, tvapour)
 !----------------------------------------------------------
-!  write info to specific file for this specific model set up
-!    at defined time steps
+!  write info about water evolution in the moist shallow water model
+!  to specific file for this specific model set up   at defined time steps
 !----------------------------------------------------------
 !File name for output
 character (len=256):: filename
@@ -1453,10 +1457,10 @@ end if
 
 write(errorsunit, *) time*sec2day, train, tcloud, tvapour
  close(errorsunit)
-end subroutine write_evol_file_cswm2
+end subroutine write_water_evol_file
 
   
-subroutine plotfields_conv(k, time)
+subroutine plotfields_mswm(k, time)
     !-------------------------------------------
     !  Plot fields
     !  k- index for time couting
@@ -1538,7 +1542,7 @@ subroutine plotfields_conv(k, time)
         !divuh%name=trim(swmname)//"_divuh_t"//trim(adjustl(trim(atime)))
         !call plot_scalarfield(divuh, mesh)
     end if
-  end subroutine plotfields_conv
+  end subroutine plotfields_mswm
 
   subroutine ode_rk4_moist_swm ( t, h, u, htheta, hqv, hqc, hqr, h_new, u_new, htheta_new,&
                                  hqv_new, hqc_new, hqr_new, dt)

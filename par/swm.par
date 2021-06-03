@@ -23,8 +23,8 @@ geo
 1 1 1
 !Diffusion coef - Leave zero for no diffusion 
 0
-!Hyperdiffusion coef - Leave zero for no hyperdiffusion 
-70000000
+!Hyperdiffusion coef - Leave zero for no hyperdiffusion - not debugged
+0
 !Hollingsworth coef - Only for test case 32, 33, 34
 2.0
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
