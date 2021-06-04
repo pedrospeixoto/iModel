@@ -755,7 +755,7 @@ subroutine initialize_global_moist_swm_vars()
         !lon = lon+1.d0*pi + 0.52777d0*pi !-95graus
         lon = lon+pi+pi + 30.d0*deg2rad !+ 0.52777d0*pi !-95graus
         theta%f(i)=F_quad(theta_sp,(1._r8-mu1)*theta_eq,theta_np,lat) + mu1*theta_eq*dcos(lat)*dsin(lon)
-        theta%f(i)= theta_sp*lat*(lat+pio2) - (1._r8-mu1)*theta_eq*(lat+pio2)*(lat-pio2) + theta_np*lat*(lat-pio2)
+      
         !Vapour
         Qv%f(i) = mu2*qsat(theta%f(i),h%f(i),bt%f(i),1._r8)
         
