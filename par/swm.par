@@ -22,7 +22,9 @@ geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
 2 60 1
 !Diffusion coef - Leave zero for no diffusion 
-10000
+0
+!Hyperdiffusion coef - Leave zero for no hyperdiffusion - not debugged
+0
 !Hollingsworth coef - Only for test case 32, 33, 34
 2.0
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
