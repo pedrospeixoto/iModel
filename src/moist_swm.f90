@@ -63,11 +63,11 @@ module moist_swm
     tendency, &
     error_calc
 
-    use refinter, only: &
-    andean_mountain_data, &
-    smooth_andean_mountain, &
-    earth_elevation, &
-    interpol_densf
+    !use refinter, only: &
+    !andean_mountain_data, &
+    !smooth_andean_mountain, &
+    !earth_elevation, &
+    !interpol_densf
 
     !=============================================================================
     !Moist shallow water model variables
