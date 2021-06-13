@@ -69,7 +69,11 @@ program imodel
   !High order testing module
   use highorder, only: &
        highordertests  
-       
+
+  !Moist shallow water model testing module
+  use moist_swm, only: &
+    moist_swm_tests!, &
+           
   !Variable declaration
   implicit none
 
@@ -153,6 +157,10 @@ program imodel
 
   case(17) !High-order transport
     call highordertests(mesh)
+    
+  case(18) !Moist shallow water model
+    call moist_swm_tests(mesh)    
+    
   case default
      print*, "Please select a proper simulation case ...:", simulcase
   end select

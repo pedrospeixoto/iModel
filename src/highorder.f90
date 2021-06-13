@@ -515,14 +515,16 @@ contains
     
 
      end do 
-
   
     
-    !call moment(i,mesh)
-  
     end if
 
   end subroutine matrix
+
+
+
+
+
 
 
   subroutine moment(no,mesh)

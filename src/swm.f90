@@ -38,7 +38,7 @@ module swm
   !Global variables and operators for shallow water model
   use swm_data !Everything
   use swm_operators !Everything
-
+  use swm_matsuno !Everything
   !Use main grid data structures
   use datastruct, only: &
     grid_structure, &
@@ -84,8 +84,8 @@ module swm
 
   !Use topography and bilinear interpolation routines
   use refinter, only: &
-   andean_mountain_data, &
-   smooth_andean_mountain
+   smooth_andes_mountain, &
+   generate_smooth_andes_mountain
 
   !use eispack, only: &
   !  rg
@@ -175,7 +175,7 @@ contains
 
     !Plot initial fields
     call plotfields(k=0, time=0._r8)
-
+    
     u_old=u
     h_old=h
     !Calculate total mass
@@ -279,10 +279,12 @@ contains
           max_gradke=max(max_gradke, abs(gradke_tmp/mesh%ed(l)%leng/erad))
         end do
 
-        call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
-          errormaxrel_u, error2_u,  errormaxrel, error2, &
-          (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
-          (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
+        if( mod(k,nprints)==0 )then
+          call write_evol_error(k, time, (Tmass-inimass)/inimass, errormaxrel_h, error2_h, &
+            errormaxrel_u, error2_u,  errormaxrel, error2, &
+            (Penergy-Penergy0)/Penergy0, (Kenergy-Kenergy0)/Kenergy0, (Tenergy-Tenergy0)/Tenergy0, &
+            (Availenergy-Availenergy0)/Availenergy0, RMSdiv, maxdiv, max_gradke, nonlin_alpha)
+        end if
 
         if((errormaxrel_h > 20.0 .or. isnan(errormaxrel_h)).and. k > 3 )then
 
@@ -1081,7 +1083,7 @@ contains
     logical::  ifile
 
     ! Andes smooth topography - testcases 54 and 55
-    real(r8), allocatable :: alt_table(:,:)
+    real(r8), allocatable :: altitude_table(:,:)
 
     maxvel=1.
     maxh=1.
@@ -1280,7 +1282,7 @@ contains
           momeq_exact%f=0._r8
         end if
 
-      case(5, 51) !Flow over mountain
+      case(5, 51, 60) !Flow over mountain
         u0=20._r8
         h0=5960._r8
         h_ct=(erad*omega*u0+(u0**2)/2._r8)*gravi
@@ -1289,6 +1291,13 @@ contains
         lat0=pi/6._r8
         rmax=pi/9._r8
 
+        ! Add Andes topography
+        if(testcase==60)then
+          allocate(altitude_table(nlat_alt*nlon_alt,3))
+          call getunit(iunit2)
+          call generate_smooth_andes_mountain(altitude_table, iunit2)
+        end if
+        
         if(testcase==5)then
           do i=1, mesh%nv
             !print*, i
@@ -1308,7 +1317,24 @@ contains
             ! Correct h to allow orography
             h%f(i)=h%f(i)-bt%f(i)
           end do
+          
+        !flow over Andes  
+        elseif(testcase==60)then
+          do i=1, mesh%nv
+            !print*, i
+            lon=mesh%v(i)%lon
+            lat=mesh%v(i)%lat
+            !r=dsqrt((lon-lon0)**2+(lat-lat0)**2)
+            h%f(i)=h0-h_ct*dsin(mesh%v(i)%lat)**2
 
+            if(testcase==60)then
+              bt%f(i)=2000.d0*smooth_andes_mountain([lat,lon], altitude_table)
+            endif
+          
+            ! Correct h to allow orography
+            h%f(i)=h%f(i)-bt%f(i)
+          end do
+          
         elseif(testcase==51)then
           !u0=pi2*erad/(12._r8*day2sec)
           !h0=2.94e4_r8*gravi
@@ -1575,14 +1601,14 @@ contains
         momeq_exact%f=0
 
 
-      case(21, 22, 23, 52, 53, 54) !  ! Galewsky et al test case - From J. Thuburns code
+      case(21, 22, 23, 52, 53) !  ! Galewsky et al test case - From J. Thuburns code
 
         if(testcase==23)then
           u00 = 200.0
           lat0 = pi/7.0
           lat1 = pi/2.0 - lat0
         else
-          if(testcase==52 .or. testcase==53 .or. testcase==54)then ! Jet in Southern Hemisphere
+          if(testcase==52 .or. testcase==53)then ! Jet in Southern Hemisphere
              u00 = 80.0
              lat0 = -5.d0*deg2rad
              lat1 = -45.d0*deg2rad
@@ -1673,23 +1699,6 @@ contains
            !print*, totarea, totvol
         enddo
         deallocate(hgg)!, psigg)
-
-
-        ! Flow over Andes mountain - adds topography
-        if(testcase == 54)then
-          allocate(alt_table(nlat_alt*nlon_alt,3))
-          call getunit(iunit2)
-          call andean_mountain_data(alt_table, iunit2)
-          do i=1, mesh%nv
-            lon=mesh%v(i)%lon
-            lat=mesh%v(i)%lat
-            bt%f(i) = smooth_andean_mountain([lat,lon], alt_table)
-            !print*, i, lon*rad2deg, lat*rad2deg, bt%f(i)
-            ! Correct h to allow orography
-            h%f(i)=h%f(i)-bt%f(i)
-          end do
-          deallocate(alt_table)
-        end if
 
         !Set velocity field
         do l=1,mesh%ne
@@ -2317,6 +2326,11 @@ contains
         h%f=100.
         h_exact=h
         u_exact=u
+      
+      case(56,57)  !Matsuno baroclinic wave test case
+        call exact_matsuno(0._r8)
+        h=h_exact
+        u=u_exact        
 
       case default
         print*, "SWM_initialize_fields error - please select a proper test case:", testcase
@@ -2513,12 +2527,29 @@ contains
     !Calculate divergence of velocity - used in difusion and for diagnostics
     call div_hx(u, divu, mesh)
 
+    !Calculate relative vorticity of velocity - used in difusion and for diagnostics
+    call rel_vort_tr(u, zeta, mesh)
+
     !------------------------------------------
     !Diffusion
     !------------------------------------------
-    if(difus>0)then !Needs verification!!!
-      call laplacian_hx(u, eta, lapu, mesh)
-      momeq=momeq + difus*lapu%f
+
+    if(diffus /= 0)then 
+      !call laplacian_hx(u, eta, lapu, mesh)
+      !print*,diffus
+      call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
+      momeq=momeq + diffus*lapu%f
+    end if
+    
+    if(hyperdiffus /= 0)then
+      !print*,hyperdiffus 
+      !Computed laplacian
+      call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
+      
+      !Compute hyperdiffusion
+      call hyperdiffusion_ed(lapu, lap_lapu, div_lapu, zeta_lapu, grad_ed_div_lapu, grad_ed_vort_lapu, mesh)
+      
+      momeq=momeq - hyperdiffus*lap_lapu%f
     end if
 
     if(testcase<=1)then
@@ -2698,6 +2729,11 @@ contains
 
     if(.not.plots)return
 
+    !Plots Hovmoller diagram - Matsuno test case
+    if( (testcase==56 .or.testcase==57))then
+      call matsuno_analysis(k,time)
+    endif
+    
     !Plot Fields
     !print*, k, ploterrors, useRefSol, (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol)
     !if( (k==ntime  .or. mod(k,plotsteps)==0 ).or. (ploterrors .and. useRefSol))then
@@ -2711,6 +2747,8 @@ contains
         if(maxval(bt%f(1:bt%n)) > eps)then
           hbt%name=trim(swmname)//"_hbt_t"//trim(adjustl(trim(atime)))
           call plot_scalarfield(hbt, mesh)
+          bt%name=trim(swmname)//"_bt_t"//trim(adjustl(trim(atime)))
+          call plot_scalarfield(bt, mesh)
         end if
 
         eta%name=trim(swmname)//"_eta_t"//trim(adjustl(trim(atime)))
@@ -2954,7 +2992,7 @@ contains
     !File for errors
     filename=trim(datadir)//trim(swmname)//"_evolution_"//trim(mesh%name)//".txt"
     buffer="        n        mvdist  tcase       k       nt    "//&
-      "     dt(s)                 cfl                time(dys)  "//&
+      "     dt                 cfl               TimeDays  "//&
       "        errormax_h       error2_h               errormax_u     "//&
       "   error2_u               errormax_pv       error2_pv            "//&
       " mass              Penergy      "//&
@@ -3546,8 +3584,7 @@ contains
     end if
     return
   end function sec
-
-
+  
 end module swm
 !-------------------------------------------------
 

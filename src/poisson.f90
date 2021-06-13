@@ -88,6 +88,9 @@ module poisson
   real (r8)::TOL        !Tolerance
   integer (i4):: numit  !max num of iterations
 
+  !Helmholtz parameter
+  logical :: ihelm=.true.
+
 
 contains
 
@@ -473,6 +476,7 @@ contains
     print*
     print*,"Poisson Error Analysis "
     print*
+    
 
     !Define variable for equation -Lap(u)=g
     !Scalars on hexagon centers (nodes) - Exact
@@ -495,7 +499,12 @@ contains
       !p=mesh%hx(i)%b%p
       !This is the laqplacian of functions defined in routine f(p)
       ! The minus happens as we are solving -Lap(u)=g
-      g%f(i)=-lap_exact(p)
+
+      if(ihelm) then
+        g%f(i)=-lap_exact(p)+f(p)
+      else
+        g%f(i)=-lap_exact(p)
+      end if
       !Since lap_extact was built from manufactured solution, the exact solution must be f(p)
       u_exact%f(i)=f(p)
       !print "(i8, 4f16.8)", i, lap_ex%f(i), p
@@ -512,7 +521,9 @@ contains
 
     !This solution does not necessarily has the correct average
     ! adjust to compare to analytic solution
-    u%f=u%f+sum(u_exact%f)/mesh%nv
+    if (.not. ihelm) then
+      u%f=u%f+sum(u_exact%f)/mesh%nv
+    end if
 
     !Poisson solution error
     error%n=mesh%nv
@@ -624,15 +635,24 @@ contains
         lapoffdiag=lapoffdiag!/mesh%hx(i)%areag
         lapdiag=lapdiag!/mesh%hx(i)%areag
 
-        !Solution of  - lap u = f
-        u%f(i)=(1-w)*u%f(i)+w*((lapoffdiag+mesh%hx(i)%areag*g%f(i))/(lapdiag))
+        if(ihelm) then
+          !Solution of  - lap u + u = f
+          u%f(i)=(1-w)*u%f(i)+w*((lapoffdiag+mesh%hx(i)%areag*g%f(i))/(lapdiag+mesh%hx(i)%areag))
+        else
+          !Solution of  - lap u = f
+          u%f(i)=(1-w)*u%f(i)+w*((lapoffdiag+mesh%hx(i)%areag*g%f(i))/(lapdiag))
+        end if
 
-        !para o problema -lap f+f =g
+        !para o problema -lap u+u =g
         !fap%f(i)=(1-w)*(fap%f(i))+w*((laptmp+g%f(i))/(laptmp1+1))
 
       enddo
       call lap_u(mesh, u, lapu)
-      res=maxval(abs(g%f+lapu%f))
+      if(ihelm) then
+        res=maxval(abs(g%f+lapu%f-u%f))
+      else
+        res=maxval(abs(g%f+lapu%f))
+      end if
       if ( mod(k, int(mesh%nv/10)) == 0 ) print*, "iter:", k, "residue: ", res
       if ( res < tol .or. abs(res_old-res)<tol ) then
         print*, "Tolerance achieved"
@@ -776,6 +796,9 @@ contains
         f=dcos(m * lon) * dcos(n * lat) ** 4
          !((dcos(lat))**4)*((dsin(lon))**7)
 
+      case(9) !Du Gunzburg 2003
+        f= exp(-5.0*(1.0-dsin(lat)))
+
       case default
         print*, "F error: unknown scalar field (testfunc)", testfunc
         stop
@@ -840,6 +863,10 @@ contains
         !vlon=7*(dsin(lon)**6)*dcos(lon)*((dcos(lat))**3)
         !vlat=-4*((dcos(lat))**3)*((dsin(lon))**7)*dsin(lat)
         call convert_vec_sph2cart(vlon, vlat, p, df)
+      case(9)
+        print*, "Warning: test not defined"
+        vlon=0
+        vlat=0
       case default
         print*, "DF error: unknown gradient for field (testfunc)", testfunc
         stop
@@ -887,6 +914,8 @@ contains
          !lap_exact= (dcos(lat)**2) * (dsin(lon) **5 )* &
          !    (33._r8 * dcos(lon) ** 2 + 9.0_r8 &
          !    - 20.0_r8 * dcos(lat)** 2 * dsin(lon) ** 2)
+      case(9) !Du Gunz 2003
+        lap_exact = f(p)*(25.0*dcos(lat)**2-10.0*dsin(lat))
       case default
         print*, "Laplacian (lap_exact) error: unknown scalar field (testfunc) :", testfunc
         stop

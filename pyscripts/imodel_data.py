@@ -324,7 +324,7 @@ class PlotterPanel(object):
 
 		if pan > 0 or self.n==1:
 			print(label)
-			#n=9
+			#n=6
 			#self.ax[pan].plot(x, y, marker=self.markers[i], linestyle=self.linestyles[i], label=label)
 			self.ax[pan].plot(x[0:n], y[0:n], marker=self.markers[i], linestyle=self.linestyles[i], label=label)
 		else:
@@ -342,7 +342,8 @@ class PlotterPanel(object):
 		return
 	
 	def finish(self, outname):
-		self.fig.legend(loc='upper left', bbox_to_anchor=(0.2, 0.90))
+		#self.fig.legend(loc='upper left', bbox_to_anchor=(0.2, 0.90))
+		self.fig.legend(loc='lower right')
 		#self.fig.subplots_adjust(right=0.85)
 		#self.fig.subplots_adjust(left=0.05)
 		#for i in range(self.n):

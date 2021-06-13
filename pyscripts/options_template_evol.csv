@@ -1,0 +1,4 @@
+#Graphing Structure, Inloop - goes into a graph, MidLoop - goes into separate panels and defines float var to be ploted,OutLoop - goes into different figures
+xVar,TimeDays
+yVar,errormax_h,error2_h
+Scale,lin,log

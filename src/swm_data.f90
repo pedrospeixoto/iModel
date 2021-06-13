@@ -49,9 +49,12 @@ module swm_data
   integer (i4):: ntime !number of time steps
   real(r8):: cfl
 
-  !Difusion coeficient
-  real(r8):: difus
+  !Diffusion coeficient
+  real(r8):: diffus
 
+  !Hyperdiffusion coeficient
+  real(r8):: hyperdiffus
+  
   !Hollingsworth coeficient
   real(r8):: hollgw
 
@@ -226,7 +229,8 @@ module swm_data
   type(scalar_field):: q_ed  !pv on edges
   type(scalar_field):: q_ed_exact  !pv on edges
   type(scalar_field):: q_ed_error  !pv on edges
-
+  type(scalar_field):: zeta  !relative vorticity - on triangles
+  type(scalar_field):: zeta_lapu  !relative vorticity of vector Laplacian - on triangles
 
   type(scalar_field):: q_grad_ed  !grad pv on edges
   type(vector_field_cart):: q_grad_tr  !graf pv on hexs
@@ -262,12 +266,22 @@ module swm_data
   type(scalar_field):: divuh_exact
   type(scalar_field):: divuh_error
   type(scalar_field):: divu
+  type(scalar_field):: div_lapu ! divergence of vector Laplacian
 
   !Vector Laplacian (at edges)
   type(scalar_field):: lapu
+  type(scalar_field):: lap_lapu
   type(scalar_field):: lapu_exact
   type(scalar_field):: lapu_error
 
+  !Gradient of divergence (at edges) - used in diffusion
+  type(scalar_field):: grad_ed_div
+  type(scalar_field):: grad_ed_div_lapu ! gradient of vector Laplacian divergence 
+
+  !Gradient of relative vorticity (at edges) - used in diffusion
+  type(scalar_field):: grad_ed_vort
+  type(scalar_field):: grad_ed_vort_lapu ! gradient of vector Laplacian vorticity
+  
   !Trsk consistency index
   type(scalar_field):: trskind !Low values indicate godd for trisk
   logical, allocatable:: isTrskindLow(:) !isTrskindHigh=true if > trskindmax
@@ -378,8 +392,10 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  nplots, nprints, iploterrors
     read(fileunit,*)  buffer
-    read(fileunit,*)  difus
+    read(fileunit,*)  diffus
     read(fileunit,*)  buffer
+    read(fileunit,*)  hyperdiffus
+    read(fileunit,*)  buffer    
     read(fileunit,*)  hollgw
     read(fileunit,*)  buffer
     read(fileunit,*)  trskindmax
@@ -637,6 +653,16 @@ contains
        !print*, atmp
     end if
 
+    if( diffus>0 ) then
+      write(atmp,'(f10.3)') real(diffus)
+      swmname=trim(swmname)//"_diffusion"!//trim(adjustl(trim(atmp)))
+    end if
+
+    if( hyperdiffus>0 ) then
+      write(atmp,'(f10.3)') real(hyperdiffus)
+      swmname=trim(swmname)//"_hyperdiffusion"!//trim(adjustl(trim(atmp)))
+    end if    
+
     RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
     RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
       .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &
@@ -793,8 +819,10 @@ contains
     eta%n=mesh%nt
     eta%pos=1
     eta%name="eta"
-    allocate(eta%f(1:eta%n), stat=ist)
-
+    allocate(eta%f(1:eta%n), zeta%f(1:eta%n),zeta_lapu%f(1:eta%n), stat=ist)
+    zeta = eta
+    zeta_lapu = eta
+    
     if(test_lterror==1)then
       allocate(eta_exact%f(1:eta%n), stat=ist)
       allocate(eta_error%f(1:eta%n), stat=ist)
@@ -919,11 +947,48 @@ contains
     divu%name="divu"
     allocate(divu%f(1:divu%n), stat=ist)
 
+    !Divergence of vector laplacian - used in hyperdiffusion
+    div_lapu%n=mesh%nv
+    div_lapu%pos=0
+    div_lapu%name="div_lapu"
+    allocate(div_lapu%f(1:div_lapu%n), stat=ist)
+    
+    !Gradient of divergence
+    grad_ed_div%n=mesh%ne
+    grad_ed_div%pos=edpos
+    allocate(grad_ed_div%f(1:grad_ed_div%n), stat=ist)
+    grad_ed_div%f = 0._r8
+    
+    !Gradient of vector Laplacian divergence - used in hyperdiffusion
+    grad_ed_div_lapu%n=mesh%ne
+    grad_ed_div_lapu%pos=edpos
+    allocate(grad_ed_div_lapu%f(1:grad_ed_div_lapu%n), stat=ist)
+    grad_ed_div_lapu%f = 0._r8
+
+    !Gradient of vorticity
+    grad_ed_vort%n=mesh%ne
+    grad_ed_vort%pos=edpos
+    allocate(grad_ed_vort%f(1:grad_ed_vort%n), stat=ist)
+    grad_ed_vort%f = 0._r8
+
+    !Gradient of vector Laplacian vorticity - used in hyperdiffusion
+    grad_ed_vort_lapu%n=mesh%ne
+    grad_ed_vort_lapu%pos=edpos
+    allocate(grad_ed_vort_lapu%f(1:grad_ed_vort_lapu%n), stat=ist)
+    grad_ed_vort_lapu%f = 0._r8
+    
+    !Laplacian at edges
     lapu%n=mesh%ne
     lapu%pos=edpos
     lapu%name="lapu"
     allocate(lapu%f(1:lapu%n), stat=ist)
 
+    !Hyperdiffusion at edges
+    lap_lapu%n=mesh%ne
+    lap_lapu%pos=edpos
+    lap_lapu%name="lap_lapu"
+    allocate(lap_lapu%f(1:lap_lapu%n), stat=ist)
+    
     if(test_lterror==1)then
       allocate(lapu_exact%f(1:lapu%n), stat=ist)
       allocate(lapu_error%f(1:lapu%n), stat=ist)
@@ -997,9 +1062,10 @@ contains
     !$OMP SHARED(u_error, u_exact, uh, uhq_perp) &
     !$OMP SHARED(v_hx, v_ed, vhq_hx) &
     !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed, h_rhb) &
-    !$OMP SHARED(h_tr, eta, eta_ed, q_tr, q_ed) &
+    !$OMP SHARED(h_tr, zeta, zeta_lapu, eta, eta_ed, q_tr, q_ed) &
     !$OMP SHARED(ke_hx, ke_tr, ghbK, grad_ghbK, hbt, bt) &
-    !$OMP SHARED(divuh, q_tr_exact, q_tr_error, q_grad_ed, divu, lapu ) &
+    !$OMP SHARED(grad_ed_div, grad_ed_vort, grad_ed_div_lapu, grad_ed_vort_lapu) &
+    !$OMP SHARED(divuh, q_tr_exact, q_tr_error, q_grad_ed, divu, div_lapu, lapu, lap_lapu ) &
     !$OMP SHARED(massf0, massf1, massf2, massf3) &
     !$OMP SHARED(momf0, momf1, momf2, momf3)
     momeq%f(1:u%n)=0._r8
@@ -1026,6 +1092,8 @@ contains
 
     !Vorticity
     eta%f=0._r8
+    zeta%f=0._r8
+    zeta_lapu%f=0._r8
     eta_ed%f=0._r8
     q_tr%f=0._r8
     q_ed%f=0._r8
@@ -1043,9 +1111,19 @@ contains
     !Divergence
     divuh%f=0._r8
     divu%f=0._r8
+    div_lapu%f=0._r8
 
     !Laplacian
     lapu%f=0._r8
+    
+    !Hyperdiffusion
+    lap_lapu%f=0._r8
+
+    !Gradients
+    grad_ed_div%f =0._r8
+    grad_ed_div_lapu%f =0._r8        
+    grad_ed_vort%f =0._r8
+    grad_ed_vort_lapu%f =0._r8    
 
     !PV analysis
     q_tr_exact=q_tr
@@ -1083,7 +1161,7 @@ contains
       !$OMP SHARED(ke_tr_exact, ke_tr, ke_tr_error) &
       !$OMP SHARED(grad_ghbK, grad_ghbK_exact, grad_ghbK_error, grad_h) &
       !$OMP SHARED(divuh, divuh_exact, divuh_error) &
-      !$OMP SHARED(lapu, lapu_exact, lapu_error) &
+      !$OMP SHARED(lapu, lap_lapu, lapu_exact, lapu_error) &
       !$OMP SHARED(momeq,  masseq, momeq_exact, masseq_exact, momeq_error, masseq_error)
       momeq_exact=momeq
       masseq_exact=masseq
