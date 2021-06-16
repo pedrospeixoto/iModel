@@ -15,6 +15,7 @@ iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid bas
 - Interpolation and vector reconstruction pack
 - Multigrid solver (MSc M. Silva)
 - Transport model (Semi-Lagrangian)
+- High order finite volume transport model (PhD Bramatti)
 - Finite Volume Shallow Water Model 
 - Finite Volume Moist Shallow Water Model (MSc L. Santos)
 
@@ -54,7 +55,7 @@ iModel:
 
 Main references for iModel (see www.ime.usp.br/~pedrosp for exact reference):
 
-- Peixoto, Thuburn and Bell, 2017: Numerical instabilities of spherical shallow water models considering small equivalent depths ( Quarterly Journal of the Royal Meteorological Society)
+- Peixoto, Thuburn and Bell, 2018: Numerical instabilities of spherical shallow water models considering small equivalent depths ( Quarterly Journal of the Royal Meteorological Society)
 
 - Bell, Peixoto, Thuburn, 2017: Numerical instabilities of vector invariant momentum equations on rectangular C-grids (Quart. J. Roy. Meteorol. Soc.) 
 
