@@ -534,7 +534,6 @@ contains
          else !trim(mesh%pos)=="readref"
            filename2 = trim(altdir)//"densf_table.dat"
            call getunit(iunit2)
-<<<<<<< HEAD
            !Check if the file exists
            inquire(file = filename2, exist = ifile)
            if(ifile) then
@@ -550,18 +549,6 @@ contains
              stop
            end if
          end if
-           
-=======
-           !call densftable(filename2, iunit2)
-           !call getunit(iunit2)
-           open(iunit2, file=filename2,status='old')
-             read(iunit2,*) n_lat, n_lon
-             allocate (mesh%densf_table(n_lat*n_lon, 3))  
-             read(iunit2,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
-         close(iunit2)
-         endif
-
->>>>>>> c326391fbfc55e188beacd46f4916d00390c9e7a
        end if
 
        allocate(offsethx%f(1:offsethx%n))
