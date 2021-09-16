@@ -125,8 +125,8 @@ module constants
   ! Density Interpolation File Parameters
   !---------------------------------------------------
 
-  integer, parameter :: n_lat = 4*180+1
-  integer, parameter :: n_lon = 4*360+1
+  integer :: n_lat! = 1024+1
+  integer :: n_lon! = 2048+1
   real (kind=8), parameter :: latmin = -pio2
   real (kind=8), parameter :: latmax = pio2
   real (kind=8), parameter :: lonmin = -pi

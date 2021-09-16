@@ -1981,12 +1981,16 @@ contains
 
     if(trim(mesh%pos)=="readref")then
        if(.not.allocated(mesh%densf_table))then
-         allocate (mesh%densf_table(n_lat*n_lon, 3))
          call getunit(iunit3)
          filename2 = trim(altdir)//"densf_table.dat"
-         call densftable(filename2, iunit3)
-         call getunit(iunit3)
+         !call densftable(filename2, iunit3)
+         !call getunit(iunit3)         
+
          open(iunit3, file=filename2,status='old')
+           read(iunit3,*) n_lat, n_lon
+           !print*, n_lat,n_lon    
+           allocate (mesh%densf_table(n_lat*n_lon, 3))  
+           !read(*,*)             
            read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
          close(iunit3) 
        end if
