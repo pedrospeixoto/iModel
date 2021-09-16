@@ -1983,6 +1983,7 @@ contains
        if(.not.allocated(mesh%densf_table))then
          call getunit(iunit3)
          filename2 = trim(altdir)//"densf_table.dat"
+<<<<<<< HEAD
          !Check if the file exists
          inquire(file = filename2, exist = ifile)
          if(ifile) then
@@ -1999,6 +2000,18 @@ contains
              stop
          end if
 
+=======
+         !call densftable(filename2, iunit3)
+         !call getunit(iunit3)         
+
+         open(iunit3, file=filename2,status='old')
+           read(iunit3,*) n_lat, n_lon
+           !print*, n_lat,n_lon    
+           allocate (mesh%densf_table(n_lat*n_lon, 3))  
+           !read(*,*)             
+           read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
+         close(iunit3) 
+>>>>>>> c326391fbfc55e188beacd46f4916d00390c9e7a
        end if
     end if
 
