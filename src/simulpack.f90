@@ -526,25 +526,33 @@ contains
 
     if(trim(mesh%pos)=="readref_andes" .or. trim(mesh%pos)=="readref")then
        if(.not.allocated(mesh%densf_table))then
-         allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
-         call getunit(iunit2)
-
          if(trim(mesh%pos)=="readref_andes")then
+           allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
+           call getunit(iunit2)
            call andes_density_table(mesh%densf_table,iunit2)
 
          else !trim(mesh%pos)=="readref"
            filename2 = trim(altdir)//"densf_table.dat"
            call getunit(iunit2)
-           call densftable(filename2, iunit2)
-           call getunit(iunit2)
-           open(iunit2, file=filename2,status='old')
-             read(iunit2,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
-           close(iunit2) 
-         endif
-
+           !Check if the file exists
+           inquire(file = filename2, exist = ifile)
+           if(ifile) then
+             print*, "Reading density function data: ", trim(filename2)
+             !Read the density data
+	     open(iunit2, file=filename2,status='old')
+    	       read(iunit2,*) n_lat, n_lon 
+               allocate (mesh%densf_table(n_lat*n_lon,3))
+               read(iunit2,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
+             close(iunit2) 
+           else
+             print*, "Density function data ERROR: ", trim(filename2), " not found"
+             stop
+           end if
+         end if
+           
        end if
 
-         allocate(offsethx%f(1:offsethx%n))
+       allocate(offsethx%f(1:offsethx%n))
          do i=1,mesh%nv
            p = vorbarycenterdens(i,mesh) 
            offsethx%f(i)=arclen(p,mesh%v(i)%p)

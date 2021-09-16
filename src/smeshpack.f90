@@ -1981,22 +1981,32 @@ contains
 
     if(trim(mesh%pos)=="readref")then
        if(.not.allocated(mesh%densf_table))then
-         allocate (mesh%densf_table(n_lat*n_lon, 3))
          call getunit(iunit3)
          filename2 = trim(altdir)//"densf_table.dat"
-         call densftable(filename2, iunit3)
-         call getunit(iunit3)
-         open(iunit3, file=filename2,status='old')
-           read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
-         close(iunit3) 
+         !Check if the file exists
+         inquire(file = filename2, exist = ifile)
+         if(ifile) then
+             print*, "Reading density function data: ", trim(filename2)
+             !Read the density data
+	     open(iunit3, file=filename2,status='old')
+             read(iunit3,*) n_lat, n_lon
+             allocate (mesh%densf_table(n_lat*n_lon, 3))
+             !print*, n_lat, n_lon
+             read(iunit3,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
+             close(iunit3) 
+         else
+             print*, "Density function data ERROR: ", trim(filename2), " not found"
+             stop
+         end if
+
        end if
     end if
 
    if(trim(mesh%pos)=="readref_andes")then 
        if(.not.allocated(mesh%densf_table))then
          allocate (mesh%densf_table(nlat_alt*nlon_alt, 3))
-         call getunit(iunit4)
-         call andes_density_table(mesh%densf_table,iunit4)
+         call getunit(iunit3)
+         call andes_density_table(mesh%densf_table,iunit3)
        end if
    end if
 
