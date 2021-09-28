@@ -1255,6 +1255,49 @@ subroutine initialize_global_moist_swm_vars()
     !Initialize fields
     call initialize_moist_swm_fields()
 
+    !Compute the diffusion coeficient
+    if(K2_max>0.d0)then    
+        select case(diffus)
+            case("const") !constant diffusion
+                dif_coef_hx%f = K2_max
+            case("align") !align based coefficient
+                call alignment_coef(K2_max, dif_coef_hx, mesh)
+            case("diam")  !diameter based coefficient
+                call diameter_coef(K2_max, dif_coef_hx, mesh)
+            case default
+                print*,'ERROR: invalid diffusion coefficient function'
+                stop
+        end select
+        
+        !Interpolate to edges and triangles
+        call scalar_hx2ed(dif_coef_hx, dif_coef_ed, mesh) !cell->edge
+        call scalar_hx2tr(dif_coef_hx, dif_coef_tr, mesh) !cell->tr             
+    end if
+    
+    !Compute the hyperdiffusion coef
+    if(K4_max>0.d0)then
+        select case(hyperdiffus)
+            case("const") !constant diffusion
+                hypdif_coef_hx%f = K4_max
+            case("align") !align based coefficient
+                call alignment_coef(K4_max, hypdif_coef_hx, mesh)
+            case("diam")  !diameter based coefficient
+                call diameter_coef(K4_max,hypdif_coef_hx, mesh)
+            case default
+                print*,'ERROR: invalid hyperdiffusion coefficient function'
+                stop
+        end select
+        
+        !Interpolate the hyperdiffusion coefficient from hx to ed
+        call scalar_hx2ed(hypdif_coef_hx, hypdif_coef_ed, mesh) !cell->edge
+        call scalar_hx2tr(hypdif_coef_hx, hypdif_coef_tr, mesh) !cell->tr
+        
+        dif_coef_hx%f = dsqrt(hypdif_coef_hx%f)
+        dif_coef_ed%f = dsqrt(hypdif_coef_ed%f)
+        dif_coef_tr%f = dsqrt(hypdif_coef_tr%f)
+        !stop        
+    end if
+    
     !Calculate derived initial fields
     call tendency_moist_swm(h, u, htheta, hQv, hQc, hQr, masseq%f, momeq%f, tempeq%f, vapoureq%f, cloudeq%f, raineq%f)
 
@@ -1758,9 +1801,9 @@ subroutine plotfields_mswm(k, time)
     read(fileunit,*)  buffer
     read(fileunit,*)  nplots, nprints, iploterrors
     read(fileunit,*)  buffer
-    read(fileunit,*)  diffus
+    read(fileunit,*)  K2_max, diffus
     read(fileunit,*)  buffer
-    read(fileunit,*)  hyperdiffus
+    read(fileunit,*)  K4_max, hyperdiffus
     read(fileunit,*)  buffer
     read(fileunit,*)  hollgw
     read(fileunit,*)  buffer
@@ -2020,14 +2063,14 @@ subroutine plotfields_mswm(k, time)
     end if
 
 
-    if( diffus>0 ) then
-      write(atmp,'(f10.3)') real(diffus)
-      swmname=trim(swmname)//"_diffusion"!//trim(adjustl(trim(atmp)))
+    if( K2_max>0 ) then
+      write(atmp,'(f10.3)') real(dlog(K2_max)/dlog(10._r8))
+      swmname=trim(swmname)//"_"//trim(diffus)//"_diffusion_10to"//trim(adjustl(trim(atmp)))
     end if
 
-    if( hyperdiffus>0 ) then
-      write(atmp,'(f10.3)') real(hyperdiffus)
-      swmname=trim(swmname)//"_hyperdiffusion"!//trim(adjustl(trim(atmp)))
+    if( K4_max>0 ) then
+      write(atmp,'(f10.3)') real(dlog(K4_max)/dlog(10._r8)) 
+      swmname=trim(swmname)//"_"//trim(hyperdiffus)//"_hyperdiffusion_10to"//trim(adjustl(trim(atmp)))     
     end if 
     
     !RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23.or.testcase==60
