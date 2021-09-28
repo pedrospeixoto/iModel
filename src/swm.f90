@@ -167,6 +167,48 @@ contains
     !Initialize fields
     call initialize_fields()
 
+    !Compute the diffusion coeficient
+    if(K2_max>0.d0)then    
+        select case(diffus)
+            case("const") !constant diffusion
+                dif_coef_hx%f = K2_max
+            case("align") !align based coefficient
+                call alignment_coef(K2_max, dif_coef_hx, mesh)
+            case("diam")  !diameter based coefficient
+                call diameter_coef(K2_max, dif_coef_hx, mesh)
+            case default
+                print*,'ERROR: invalid diffusion coefficient function'
+                stop
+        end select
+        
+        !Interpolate to edges and triangles
+        call scalar_hx2ed(dif_coef_hx, dif_coef_ed, mesh) !cell->edge
+        call scalar_hx2tr(dif_coef_hx, dif_coef_tr, mesh) !cell->tr              
+    end if
+    
+    !Compute the hyperdiffusion coef
+    if(K4_max>0.d0)then
+        select case(hyperdiffus)
+            case("const") !constant diffusion
+                hypdif_coef_hx%f = K4_max
+            case("align") !align based coefficient
+                call alignment_coef(K4_max, hypdif_coef_hx, mesh)
+            case("diam")  !diameter based coefficient
+                call diameter_coef(K4_max,hypdif_coef_hx, mesh)
+            case default
+                print*,'ERROR: invalid hyperdiffusion coefficient function'
+                stop
+        end select
+        
+        !Interpolate the hyperdiffusion coefficient from hx to ed
+        call scalar_hx2ed(hypdif_coef_hx, hypdif_coef_ed, mesh) !cell->edge
+        call scalar_hx2tr(hypdif_coef_hx, hypdif_coef_tr, mesh) !cell->tr
+        
+        dif_coef_hx%f = dsqrt(hypdif_coef_hx%f)
+        dif_coef_ed%f = dsqrt(hypdif_coef_ed%f)
+        dif_coef_tr%f = dsqrt(hypdif_coef_tr%f)
+    end if
+    
     !Calculate derived initial fields
     !call eqs_spatial_disc(0._r8, dt, h, u, masseq%f, momeq%f)
     call tendency(h, u, masseq%f, momeq%f)
@@ -2533,24 +2575,19 @@ contains
     !------------------------------------------
     !Diffusion
     !------------------------------------------
+    if(K2_max /= 0)then 
+      call diffusion_ed(u, lapu, dif_coef_hx, dif_coef_tr, divu, zeta, grad_ed_div, grad_ed_vort, mesh) 
+      momeq = momeq + lapu%f
+    end if
 
-    if(diffus /= 0)then 
-      !call laplacian_hx(u, eta, lapu, mesh)
-      !print*,diffus
-      call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
-      momeq=momeq + diffus*lapu%f
+    !------------------------------------------
+    !Hyperdiffusion
+    !------------------------------------------
+    if(K4_max /= 0)then
+      call hyperdiffusion_ed(u, lapu, lap_lapu, dif_coef_hx, dif_coef_tr, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
+      momeq = momeq - lap_lapu%f
     end if
-    
-    if(hyperdiffus /= 0)then
-      !print*,hyperdiffus 
-      !Computed laplacian
-      call laplacian_ed(u, lapu, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
-      
-      !Compute hyperdiffusion
-      call hyperdiffusion_ed(lapu, lap_lapu, div_lapu, zeta_lapu, grad_ed_div_lapu, grad_ed_vort_lapu, mesh)
-      
-      momeq=momeq - hyperdiffus*lap_lapu%f
-    end if
+
 
     if(testcase<=1)then
       call zero_vector(momeq)

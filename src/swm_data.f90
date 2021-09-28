@@ -49,11 +49,19 @@ module swm_data
   integer (i4):: ntime !number of time steps
   real(r8):: cfl
 
-  !Diffusion coeficient
-  real(r8):: diffus
+  !Diffusion coefficient
+  real(r8):: K2_max  
 
-  !Hyperdiffusion coeficient
-  real(r8):: hyperdiffus
+  !Diffusion coeficient function
+  !possible values - const, align, diam  
+  character (len=6):: diffus
+  
+  !Hyperdiffusion maximum coeficient
+  real(r8):: K4_max 
+     
+  !Hyperdiffusion coefficient function
+  !possible values - const, align, diam  
+  character (len=6):: hyperdiffus
   
   !Hollingsworth coeficient
   real(r8):: hollgw
@@ -274,6 +282,16 @@ module swm_data
   type(scalar_field):: lapu_exact
   type(scalar_field):: lapu_error
 
+  !diffusion coeficients
+  type(scalar_field):: dif_coef_ed
+  type(scalar_field):: dif_coef_hx
+  type(scalar_field):: dif_coef_tr 
+ 
+  !hyperdiffusion coeficients   
+  type(scalar_field):: hypdif_coef_ed
+  type(scalar_field):: hypdif_coef_hx
+  type(scalar_field):: hypdif_coef_tr
+  
   !Gradient of divergence (at edges) - used in diffusion
   type(scalar_field):: grad_ed_div
   type(scalar_field):: grad_ed_div_lapu ! gradient of vector Laplacian divergence 
@@ -392,9 +410,9 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  nplots, nprints, iploterrors
     read(fileunit,*)  buffer
-    read(fileunit,*)  diffus
+    read(fileunit,*)  K2_max, diffus
     read(fileunit,*)  buffer
-    read(fileunit,*)  hyperdiffus
+    read(fileunit,*)  K4_max, hyperdiffus
     read(fileunit,*)  buffer    
     read(fileunit,*)  hollgw
     read(fileunit,*)  buffer
@@ -653,15 +671,15 @@ contains
        !print*, atmp
     end if
 
-    if( diffus>0 ) then
-      write(atmp,'(f10.3)') real(diffus)
-      swmname=trim(swmname)//"_diffusion"!//trim(adjustl(trim(atmp)))
+    if( K2_max>0 ) then
+      write(atmp,'(f10.3)') real(dlog(K2_max)/dlog(10._r8))
+      swmname=trim(swmname)//"_"//trim(diffus)//"_diffusion_10to"//trim(adjustl(trim(atmp)))
     end if
 
-    if( hyperdiffus>0 ) then
-      write(atmp,'(f10.3)') real(hyperdiffus)
-      swmname=trim(swmname)//"_hyperdiffusion"!//trim(adjustl(trim(atmp)))
-    end if    
+    if( K4_max>0 ) then
+      write(atmp,'(f10.3)') real(dlog(K4_max)/dlog(10._r8)) 
+      swmname=trim(swmname)//"_"//trim(hyperdiffus)//"_hyperdiffusion_10to"//trim(adjustl(trim(atmp)))     
+    end if      
 
     RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
     RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
@@ -995,6 +1013,46 @@ contains
 
     end if
 
+    if(K2_max>0.d0 .or. K4_max>0.d0) then
+        !Diffusion coefficient at hx
+        dif_coef_hx%n = mesh%nv
+        dif_coef_hx%name="dif_coef_hx"
+        dif_coef_hx%pos=0
+        allocate(dif_coef_hx%f(1:dif_coef_hx%n),stat=ist)
+
+        !Diffusion coefficient at ed
+        dif_coef_ed%n=mesh%ne
+        dif_coef_ed%name="dif_coef_ed"
+        dif_coef_ed%pos=edpos    
+        allocate(dif_coef_ed%f(1:dif_coef_ed%n), stat=ist)
+        
+        !Diffusion coefficient at tr
+        dif_coef_tr%n = mesh%nt
+        dif_coef_tr%name="dif_coef_tr"
+        dif_coef_tr%pos=1
+        allocate(dif_coef_tr%f(1:dif_coef_tr%n),stat=ist)        
+    end if
+
+    if(K4_max>0.d0) then
+        !Hyperdiffusion coefficient at hx
+        hypdif_coef_hx%n = mesh%nv
+        hypdif_coef_hx%name="hypdif_coef_hx"
+        hypdif_coef_hx%pos=0
+        allocate(hypdif_coef_hx%f(1:hypdif_coef_hx%n),stat=ist)
+
+        !Hyperdiffusion coefficient at ed
+        hypdif_coef_ed%n=mesh%ne
+        hypdif_coef_ed%name="hypdif_coef_ed"
+        hypdif_coef_ed%pos=edpos    
+        allocate(hypdif_coef_ed%f(1:hypdif_coef_ed%n), stat=ist)
+
+        !Hyperdiffusion coefficient at tr
+        hypdif_coef_tr%n = mesh%nt
+        hypdif_coef_tr%name="hypdif_coef_tr"
+        hypdif_coef_tr%pos=1
+        allocate(hypdif_coef_tr%f(1:hypdif_coef_tr%n),stat=ist)          
+    end if
+    
     if(useCoriolisMtdHyb)then
       trskind%n=mesh%ne
       trskind%pos=u%pos

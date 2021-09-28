@@ -58,7 +58,8 @@ module swm_operators
     getedindexonhx, &
     proj_vec_sphere, &
     sphtriarea, &
-    gethxedgeconnection
+    gethxedgeconnection, &
+    alignind
 
   implicit none
 
@@ -850,15 +851,60 @@ contains
     lapu%f = grad_ed_div%f - grad_ed_vort%f
     return
   end subroutine laplacian_ed
+  
 
-  subroutine hyperdiffusion_ed(lapu, lap_lapu, div_lap, vort_lap, grad_ed_div_lap, grad_ed_vort_lap, mesh)
+  subroutine diffusion_ed(u, lapu, dif_coef_hx, dif_coef_tr,div, vort, grad_ed_div, grad_ed_vort, mesh)
     !---------------------------------------------------------------
-    !Calculate hyperdiffusion of field u at edges
+    !Calculate variable diffusion of field u at edges
+    !dif_coef stores the diffusion coefficient
+    !Applies the formula (∇ . K_2 ∇)V --> ∇(K2 Div)V - ∇x(K_2 ζ) (K2 =  diffusion coefficient)
+    !Based on:  Klemp, Joseph B. " Damping Characteristics of Horizontal Laplacian Diffusion
+    ! Filters". Monthly Weather Review 145.11 (2017): 4365-4379. 
+    !< https://doi.org/10.1175/MWR-D-17-0015.1>. Web. 28 Sep. 2021.
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in) :: u      !given field
+    type(scalar_field), intent(inout):: lapu !laplacian - must be already allocated
+
+    type(scalar_field), intent(in) :: dif_coef_hx !diffusion coeficient at edges - must be already computed
+    type(scalar_field), intent(in) :: dif_coef_tr !diffusion coeficient at tr - must be already computed
+    !auxiliary fields - must be already allocated
+    type(scalar_field), intent(in) :: div   !divergence of u - must be already computed
+    type(scalar_field), intent(in) :: vort  !relative vorticity of u - must be already computed
+    type(scalar_field), intent(inout) :: grad_ed_div  ! gradient of divergence
+    type(scalar_field), intent(inout) :: grad_ed_vort ! gradient of relative vorticity
+
+    type(scalar_field) :: coefdiv   !coef*divergence of u
+    type(scalar_field) :: coefvort  !coef*vorticity of u
+    
+    !Do the product of divergence with the coefficient
+    coefdiv = div
+    call scalar_elem_product(dif_coef_hx, div, coefdiv)
+    
+    !Do the product of vorticity with the coefficient
+    coefvort = vort
+    call scalar_elem_product(dif_coef_tr, vort, coefvort)
+
+    !Calculate the gradient of divergence*coefficient
+    call grad_ed(coefdiv, grad_ed_div, mesh)
+
+    !Compute the gradient of vorticity*coefficient
+    call grad_ed_tg(coefvort, grad_ed_vort, mesh)
+
+    !Global vector diffusion
+    lapu%f = grad_ed_div%f - grad_ed_vort%f
+    return
+  end subroutine diffusion_ed  
+
+
+  subroutine second_order_laplacian_ed(lapu, lap_lapu, div_lap, vort_lap, grad_ed_div_lap, grad_ed_vort_lap, mesh)
+    !---------------------------------------------------------------
+    !Calculate 2nd order Laplacian of field u at edges
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
     type(scalar_field), intent(in) :: lapu !given field
     type(scalar_field), intent(inout):: lap_lapu !laplacian - must be already allocated
-
+    
     !auxiliary fields - must be already allocated
     type(scalar_field), intent(inout) :: div_lap   !divergence of u - must be already computed
     type(scalar_field), intent(inout) :: vort_lap  !relative vorticity of u - must be already computed
@@ -880,7 +926,153 @@ contains
     !Global vector laplacian
     lap_lapu%f = grad_ed_div_lap%f - grad_ed_vort_lap%f
     return
+  end subroutine second_order_laplacian_ed
+
+
+  subroutine hyperdiffusion_ed(u, lapu, lap_lapu, dif_coef_hx, dif_coef_tr, div, vort, grad_ed_div, grad_ed_vort, mesh)
+    !---------------------------------------------------------------
+    !Calculate variable hyperdiffusion of field u at edges
+    !dif_coef stores the diffusion coefficient
+    !Hyperdiffusion coefficient is given by dif_coef^2
+    !Applies the formula (∇ . K_2 ∇)V --> ∇(K2 Div)V - ∇x(K_2 ζ) twice (K2 =  diffusion coefficient)
+    !Based on:  Klemp, Joseph B. " Damping Characteristics of Horizontal Laplacian Diffusion
+    ! Filters". Monthly Weather Review 145.11 (2017): 4365-4379. 
+    !< https://doi.org/10.1175/MWR-D-17-0015.1>. Web. 28 Sep. 2021.
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in) :: u !given field
+    type(scalar_field), intent(inout) :: lapu !given field
+    type(scalar_field), intent(inout):: lap_lapu !laplacian - must be already allocated
+
+    type(scalar_field), intent(in) :: dif_coef_hx !diffusion coeficient at edges - must be already computed
+    type(scalar_field), intent(in) :: dif_coef_tr !diffusion coeficient at tr - must be already computed
+    
+    !auxiliary fields - must be already allocated
+    type(scalar_field), intent(in) :: div   !divergence of u - must be already computed
+    type(scalar_field), intent(in) :: vort  !relative vorticity of u - must be already computed
+    type(scalar_field), intent(inout) :: grad_ed_div  ! gradient of divergence
+    type(scalar_field), intent(inout) :: grad_ed_vort ! gradient of relative vorticity
+
+    type(scalar_field) :: div_lap  
+    type(scalar_field) :: vort_lap
+    type(scalar_field) :: grad_ed_div_lap  
+    type(scalar_field) :: grad_ed_vort_lap
+    
+    div_lap = div
+    vort_lap = vort
+    grad_ed_div_lap = grad_ed_div
+    grad_ed_vort_lap = grad_ed_vort
+    
+    !Compute 2nd order diffusion
+    call diffusion_ed(u, lapu, dif_coef_hx, dif_coef_tr, div, vort, grad_ed_div, grad_ed_vort, mesh)
+ 
+    !Calculate divergence
+    call div_hx(lapu, div_lap, mesh)
+
+    !Calculate relative vorticity
+    call rel_vort_tr(lapu, vort_lap, mesh)
+ 
+    !Compute 4th order diffusion
+    call diffusion_ed(lapu, lap_lapu, dif_coef_hx, dif_coef_tr, div_lap, vort_lap, grad_ed_div_lap, grad_ed_vort_lap, mesh)   
+    return
   end subroutine hyperdiffusion_ed
+  
+  subroutine alignment_coef(K_max, dif_coef_hx, mesh)
+    !---------------------------------------------------------------
+    !Defines the diffusion/hyperdiffusion coefficent at hx positions
+    !using the smooth alignment index
+    !based on: Santos, L. F. and Peixoto, P. S.: Topography based local spherical Voronoi grid
+    !refinement on classical and moist shallow-water finite volume models, Geosci. Model Dev.
+    ! Discuss., https://doi.org/10.5194/gmd-2021-82, in review, 2021.
+    !---------------------------------------------------------------
+    real(r8), intent(in) :: K_max
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(inout) :: dif_coef_hx 
+ 
+    type(scalar_field) :: smooth_dif_coef    
+     
+    integer :: i, j, k
+    
+    real(r8):: sum, p
+    
+    !Alignment index
+    do i = 1, mesh%nv
+        dif_coef_hx%f(i)=alignind(i,mesh)
+    end do
+    
+    !Smooth the alignment index
+    smooth_dif_coef = dif_coef_hx
+    
+    do i=1, mesh%nv   
+         sum = dif_coef_hx%f(i)
+         do j=1, mesh%v(i)%nnb
+             k=mesh%v(i)%nb(j)
+             sum = sum + dif_coef_hx%f(k)
+         end do
+         sum = sum/(mesh%v(i)%nnb+1.d0)
+         smooth_dif_coef%f(i) = sum
+    end do
+     
+    dif_coef_hx = smooth_dif_coef
+    dif_coef_hx%f = dif_coef_hx%f/maxval(dif_coef_hx%f)
+    !print*,minval(dif_coef_hx%f)
+    !K4_ref_max = 10.d0**11
+    !K4_ref_min = 10.d0**10
+    !p = (dlog(K4_ref_min/K4_ref_max))/dlog(minval(dif_coef_hx%f)) 
+    !print*,'p = ',p   
+    do i=1, mesh%nv   
+         dif_coef_hx%f(i) = K_max*dif_coef_hx%f(i)!**p
+    end do
+    !dif_coef_hx%f = dlog(dif_coef_hx%f)/dlog(10.d0) 
+  end subroutine
+
+  subroutine diameter_coef(K_max, dif_coef_hx, mesh)
+    !---------------------------------------------------------------
+    !Defines the diffusion/hyperdiffusion coefficent at hx positions
+    !using the cell diameters
+    ! 
+    !Based on:
+    ! 
+    ! Zarzycki, C. M., Jablonowski, C., and Taylor, M. A.: Using
+    !Variable-Resolution Meshes to Model Tropical Cyclones in the
+    !Community Atmosphere Model, Mon. Weather Rev., 142, 1221–
+    !1239, https://doi.org/10.1175/mwr-d-13-00179.1, 2014. 
+    ! 
+    ! Santos, L. F. and Peixoto, P. S.: Topography based local spherical Voronoi grid
+    !refinement on classical and moist shallow-water finite volume models, Geosci. Model Dev.
+    ! Discuss., https://doi.org/10.5194/gmd-2021-82, in review, 2021.
+    !---------------------------------------------------------------
+    real(r8), intent(in) :: K_max
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(inout) :: dif_coef_hx 
+    
+    integer :: i, j, k, j1, k1
+    
+    real(r8):: sum, p, K4_ref_max, K4_ref_min
+
+    !Calculate Diameter   
+    do i=1,mesh%nv
+       dif_coef_hx%f(i)=0.d0
+       do j=1,mesh%v(i)%nnb
+          do k=1, mesh%v(i)%nnb
+             !Triangle indexes (to get circumcenters)
+             j1=mesh%v(i)%tr(j)
+             k1=mesh%v(i)%tr(k)
+             dif_coef_hx%f(i)=max(dif_coef_hx%f(i), &
+                  arclen(mesh%tr(j1)%c%p, mesh%tr(k1)%c%p))
+          end do
+       end do  
+    end do
+    
+    dif_coef_hx%f = dif_coef_hx%f/maxval(dif_coef_hx%f)
+  
+    p = dlog(10.d0)/dlog(2.d0)
+    !print*,minval(dif_coef_hx%f)
+    do i=1, mesh%nv   
+         dif_coef_hx%f(i) = K_max*dif_coef_hx%f(i)**p
+    end do
+    !dif_coef_hx%f = dlog(dif_coef_hx%f)/dlog(10.d0) 
+  end subroutine
   
   subroutine kinetic_energy_tr(u, ke, mesh)
     !---------------------------------------------------------------
