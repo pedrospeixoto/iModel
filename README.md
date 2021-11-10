@@ -8,7 +8,7 @@ With contributions from MSc/PhD students.
 
 -------------------------------------------------------
 
-iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid based geophysical fluid models. Fully Fortran written, with outputs using GMT/Matlab. It contains:
+iModel is a pack of tools to work with icosahedral and Voronoi geodesic grid based geophysical fluid models. Fully Fortran written, with outputs using GMT/Matlab/Python. It contains:
 
 - Grid generator and grid tools, including grid optimization
 - Locally refined grids, topography based (MSc L. Santos)
