@@ -10,11 +10,15 @@ echo
 # ---- GMT Version settings ---------#
 gmt5='gmt'
 gmt4='GMT'
-if type "$gmt5" > /dev/null; then
-    gmt=$gmt5
-    echo "Using GMT 5"
-elif type "$gmt4" > /dev/null; then
-    gmt=$gmt4
+gmt_version=""
+if type "gmt" > /dev/null; then
+    gmt="gmt"
+    currentver="$(gmt --version)"
+    gmt_version=${currentver:0:1}
+    echo "Using GMT " $gmt_version "(" $currentver ")"
+elif type "GMT" > /dev/null; then
+    gmt="GMT"
+    gmt_version="4"
     echo "Using GMT 4"
 elif type "psxy" > /dev/null; then
     gmt=""
@@ -243,7 +247,7 @@ echo Map : $map
 echo 
 #GMT paper settings
 gmt_shell_functions.sh
-if [ "$gmt" == "$gmt5" ]; then
+if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
    $gmt gmtset PS_MEDIA Custom_${height}x${width}
    $gmt gmtset FONT_ANNOT_PRIMARY +18p
 else
@@ -290,7 +294,7 @@ fi
 #-----Basemap plot -------#
 
 #GMT configuration flags
-if [ "$gmt" == "$gmt5" ]; then
+if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
     grid_pen="--MAP_GRID_PEN_PRIMARY"
     base25="-BWSne -Bx40 -By40"
 else
@@ -364,10 +368,12 @@ if [ $scalar ] ; then
     echo "Grid spacing used: " $dy
 
     #Binary file settings
-    if [ "$gmt" == "$gmt5" ]; then
-	xyz2grd_pars="-bif -r"
+    if [ "$gmt_version" == "5" ]; then
+	    xyz2grd_pars="-bif -r"
+    elif [ "$gmt_version" == "6" ]; then
+        xyz2grd_pars="-bif -r -fg"
     else
-	xyz2grd_pars="-bis -F"
+	    xyz2grd_pars="-bis -F"
     fi
     
     # Convert binary xyz values to grid structure -bi 
@@ -572,10 +578,10 @@ if [ $scalar ] ; then
     #Plot scalar field map
     $gmt grdimage $scalar.grd -C$scalar.cpt  $map  -O -K -V  >> $plot
 
-    if [ "$gmt" == "$gmt5" ]; then
-	format_scale='--FORMAT_FLOAT_MAP=%.1e --FONT_ANNOT_PRIMARY=20'
+    if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
+	    format_scale='--FORMAT_FLOAT_MAP=%.1e --FONT_ANNOT_PRIMARY=20'
     else
-	format_scale='--D_FORMAT=%0.1e --ANOT_FONT_SIZE=20 '
+	    ormat_scale='--D_FORMAT=%0.1e --ANOT_FONT_SIZE=20 '
     fi
     
     #Set tickmarks distance for scale
@@ -622,14 +628,14 @@ if [ $mesh ] ; then
 	echo "Labeling mesh ..."
 	#Save node label file
 	#  lon, lat, label
-	if [ "$gmt" == "$gmt5" ]; then
+	if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
 	    awk '{print $1, $2, NR}' $nodes > 'nodes_ll.txt'
 	else
 	    awk '{print $1, $2, 10, 0, 0, "LT", NR}' $nodes > 'nodes_ll.txt'
 	fi
 	
 	#Plot nodes's labels
-	if [ "$gmt" == "$gmt5" ]; then
+    if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
 	    font="-F+f8p,Helvetica,black"
 	else
 	    font=""
@@ -640,14 +646,14 @@ if [ $mesh ] ; then
 	$gmt psxy $trcc  $map -St0.05c  -W0.05,red -Gred  -O -K >> $plot
 	
 	#Save triangle labels
-	if [ "$gmt" == "$gmt5" ]; then
+	if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
 	    awk '{print $1, $2, NR}' $trcc > 'triangle_cc.txt'
 	else
 	    awk '{print $1, $2, 5, 0, 0, "LT", NR}' $trcc > 'triangle_cc.txt'
 	fi
 	
 	#Plot triangle labels
-	if [ "$gmt" == "$gmt5" ]; then
+	if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
 	    font="-F+f6p,Helvetica,black"
 	else
 	    font=""
@@ -656,7 +662,7 @@ if [ $mesh ] ; then
 	rm 'nodes_ll.txt'  'triangle_cc.txt'
     fi
 
-    if [ "$gmt" == "$gmt5" ]; then
+    if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
 	#vecstyle="0.1i+ea+g+n0.5" #/0.12i/0.1i+bc"     #+n normalize small vectors attibutes
     	vecstyle="0.06i+ea" #number set size of arrow
     else #GMT4 
@@ -755,7 +761,7 @@ if [ $vec ] ; then
     #Draw vectors
     # http://gmt.soest.hawaii.edu/doc/latest/psxy.html#vec-attributes
     #   marker size and unit (inches) +
-    if [ "$gmt" == "$gmt5" ]; then
+    if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
 	#vecstyle="0.1i+ea+g+n0.5" #/0.12i/0.1i+bc"     #+n normalize small vectors attibutes
     	vecstyle="0.06i+ea" #number set size of arrow
     else #GMT4 
@@ -796,7 +802,7 @@ sed -i s/"^%%Title:.*"/"%%Title:$newtitle"/ $plot
 # Convert file to EPS and PDF and generate grayscale figures for papers
 #-------------------------------------------------------------------------
 
-if [ "$gmt" == "$gmt5" ]; then
+if [[ ("$gmt_version" == "5") || ("$gmt_version" == "6") ]]; then
     $gmt psconvert -Te -A -P $plot  # EPS
     $gmt psconvert -Tf -A -P $plot  # PDF
 else
