@@ -1,9 +1,14 @@
+#-----------------------------------------------------------------------
+# Python script to plot scalar field outputs from imodel
+# Luan Santos - october 2022
+#-----------------------------------------------------------------------
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
 # Grid level
-glevel = 5
+glevel = 4
 glevel = str(glevel)
 
 # Grid name
@@ -13,6 +18,7 @@ gridname = 'icos_pol_scvt_h1_'
 
 # Scalar field
 fieldname = 'moist_swm_tc2_dt400_HTC_trsk10_areageo_advorder3_qc_t1036800_'
+fieldname = 'moist_swm_tc2_dt400_HTC_trsk10_areageo_advmethodG_advorder3_tracer_error_t1036800_'
 #fieldname = 'moist_swm_tc4_dt200_HTC_trsk10_areageo_advorder1_qc_t2592000_'
 
 # Map projection
@@ -24,7 +30,8 @@ map_projection = 'mercator'
 #colormap = 'viridis'
 #colormap = 'YlGnBu'
 #colormap = 'seismic'
-colormap = 'gist_ncar'
+#colormap = 'gist_ncar'
+
 import matplotlib.colors as mcolors
 cmap_data = [(1.0, 1.0, 1.0),
              (0.3137255012989044, 0.8156862854957581, 0.8156862854957581),
@@ -48,6 +55,7 @@ cmap_data = [(1.0, 1.0, 1.0),
              (0.6274510025978088, 0.42352941632270813, 0.23529411852359772),
              (0.4000000059604645, 0.20000000298023224, 0.0)]
 cmap = mcolors.ListedColormap(cmap_data, 'precipitation')
+
 colormap = cmap
 
 # Directories
