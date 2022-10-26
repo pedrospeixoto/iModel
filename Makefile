@@ -81,13 +81,14 @@ bin/swm_data.obj \
 bin/swm_operators.obj \
 bin/swm_matsuno.obj \
 bin/swm.obj \
+bin/highorder.obj \
 bin/moist_swm.obj \
 bin/datastructmult.obj \
 bin/transport.obj \
 bin/poisson.obj \
 bin/multigrid.obj \
 bin/eispack.obj \
-bin/highorder.obj \
+
 
 #Compile and build all
 all: header config bin/imodel ending
@@ -127,7 +128,7 @@ bin/datastructmult.obj: src/datastructmult.f90
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv datastructmult.mod bin/.
 
-#Interpolation for local refinement pack #################################################################################
+#Interpolation for local refinement pack
 bin/refinter.obj: src/refinter.f90
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv refinter.mod bin/.
@@ -194,17 +195,16 @@ bin/swm.obj: src/swm.f90
 bin/swm_matsuno.obj: src/swm_matsuno.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv swm_matsuno.mod bin/.
+
+#High-Order transport 	
+bin/highorder.obj: src/highorder.f90 
+	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
+	mv highorder.mod bin/.
 	
 #Moist shallow water model
 bin/moist_swm.obj: src/moist_swm.f90 
 	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
 	mv moist_swm.mod bin/.
-		
-#High-Order transport 	
-bin/highorder.obj: src/highorder.f90 
-	$(F90) $(FFLAG) -c  $^ -o $@ $(IMOD)
-	mv highorder.mod bin/.
-
 
 #Main executable
 bin/imodel: src/imodel.f90 $(OBJ)
