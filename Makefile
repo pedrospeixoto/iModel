@@ -208,7 +208,8 @@ bin/highorder.obj: src/highorder.f90
 
 #Main executable
 bin/imodel: src/imodel.f90 $(OBJ)
-	$(F90) $(FFLAG)  src/imodel.f90 $(OBJ) -o $@ $(IMOD)
+	#$(F90) $(FFLAG)  src/imodel.f90 $(OBJ) -o $@ $(IMOD)
+	$(F90) $(FFLAG)  src/imodel.f90 $(OBJ) -L/usr/lib -llapack -L/usr/lib -lblas -o $@ $(IMOD)
 
 #Creates a link for executable and prints ending
 ending: 
