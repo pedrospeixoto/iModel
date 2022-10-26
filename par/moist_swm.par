@@ -17,8 +17,10 @@ gass
 trsk
 !Gradient discrete method
 trsk
-!Order of advection method (1-first order (TRSK), 2-second order, 3-third order, 4-fourth order)
-3
+!Advection method (G-FV_GAS, O-FV_OLG)
+G
+!Order of advection method (1-first order (TRSK), 2-second order, 3-third order, 4-fourth order. Only for O-FV_OLG scheme)
+2
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
