@@ -79,21 +79,21 @@ module highorder
   ! node structure
   !--------------------------------------------------------------------------------------
 
-  type,private  :: coords_structure
+  type :: coords_structure
      real(r8),dimension(1:2):: xy
      real(r8),dimension(1:3):: xyz
   end type coords_structure
 
-  type,private  :: coords2_structure
+  type :: coords2_structure
      real(r8),dimension(:,:),allocatable:: xyz2
   end type coords2_structure
 
-  type,private  :: edges_structure
+  type :: edges_structure
      real(r8),dimension(:,:),allocatable:: xyz2
      real(r8),allocatable:: PG(:)
   end type edges_structure
 
-  type,private  :: edgesg_structure
+  type :: edgesg_structure
      real(r8),allocatable:: MRGG(:,:)
      real(r8),allocatable:: MPGG(:,:)
      real(r8),allocatable:: VBGG(:)
@@ -101,14 +101,14 @@ module highorder
   end type edgesg_structure
 
 
-  type,private  :: gauss_structure
+  type :: gauss_structure
      real(r8),allocatable:: lpg(:,:)
      real(r8),allocatable:: lwg(:)
      real(r8),allocatable:: lvn(:,:)
      integer(i4),allocatable:: upwind_donald(:)
   end type gauss_structure
 
-  type,private  :: ngbr_structure
+  type :: ngbr_structure
      !Numero de vizinhos de cada no (primeiros vizinhos ou segundos vizinhos)
      integer(i4)       :: numberngbr
 
@@ -119,11 +119,11 @@ module highorder
      real(r8),allocatable        :: lvd(:)
   end type ngbr_structure
 
-  type,private    :: flux_structure
+  type :: flux_structure
      real(r8),allocatable    :: flux
   end type flux_structure
 
-  type,private  :: node_structure
+  type :: node_structure
 
      !Informacoes de cada grupo de vizinhos
      type (ngbr_structure),allocatable  :: ngbr(:)
