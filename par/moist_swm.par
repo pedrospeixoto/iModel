@@ -1,8 +1,8 @@
 !Moist shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-4 0
+2 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-30 30
+12 12
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
 400 0 0
 !Scalar/vector location (HC or HTC)
@@ -17,6 +17,8 @@ gass
 trsk
 !Gradient discrete method
 trsk
+!Order of advection method (1-first order (TRSK), 2-second order, 3-third order, 4-fourth order)
+3
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
