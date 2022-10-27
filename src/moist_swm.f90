@@ -53,6 +53,7 @@ module moist_swm
     use interpack, only: &
     plot_scalarfield, &
     plot_cart_vectorfield, &
+    vector_reconstruct, &
     aplyr, &
     constr
 
@@ -240,8 +241,11 @@ module moist_swm
     real(r8)::q_precip
     real(r8)::Twater, iniwater
     
-    ! Advection scheme variable
+    ! High order advection scheme variable
     character (len=6):: advmtd
+
+    ! Reconstruction interpolation method for high order adv scheme
+    character (len=8) :: reconadvmtd = "lsqhxe"
 
 contains
 
@@ -858,14 +862,13 @@ subroutine initialize_global_moist_swm_vars()
 
       elseif(useStagHC)then
         do l=1, mesh%ne
-          !vectmp=mesh%edhx(l)%c%p
-          !vectmp = matmul(RmatT,vectmp)
-          !call cart2sph(vectmp(1),vectmp(2),vectmp(3),lon,lat)
-          !utmp = u0*dcos(lat)
-          !vtmp = 0._r8
-          !call convert_vec_sph2cart(utmp, vtmp, mesh%edhx(l)%c%p, vectmp)
-          !v_ed%p(l)%v=vectmp
-          !u%f(l)=dot_product(vectmp,mesh%edhx(l)%nr)
+          lat = mesh%edhx(l)%c%lat
+          lon = mesh%edhx(l)%c%lon
+          utmp=u0*dcos(lat)
+          vtmp=0._r8
+          call convert_vec_sph2cart(utmp, vtmp, mesh%edhx(l)%c%p, vectmp)
+          v_ed%p(l)%v=vectmp
+          u%f(l)=dot_product(vectmp,mesh%edhx(l)%nr)
         end do
       end if
 
@@ -879,7 +882,7 @@ subroutine initialize_global_moist_swm_vars()
     !======================================================================================
     ! Flow over a mountain - from Zerroukat and Allen JCP 2015
     !======================================================================================
-    case(4)
+    case(3)
 
     !Parameters
     u0     = 20._r8
@@ -957,7 +960,9 @@ subroutine initialize_global_moist_swm_vars()
 
       elseif(useStagHC)then
         do l=1, mesh%ne
-          utmp=u0*dcos(mesh%edhx(l)%c%lat)
+          lat = mesh%edhx(l)%c%lat
+          lon = mesh%edhx(l)%c%lon
+          utmp=u0*dcos(lat)
           vtmp=0._r8
           call convert_vec_sph2cart(utmp, vtmp, mesh%edhx(l)%c%p, vectmp)
           v_ed%p(l)%v=vectmp
@@ -968,7 +973,7 @@ subroutine initialize_global_moist_swm_vars()
     !======================================================================================
     ! Galewski - Jet in Southern Hemisphere
     !======================================================================================
-    case(7,8)
+    case(4,5)
       !Parameters
       !mu1    = 0.05_r8
       mu1    = 0.00002_r8
@@ -976,18 +981,18 @@ subroutine initialize_global_moist_swm_vars()
       theta_sp = -40._r8/300._r8 
       theta_eq =  30._r8/300._r8 
       theta_np = -20._r8/300._r8 
-      if(testcase==7)then
+      if(testcase==4)then
         u00 = 80.0
         lat0 = pi/7.0
         lat1 = pi/2.0 - lat0
       else
-        if(testcase==8)then ! Jet in Southern Hemisphere
+        if(testcase==5)then ! Jet in Southern Hemisphere
            u00 = 80.0
            lat0 = -5.d0*deg2rad
            lat1 = -45.d0*deg2rad
         end if
       end if
-	
+
       en = exp(-4/(lat1 - lat0)**2)
       umen = u00/en
       totvol = 0.0D0
@@ -1096,7 +1101,7 @@ subroutine initialize_global_moist_swm_vars()
       alpha = 1.0D0/3.0D0
       beta = 1.0D0/15.0D0
 
-      if(testcase == 8)then
+      if(testcase == 5)then
         lat2 = -25.d0*deg2rad
       else
         lat2 = 0.5D0*piby2
@@ -1110,7 +1115,7 @@ subroutine initialize_global_moist_swm_vars()
         l1 = long - 0.93d0*pi
 
         clat = COS(l2)
-        if(testcase ==8)then
+        if(testcase ==4)then
            l1 = l1 + 120.d0*deg2rad
         end if
         e1 = EXP(-(l1/alpha)**2)
@@ -1543,7 +1548,7 @@ subroutine initialize_global_moist_swm_vars()
       Tcloud=sumf_areas(qc)
       Tvapour=sumf_areas(qv)
       
-      if(testcase==2 .or. testcase==3)then
+      if(testcase==2)then
         h_error%f = h_exact%f - h%f
         u_error%f = u_exact%f - u%f
         qv_error%f = qv_exact%f - qv%f
@@ -1580,6 +1585,8 @@ subroutine initialize_global_moist_swm_vars()
         print '(a22, 3e16.8)',' rain = ',minval(qr%f),maxval(qr%f), Train
       end if
 
+      print '(a22, 2e16.8)',' rain = ',minval(htracer%f),maxval(htracer%f)
+      if (rel_error_h>1000.d0) stop
       !print*,'CFL = ',cfl
       !Plot fields
       call plotfields_mswm(k, time)
@@ -1722,7 +1729,7 @@ subroutine plotfields_mswm(k, time)
     write(atime,*) nint(time)
 
     if(.not.plots)return
-
+    
     if( (k==ntime  .or. mod(k,plotsteps)==0 ) )then
         !Scalar field plots
         h%name=trim(swmname)//"_h_t"//trim(adjustl(trim(atime)))
@@ -1768,7 +1775,7 @@ subroutine plotfields_mswm(k, time)
           call plot_scalarfield(bt, mesh)
         end if
      
-        if(testcase==2 .or. testcase==3)then
+        if(testcase==2)then
           h_error%name=trim(swmname)//"_h_error_t"//trim(adjustl(trim(atime)))
           call plot_scalarfield(h_error, mesh)
 
@@ -2306,12 +2313,6 @@ subroutine plotfields_mswm(k, time)
       write(atmp,'(f10.3)') real(dlog(K4_max)/dlog(10._r8)) 
       swmname=trim(swmname)//"_"//trim(hyperdiffus)//"_hyperdiffusion_10to"//trim(adjustl(trim(atmp)))     
     end if 
-    
-    !RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23.or.testcase==60
-    !RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
-    !  .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &
-    !  testcase==40 .or. testcase==41.or. testcase==42 .or.testcase==56 .or. testcase==57
-
 
     ! Advection scheme order
     if (method /= 'O' .and. method /= 'G') then
@@ -2666,8 +2667,34 @@ subroutine plotfields_mswm(k, time)
     real(r8):: sy
     real(r8):: FEPS
     real(r8),allocatable:: p1(:),p2(:),p3(:)
+
+    !Reconstruction vector
+    real (r8) :: urecon(1:3)
+    real (r8) :: uexact(1:3)
+    real (r8) :: erro
+
     allocate(p1(3),p2(3),p3(3))
     FEPS = 1.0D-8
+
+!    erro = 0.d0
+!    do i=1,nodes
+!       jend=node(i)%ngbr(1)%numberngbr
+!       diml=nint((order)/2.0D0)
+!       cc=1
+!       do n=1,cc*jend
+!          p1=node(i)%edge(n)%xyz2(1,:) 
+!          p2=node(i)%edge(n)%xyz2(2,:) 
+!          do s=1,diml
+             !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
+!             uexact =  velocity(node(i)%G(s)%lpg(n,1:3), time)
+!             urecon = vector_reconstruct (node(i)%G(s)%lpg(n,1:3), u, mesh, reconadvmtd)
+!             erro = max(maxval(abs(uexact-urecon))/maxval(abs(uexact)), erro)
+!          end do
+!       end do
+!    end do
+!    print*, erro
+!    stop
+
     do i=1,nodes
        node(i)%S(z)%flux=0.0D0
        jend=node(i)%ngbr(1)%numberngbr
@@ -2682,8 +2709,13 @@ subroutine plotfields_mswm(k, time)
           p1=node(i)%edge(n)%xyz2(1,:) 
           p2=node(i)%edge(n)%xyz2(2,:) 
           do s=1,diml
+             ! Reconstruct the vector field at quadrature points
+             urecon = vector_reconstruct (node(i)%G(s)%lpg(n,1:3), u, mesh, reconadvmtd)
+
              !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
-             dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time),node(i)%G(s)%lvn(n,1:3))
+             dot=dot_product(urecon, node(i)%G(s)%lvn(n,1:3))
+             !dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time),node(i)%G(s)%lvn(n,1:3))
+
              !Determinando os coeficientes da matriz de rotação para o node i 
              xx=mesh%v(i)%p(1)
              yy=mesh%v(i)%p(2)
@@ -2806,6 +2838,9 @@ subroutine plotfields_mswm(k, time)
     real(r8),allocatable  :: p3(:)      
     real(r8),allocatable  :: vn(:)      
 
+    !Reconstruction vector
+    real (r8) :: urecon(1:3)
+
     allocate (p1(3),p2(3),p3(3),vn(3))
     FEPS = 1.0D-8
     dot = 0.0D0
@@ -2823,17 +2858,13 @@ subroutine plotfields_mswm(k, time)
            p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
            p3 = p3/norm(p3)           
 
-!           dot=dot_product(velocity(node(i)%G(1)%lpg(n,1:3), time),node(i)%G(1)%lvn(n,1:3))
-           !SOLUCAO EXATA no ponto medio entre o node i e seu respectivo vizinho
-!           p3 = node(i)%G(1)%lpg(n,1:3)
-!           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-!           p3 = p3/norm(p3)
-!           call cart2sph (p3(1), p3(2), p3(3),lon,lat)
-!           sol_exata = f(lon,lat)*node(i)%G(1)%lwg(n)*dot 
-!           p1=node(i)%edge(n)%xyz2(1,:) 
-!           p2=node(i)%edge(n)%xyz2(2,:) 
-!           vn=node(i)%G(1)%lvn(n,1:3)
-           dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
+           ! Reconstruct the vector field at quadrature points
+           urecon = vector_reconstruct (p3, u, mesh, reconadvmtd)
+
+           ! Compute the dot product
+           dot = dot_product (urecon, node(i)%G(1)%lvn(n,1:3))
+           !dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
+
            if(dot>=0.0D0)then
               sinal=+1.0D0
            else
@@ -2873,61 +2904,14 @@ subroutine plotfields_mswm(k, time)
 
            !Distancia entre o node i e seu respectivo vizinho   
            dist=arclen(mesh%v(i)%p,mesh%v(w)%p)
-           
-
-!           p1 = mesh%v(i)%p
-!           call cart2sph (p1(1), p1(2), p1(3),lon,lat)
-!           print*, lon,lat ,'node i'
-!           call aplyr(p1(1), p1(2), p1(3),cx,sx,cy,sy,xp,yp,zp) 
-!           p2 = mesh%v(w)%p
-!           call cart2sph (p2(1), p2(2), p2(3),lon,lat)
-!          print*, lon,lat , 'node w'
-!          print*, i, derivada_i,'derivada_i'
-!          print*, w, derivada_j,'derivada_j'
-!          print*,(derivada_i + derivada_j)/2.0D0, 'media das derivadas'
-!          print*, dabs(-sol_exata - (derivada_i + derivada_j)/2.0D0) , 'ERRO'
-
-!          read(*,*)           
-                      
-                 
           
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
            aux3 = sinal*(1.0D0/48.0D0)*((dist)**2)*(derivada_j - derivada_i)
            
-!          sol_numerica = aux1 - aux2 + aux3
-!          sol_numerica = sol_numerica*node(i)%G(1)%lwg(n)*dot
            node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1 - aux2 + aux3)*node(i)%G(1)%lwg(n)*dot
-
-          
-!           erro = dabs(sol_numerica -  sol_exata)  
-!           aaxx = erro * erro
-!           if ( erro_Linf < abs (erro))  erro_Linf =  abs ( erro )
-!           temp = temp +  aaxx
-!          phi%f(contador) = erro
-!          write(atime,'(i8)') nint(time)
-!          phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))    
        end do
     end do
-!    print*, erro_Linf!, 'erro_Linf'
-!    print*, dsqrt (temp/contador)! , 'erro_L2'
-!    print*, contador 
-!    print*,erro_Linf
-!    print*,dsqrt (temp/contador)
-!    call plot_scalarfield(phi,mesh) 
-!    read(*,*)  
-
-!    temp = 0.0D0
-!    do i = 1,nodes
-!       div_est = node(i)%S(z)%flux/mesh%hx(i)%areag
-!       erro = dabs(div_est)
-!       aaxx = erro * erro
-!       if (erro_Linf < abs (erro))  erro_Linf =  abs ( erro )
-!       temp = temp +  aaxx
-!    end do
-!    print*, erro_Linf, 'norma 1'
-!    print*, dsqrt (temp/nodes) , 'norma 2'
-!    read(*,*)
    deallocate(p1,p2,p3,vn)   
    return  
    end subroutine flux_gas   
@@ -2953,7 +2937,7 @@ subroutine plotfields_mswm(k, time)
     real (r8):: utmp
     real (r8):: vtmp
     real (r8):: u0
-    
+
     u0 = 2._r8*pi*erad/(12._r8*day2sec)
     call cart2sph(p(1), p(2), p(3), lon, lat)
     utmp = u0*cos(lat)
