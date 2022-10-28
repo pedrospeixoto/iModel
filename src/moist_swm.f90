@@ -52,10 +52,7 @@ module moist_swm
     !Use routines from the interpolation pack
     use interpack, only: &
     plot_scalarfield, &
-    plot_cart_vectorfield, &
-    vector_reconstruct, &
-    aplyr, &
-    constr
+    plot_cart_vectorfield
 
     !Use routines from the SWM
     use swm_data      !Everything
@@ -80,6 +77,8 @@ module moist_swm
     node, &
     controlvolume, &
     method, &
+    moistswm, &
+    moistswm_ic, &
     order, &
     find_neighbors, &
     allocation, &
@@ -90,10 +89,13 @@ module moist_swm
     upwind_voronoi, &
     matrix_olg, &
     matrix_gas, &
+    condition_initial_gas, &
     reconstruction_olg, &
     reconstruction_gas, &
     vector_olg2, &
     vector_gas, &
+    flux_olg, &
+    flux_gas, &
     gaussrootsweights
 
     !use refinter, only: &
@@ -243,9 +245,6 @@ module moist_swm
     
     ! High order advection scheme variable
     character (len=6):: advmtd
-
-    ! Reconstruction interpolation method for high order adv scheme
-    character (len=8) :: reconadvmtd = "lsqhxe"
 
 contains
 
@@ -474,7 +473,8 @@ subroutine highorder_adv_vars()
     integer(i4),allocatable   :: nbsv(:,:)   
 
     controlvolume = "V"
-    
+    moistswm   = .True.
+    moistswm_ic = 2 
     nodes = size(mesh%v(:)%p(1))
 
     !Alocando nos
@@ -524,13 +524,15 @@ subroutine highorder_adv_vars()
     if (method == 'O')then
         call matrix_olg(nodes,mesh)
     else !Gassman
+        call condition_initial_gas(nodes,mesh) 
         call matrix_gas(nodes,mesh)
     endif
 
-    node(:)%phi_new2 = 1.d0
+    !node(:)%phi_new2 = 1.d0
     do i=1,nodes
         node(i)%phi_exa=node(i)%phi_new2
     enddo
+    print*, minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2)
 
 end subroutine highorder_adv_vars
 
@@ -1161,8 +1163,8 @@ subroutine initialize_global_moist_swm_vars()
    !Check for CFL constraints
     maxvel=maxval(u%f(1:mesh%ne))
     cfl=abs(maxvel*dt/(mesh%minvdist*erad))
-
     print*, "CFL:", cfl
+    
       if(cfl>2)then
         print*, "CFL too large, problems may occur"
     end if
@@ -1179,7 +1181,7 @@ subroutine initialize_global_moist_swm_vars()
     type(scalar_field), intent(in):: h  !General
 
     !Velocities (defined on edges - only normal component)
-    type(scalar_field), intent(in):: u  !General
+    type(scalar_field), intent(inout):: u  !General
 
     !Temperature (defined on voronoi centers)
     type(scalar_field), intent(in):: htheta  !General
@@ -1239,8 +1241,8 @@ subroutine initialize_global_moist_swm_vars()
     call scalar_elem_product(u, htheta_ed, uhtheta) !Flux uhtheta at edges
 
     !Calculate divergence / temp eq RHS
-    !call div_hx(uhtheta, div_uhtheta, mesh)  
-    call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
+    call div_hx(uhtheta, div_uhtheta, mesh)  
+    !call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
     !Temp. eq. RHS
     tempeq = -div_uhtheta%f
     
@@ -1253,8 +1255,8 @@ subroutine initialize_global_moist_swm_vars()
     call scalar_elem_product(u, hqv_ed, uhqv) !Flux uhqv at edges
 
     !Calculate divergence / vapour eq RHS
-    !call div_hx(uhqv, div_uhqv, mesh)
-    call divhx(u, hqv, hqv_ed, uhqv, div_uhqv, mesh)
+    call div_hx(uhqv, div_uhqv, mesh)
+    !call divhx(u, hqv, hqv_ed, uhqv, div_uhqv, mesh)
 
     !Vapour eq. RHS
     vapoureq = -div_uhqv%f
@@ -1268,8 +1270,8 @@ subroutine initialize_global_moist_swm_vars()
     call scalar_elem_product(u, hqc_ed, uhqc) !Flux uhqc at edges
 
     !Calculate divergence / cloud eq RHS  
-    !call div_hx(uhqc, div_uhqc, mesh)
-    call divhx(u, hqc, hqc_ed, uhqc, div_uhqc, mesh)
+    call div_hx(uhqc, div_uhqc, mesh)
+    !call divhx(u, hqc, hqc_ed, uhqc, div_uhqc, mesh)
 
     !Cloud eq. RHS
     cloudeq = -div_uhqc%f
@@ -1283,8 +1285,8 @@ subroutine initialize_global_moist_swm_vars()
     call scalar_elem_product(u, hqr_ed, uhqr) !Flux uhqr at edges
 
     !Calculate divergence / rain eq RHS
-    !call div_hx(uhqr, div_uhqr, mesh)
-    call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
+    call div_hx(uhqr, div_uhqr, mesh)
+    !call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
 
     !Rain eq. RHS
     raineq = -div_uhqr%f
@@ -1429,6 +1431,9 @@ subroutine initialize_global_moist_swm_vars()
     real(r8):: Tcloud
     real(r8):: Train
     real(r8):: Tvapour
+    real(r8):: Ttracer
+    real(r8):: Ttracer0
+    real(r8):: Ttracer_change
 
     real(r8):: lon, lat, p(1:3), pc(1:3)
 
@@ -1493,16 +1498,27 @@ subroutine initialize_global_moist_swm_vars()
 
 
     !Variables at Voronoi centers
-    do i=1, mesh%nv
-        lon = mesh%v(i)%lon
-        lat = mesh%v(i)%lat
-        call sph2cart(lon, lat, p(1), p(2), p(3))
-        call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
-        tracer%f(i) = dexp(-5._r8*norm(p-pc)**2)
-        htracer%f(i) = tracer%f(i)
-        tracer_exact%f(i) = tracer%f(i)
-        tracer_error%f(i) = tracer%f(i)
-    end do
+    if (order > 1) then
+        do i=1, mesh%nv
+            tracer%f(i) = node(i)%phi_new2
+            htracer%f(i) = tracer%f(i)
+            tracer_exact%f(i) = tracer%f(i)
+            tracer_error%f(i) = tracer%f(i)
+            !print*, node(i)%phi_new2 - dexp(-5._r8*norm(p-pc)**2)
+        end do
+    
+    else
+        do i=1, mesh%nv
+            lon = mesh%v(i)%lon
+            lat = mesh%v(i)%lat
+            call sph2cart(lon, lat, p(1), p(2), p(3))
+            call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
+            tracer%f(i) = dexp(-5._r8*norm(p-pc))**2
+            htracer%f(i) = tracer%f(i)
+            tracer_exact%f(i) = tracer%f(i)
+            tracer_error%f(i) = tracer%f(i)
+        end do
+    endif
 
     !Calculate derived initial fields
     call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, masseq%f, momeq%f, tempeq%f, vapoureq%f, &
@@ -1527,6 +1543,7 @@ subroutine initialize_global_moist_swm_vars()
     hqr_old=hqr
     htracer_old=htracer
  
+    Ttracer0 = sumf_areas(htracer)
     !Time loop
     do k=1, ntime
       !Calculate u and h for time:
@@ -1547,7 +1564,7 @@ subroutine initialize_global_moist_swm_vars()
       Train=sumf_areas(qr)
       Tcloud=sumf_areas(qc)
       Tvapour=sumf_areas(qv)
-      
+
       if(testcase==2)then
         h_error%f = h_exact%f - h%f
         u_error%f = u_exact%f - u%f
@@ -1585,7 +1602,6 @@ subroutine initialize_global_moist_swm_vars()
         print '(a22, 3e16.8)',' rain = ',minval(qr%f),maxval(qr%f), Train
       end if
 
-      print '(a22, 2e16.8)',' rain = ',minval(htracer%f),maxval(htracer%f)
       if (rel_error_h>1000.d0) stop
       !print*,'CFL = ',cfl
       !Plot fields
@@ -1608,11 +1624,13 @@ subroutine initialize_global_moist_swm_vars()
 
       !Calculate erngies
       call calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
+
+      Ttracer = sumf_areas(htracer)
+      print '(a33, 2e16.8)','Min/max:', minval(htracer%f),  maxval(htracer%f)
+      print '(a33, 2e16.8)','Change in mass of tracer:', (Ttracer-Ttracer0)/Ttracer0
       print '(a33, 2e16.8)','Change in mass of h*(total water):', (Twater-iniwater)/iniwater
       print*,''
-      if (maxval(htracer%f)>10.d0)then
-          stop
-      endif
+
       !update fields
       u_old=u
       h_old=h
@@ -1823,7 +1841,7 @@ subroutine plotfields_mswm(k, time)
     type(scalar_field), intent(in):: h  !General
 
     !Velocities (defined on edges - only normal component)
-    type(scalar_field), intent(in):: u  !General
+    type(scalar_field), intent(inout):: u  !General
 
     !Temperature (defined on voronoi centers) 
     type(scalar_field), intent(in):: htheta  !General
@@ -2569,8 +2587,8 @@ subroutine plotfields_mswm(k, time)
     !Calculate divergence at voronoi cells (hexagons)
     !   based on edge normal velocities
     !---------------------------------------------------------------
-    type(grid_structure), intent(in) :: mesh
-    type(scalar_field), intent(in):: u ! velocity at cell edges
+    type(grid_structure), intent(inout) :: mesh
+    type(scalar_field), intent(inout):: u ! velocity at cell edges
     type(scalar_field), intent(in):: q ! scalar at cell center
     type(scalar_field), intent(inout):: q_ed ! scalar at cell edges
     type(scalar_field), intent(inout):: uq ! flux at cell edges
@@ -2598,353 +2616,29 @@ subroutine plotfields_mswm(k, time)
     else if (order >= 2) then
         nodes = size(mesh%v(:)%p(1))
 
+        do i = 1, nodes
+            node(i)%phi_new2 = q%f(i)
+            node(i)%phi_new  = q%f(i)
+        end do
+
         if (method == 'O')then
-            do i = 1, nodes
-                node(i)%phi_new2 = q%f(i)
-                node(i)%phi_new  = q%f(i)
-            end do
-
             call vector_olg2(nodes)
-            call reconstruction_olg(nodes,mesh) 
-            call flux_olg(nodes,mesh,0,0.d0)
-
-            do i=1,nodes
-                area=mesh%hx(i)%areag 
-                div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
-                div%f(i) = div%f(i)/erad
-            end do
-
+            call reconstruction_olg(nodes, mesh) 
+            call flux_olg(nodes, mesh, 0, 0.d0, u)
         else ! Gassman method
-            do i = 1, nodes
-                node(i)%phi_new2 = q%f(i)
-                node(i)%phi_new  = q%f(i)
-            end do
-
             call vector_gas(nodes, mesh)
-            call reconstruction_gas(nodes,mesh) 
-            call flux_gas(nodes,mesh,0,0.d0)
+            call reconstruction_gas(nodes, mesh) 
+            call flux_gas(nodes, mesh, 0, 0.d0, u)
+        end if
 
-            do i=1,nodes
-                area=mesh%hx(i)%areag 
-                div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
-                div%f(i) = div%f(i)/erad
-            end do
-        endif
+        do i=1,nodes
+            area=mesh%hx(i)%areag 
+            div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
+            div%f(i) = div%f(i)/erad
+        end do
+
     endif
     return
   end subroutine divhx
-
-  subroutine flux_olg(nodes,mesh,z,time)  
-    !----------------------------------------------------------------------------------------------
-    !    Calculando o fluxo nas arestas
-    !----------------------------------------------------------------------------------------------
-    implicit none
-    integer(i4),intent(in):: nodes
-    type(grid_structure),intent(in):: mesh
-    integer,intent(in),optional   :: z
-    real(r8),intent(in),optional  :: time
-
-    integer(i4):: i
-    integer(i4):: j
-    integer(i4):: k
-    integer(i4):: w
-    integer(i4):: l
-    integer(i4):: n
-    integer(i4):: s
-    integer(i4):: cc
-    integer(i4):: diml
-    integer(i4):: jend
-    real(r8):: dot
-    real(r8):: xx
-    real(r8):: yy
-    real(r8):: zz
-    real(r8):: xp
-    real(r8):: yp
-    real(r8):: zp
-    real(r8):: cx
-    real(r8):: cy
-    real(r8):: sx
-    real(r8):: sy
-    real(r8):: FEPS
-    real(r8),allocatable:: p1(:),p2(:),p3(:)
-
-    !Reconstruction vector
-    real (r8) :: urecon(1:3)
-    real (r8) :: uexact(1:3)
-    real (r8) :: erro
-
-    allocate(p1(3),p2(3),p3(3))
-    FEPS = 1.0D-8
-
-!    erro = 0.d0
-!    do i=1,nodes
-!       jend=node(i)%ngbr(1)%numberngbr
-!       diml=nint((order)/2.0D0)
-!       cc=1
-!       do n=1,cc*jend
-!          p1=node(i)%edge(n)%xyz2(1,:) 
-!          p2=node(i)%edge(n)%xyz2(2,:) 
-!          do s=1,diml
-             !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
-!             uexact =  velocity(node(i)%G(s)%lpg(n,1:3), time)
-!             urecon = vector_reconstruct (node(i)%G(s)%lpg(n,1:3), u, mesh, reconadvmtd)
-!             erro = max(maxval(abs(uexact-urecon))/maxval(abs(uexact)), erro)
-!          end do
-!       end do
-!    end do
-!    print*, erro
-!    stop
-
-    do i=1,nodes
-       node(i)%S(z)%flux=0.0D0
-       jend=node(i)%ngbr(1)%numberngbr
-       diml=nint((order)/2.0D0)
-       !Percorrendo todas as faces do volume de controle i
-       if(controlvolume=="D")then
-          cc=2
-       else
-          cc=1
-       endif
-       do n=1,cc*jend
-          p1=node(i)%edge(n)%xyz2(1,:) 
-          p2=node(i)%edge(n)%xyz2(2,:) 
-          do s=1,diml
-             ! Reconstruct the vector field at quadrature points
-             urecon = vector_reconstruct (node(i)%G(s)%lpg(n,1:3), u, mesh, reconadvmtd)
-
-             !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
-             dot=dot_product(urecon, node(i)%G(s)%lvn(n,1:3))
-             !dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time),node(i)%G(s)%lvn(n,1:3))
-
-             !Determinando os coeficientes da matriz de rotação para o node i 
-             xx=mesh%v(i)%p(1)
-             yy=mesh%v(i)%p(2)
-             zz=mesh%v(i)%p(3)
-             call constr(xx,yy,zz,cx,sx,cy,sy)
-             !Determinando as coordenadas dos pontos de gauss da esfera para o plano 
-             p3(1)=node(i)%G(s)%lpg(n,1)
-             p3(2)=node(i)%G(s)%lpg(n,2)
-             p3(3)=node(i)%G(s)%lpg(n,3)
-             call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp) 
-             if(dot<FEPS.and.dot>-1.0*FEPS)then
-                node(i)%S(z)%flux=node(i)%S(z)%flux+0.0D0
-             elseif(dot>0)then
-                if(order==2)then           
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(i)%coef(1) + node(i)%coef(2)*xp + & 
-                        node(i)%coef(3)*yp)*node(i)%G(s)%lwg(n)*dot
-                end if
-                if(order==3)then    
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
-                        node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp)*node(i)%G(s)%lwg(n)*dot 
-                   !print*,node(i)%S(z)%flux ,i,s,'lc'   
-                   !print*, node(i)%G(s)%lwg(n)*dot, 'peso dot lc'   
-                end if
-                if(order==4) then     
-                   node(i)%S(z)%flux = node(i)%S(z)%flux  + (node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
-                        node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp + &                     
-                        node(i)%coef(7)*xp*xp*xp + node(i)%coef(8)*xp*xp*yp + &
-                        node(i)%coef(9)*xp*yp*yp + node(i)%coef(10)*yp*yp*yp)*node(i)%G(s)%lwg(n)*dot 
-                end if
-             else
-   
-             if(controlvolume=="D")then
-                w=node(i)%G(s)%upwind_donald(n)
-             else
-                w=node(i)%upwind_voronoi(n)
-             endif
-
-                !Determinando o valor do fluxo - UPWIND    
-                xx=mesh%v(w)%p(1)
-                yy=mesh%v(w)%p(2)
-                zz=mesh%v(w)%p(3)
-                call constr(xx,yy,zz,cx,sx,cy,sy)
-                call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp) 
-
-
-                if(order==2)then          
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(w)%coef(1) + node(w)%coef(2)*xp + & 
-                        node(w)%coef(3)*yp)*node(i)%G(s)%lwg(n)*dot
-
-
-                end if
-                if(order==3)then 
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
-                        node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp)*node(i)%G(s)%lwg(n)*dot  
-                end if
-                if(order==4)then 
-                   node(i)%S(z)%flux = node(i)%S(z)%flux  + (node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
-                        node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp + &                     
-                        node(w)%coef(7)*xp*xp*xp + node(w)%coef(8)*xp*xp*yp + node(w)%coef(9)*xp*yp*yp + &
-                        node(w)%coef(10)*yp*yp*yp)*node(i)%G(s)%lwg(n)*dot 
-                end if
-             endif
-          enddo
-       enddo
-    enddo
-    deallocate(p1,p2,p3)
-    return  
-  end subroutine flux_olg
-
-    subroutine flux_gas(nodes,mesh,z,time)  
-    !----------------------------------------------------------------------------------------------
-    !    Calculando o fluxo nas arestas
-    !----------------------------------------------------------------------------------------------
-
-    implicit none 
-    integer,intent(in)    :: nodes
-    type(grid_structure),intent(in)      :: mesh
-    integer,intent(in),optional   :: z
-    real(r8),intent(in),optional  :: time
-    integer(i4)   :: i
-    integer(i4)   :: j
-    integer(i4)   :: k
-    integer(i4)   :: l
-    integer(i4)   :: m
-    integer(i4)   :: n
-    integer(i4)   :: w
-    integer(i4)   :: s
-    integer(i4)   :: kk
-    integer(i4)   :: cc
-    integer(i4)   :: diml
-    integer(i4)   :: contador
-    integer(i4)   :: jend
-    real(r8)  :: dot
-    real(r8)  :: cx
-    real(r8)  :: cy
-    real(r8)  :: sx
-    real(r8)  :: sy
-    real(r8)  :: xx
-    real(r8)  :: yy
-    real(r8)  :: zz
-    real(r8)  :: xp
-    real(r8)  :: yp
-    real(r8)  :: zp
-    real(r8)  :: xb
-    real(r8)  :: yb
-    real(r8)  :: zb
-    real(r8)  :: xc
-    real(r8)  :: yc
-    real(r8)  :: zc
-    real(r8)  :: xi
-    real(r8)  :: yi
-    real(r8)  :: zi
-    real(r8)  :: xf
-    real(r8)  :: yf
-    real(r8)  :: zf, theta, alfa, div_est, sol_numerica, sol_exata, derivada_i, derivada_j, cosseno, seno, aux
-    real(r8)  :: FEPS, temp, aaxx, erro_Linf, erro, integral,phi_i, phi_j,dist,sinal, aux1, aux2, aux3, lon, lat
-    real(r8)  :: lat1, lat2
-    real(r8),allocatable  :: p1(:)      
-    real(r8),allocatable  :: p2(:)      
-    real(r8),allocatable  :: p3(:)      
-    real(r8),allocatable  :: vn(:)      
-
-    !Reconstruction vector
-    real (r8) :: urecon(1:3)
-
-    allocate (p1(3),p2(3),p3(3),vn(3))
-    FEPS = 1.0D-8
-    dot = 0.0D0
-    temp = 0.0D0
-    aaxx = 0.0D0
-    erro_Linf = 0.0D0
-    contador = 0  
-    
-    do i = 1,nodes
-         node(i)%S(z)%flux = 0.0D0
-         jend = node(i)%ngbr(1)%numberngbr
-         do n = 1,jend     
-           contador = contador + 1
-           w=node(i)%upwind_voronoi(n)
-           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-           p3 = p3/norm(p3)           
-
-           ! Reconstruct the vector field at quadrature points
-           urecon = vector_reconstruct (p3, u, mesh, reconadvmtd)
-
-           ! Compute the dot product
-           dot = dot_product (urecon, node(i)%G(1)%lvn(n,1:3))
-           !dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
-
-           if(dot>=0.0D0)then
-              sinal=+1.0D0
-           else
-              sinal=-1.0D0
-           endif
- 
-          !Determinando os valores para o node i 
-           xx = mesh%v(i)%p(1)
-           yy = mesh%v(i)%p(2)
-           zz = mesh%v(i)%p(3)
-           call constr(xx,yy,zz,cx,sx,cy,sy)
-
-           xx = mesh%v(w)%p(1)
-           yy = mesh%v(w)%p(2)
-           zz = mesh%v(w)%p(3)
-           call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-           cosseno=(xp/dsqrt(xp**2+yp**2))
-           seno=(yp/dsqrt(xp**2+yp**2))
-           phi_i = node(i)%coef(1)
-           derivada_i = 2.0D0*node(i)%coef(4)*(cosseno**2) + & 
-           2.0D0*node(i)%coef(5)*cosseno*seno + 2.0D0*node(i)%coef(6)*(seno**2)
- 
-          !Determinando os valores dos vizinhos do node i 
-           xx = mesh%v(w)%p(1)
-           yy = mesh%v(w)%p(2)
-           zz = mesh%v(w)%p(3)
-           call constr(xx,yy,zz,cx,sx,cy,sy)
-           xx = mesh%v(i)%p(1)
-           yy = mesh%v(i)%p(2)
-           zz = mesh%v(i)%p(3)
-           call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-           cosseno=(xp/dsqrt(xp**2+yp**2))
-           seno=(yp/dsqrt(xp**2+yp**2))
-           phi_j = node(w)%coef(1)
-           derivada_j = 2.0D0*node(w)%coef(4)*(cosseno**2) + &
-           2.0D0*node(w)%coef(5)*cosseno*seno + 2.0D0*node(w)%coef(6)*(seno**2)
-
-           !Distancia entre o node i e seu respectivo vizinho   
-           dist=arclen(mesh%v(i)%p,mesh%v(w)%p)
-          
-           aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
-           aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
-           aux3 = sinal*(1.0D0/48.0D0)*((dist)**2)*(derivada_j - derivada_i)
-           
-           node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1 - aux2 + aux3)*node(i)%G(1)%lwg(n)*dot
-       end do
-    end do
-   deallocate(p1,p2,p3,vn)   
-   return  
-   end subroutine flux_gas   
-    
-    
-  function velocity(p, time)
-    !-----------------------------------
-    !  V - velocity in Cartesian coordinates
-    !
-    !   p in Cartesian coords
-    !
-    !  P. Peixoto - Feb2013
-    !---------------------------------------------
-    real (r8), intent(in) :: p(1:3)
-    real (r8):: velocity(1:3)
-
-    !Period, actual time
-    real (r8), intent(in)::  time
-
-    !Auxiliar variables
-    real (r8):: lon
-    real (r8):: lat
-    real (r8):: utmp
-    real (r8):: vtmp
-    real (r8):: u0
-
-    u0 = 2._r8*pi*erad/(12._r8*day2sec)
-    call cart2sph(p(1), p(2), p(3), lon, lat)
-    utmp = u0*cos(lat)
-    vtmp = 0._r8
-    call convert_vec_sph2cart(utmp, vtmp, p, velocity)
-    return
-  end function velocity
-
 
 end module moist_swm
