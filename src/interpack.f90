@@ -658,6 +658,8 @@ contains
           vector_reconstruct=vecrecon_pered(pindtmp, var, mesh)
        case("dtred") !Dual triangle recons for edges (tangent vector reconstruction)
           vector_reconstruct=vecrecon_dtred(pindtmp, var, mesh)
+       case("lsq") !Least Square fit
+          vector_reconstruct=vecrecon_lsq (p, var, stencil, mesh, pindtmp)
        case default
           print*, "VECTOR RECON ERROR: Don't know how to do this interpolation:", &
                kindinterpol, var%pos
@@ -6467,7 +6469,7 @@ contains
     !Returning value of approximation
     real (r8):: vecrecon_lsq(1:3)
 
-    if(var%pos/=3)then
+    if(var%pos/=3 .and. var%pos/=6)then
        print*, "vecrecon_lsq warning: vector field given in incorrect position", var%pos
        return
     end if
@@ -6494,13 +6496,13 @@ contains
 
           !Get triangle
           k=gettr(p, mesh)
-
        case default
           print*, "vecrecon_lsq error: unknown stencil", trim(stencil)
           stop
        end select
     end if
     !print*, k
+
     call vecrecon_lsqfitpol (k, stencil, var, mesh)
 
     vecrecon_lsq=vecrecon_lsqeval(k, p, var)
@@ -6668,7 +6670,7 @@ contains
     real (r8):: dmin
 
     !Test for the values position
-    if(var%pos/=3)then
+    if(var%pos/=3 .and. var%pos/=6)then
        print*, "vecrecon_lsfitpol ERROR : Variable not on hexagon edge midpoints"
        print*, "pos:", var%pos
        stop
@@ -6712,7 +6714,11 @@ contains
              !Save index of edge
              eds(j)=mesh%tr(k)%ed(l)
              !Calculate distance (-cos(angle))
-             d=-dot_product(pref, mesh%edhx(eds(j))%c%p)
+             if (var%pos==3) then
+                d=-dot_product(pref, mesh%edhx(eds(j))%c%p)
+             else
+                d=-dot_product(pref, mesh%ed(eds(j))%c%p)
+             endif
              dmax=max(d, dmax)
              dsum = dsum + 1. - d ** 2
           end do
@@ -6746,7 +6752,11 @@ contains
           !Save index of edge
           eds(i)=mesh%v(kc)%ed(i)
           !Calculate distance (-cos(angle))
-          d=-dot_product(mesh%v(kc)%p, mesh%edhx(eds(i))%c%p)
+          if (var%pos==3) then
+             d=-dot_product(mesh%v(kc)%p, mesh%edhx(eds(i))%c%p)
+          else if (var%pos==6) then
+             d=-dot_product(mesh%v(kc)%p, mesh%ed(eds(i))%c%p)
+          endif
           dmax=max(d, dmax)
           dsum = dsum + 1. - d ** 2
        end do
@@ -6812,8 +6822,13 @@ contains
     do i=7, n
        ed = eds (i)
        !Apply the rotation for this point
-       call aplyr (mesh%edhx(ed)%c%p(1), mesh%edhx(ed)%c%p(2), &
+       if (var%pos == 3) then
+          call aplyr (mesh%edhx(ed)%c%p(1), mesh%edhx(ed)%c%p(2), &
             mesh%edhx(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+       else if (var%pos==6) then
+          call aplyr (mesh%ed(ed)%c%p(1), mesh%ed(ed)%c%p(2), &
+            mesh%ed(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+       endif
 
        !Define the weight of the edge
        wt = 1. / (1. - zp) - rinv
@@ -6821,9 +6836,15 @@ contains
        !print*, ed, zp, wt
 
        !Get Normal vector component at this edge and rotate it
-       nr=mesh%edhx(ed)%nr
-       call aplyr (mesh%edhx(ed)%nr(1), mesh%edhx(ed)%nr(2), &
+       if (var%pos == 3) then
+          nr=mesh%edhx(ed)%nr
+          call aplyr (mesh%edhx(ed)%nr(1), mesh%edhx(ed)%nr(2), &
             mesh%edhx(ed)%nr(3), cx, sx, cy, sy, nx, ny, nz)
+       else if (var%pos==6) then
+          nr=mesh%ed(ed)%tg
+          call aplyr (mesh%ed(ed)%tg(1), mesh%ed(ed)%tg(2), &
+            mesh%ed(ed)%tg(3), cx, sx, cy, sy, nx, ny, nz)
+       endif
 
        !Ignore z normal component and correct norm of 2d vector
        nx=nx/dsqrt(1-nz**2)
@@ -6900,7 +6921,11 @@ contains
             stop
          end if
          !Calculate distance (-cos(angle))
-         d=-dot_product(mesh%v(kc)%p, mesh%edhx(eds(j))%c%p)
+         if (var%pos==3) then
+             d=-dot_product(mesh%v(kc)%p, mesh%edhx(eds(j))%c%p)
+          else if (var%pos==6) then
+             d=-dot_product(mesh%v(kc)%p, mesh%ed(eds(j))%c%p)
+         end if
          dmax=max(d, dmax)
          dsum = dsum + 1. - d ** 2
       end do
@@ -6923,11 +6948,17 @@ contains
       !   matrix (transposed) as the columns of A, and zero out
       !   the lower triangle (upper triangle of A) with Givens
       !   rotations.
+
       do  i = 1, 6
          ed = eds (i)
          !Apply the rotation for this point
-         call aplyr (mesh%edhx(ed)%c%p(1), mesh%edhx(ed)%c%p(2), &
-              mesh%edhx(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+         if (var%pos == 3)then
+            call aplyr (mesh%edhx(ed)%c%p(1), mesh%edhx(ed)%c%p(2), &
+                 mesh%edhx(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+         else
+            call aplyr (mesh%ed(ed)%c%p(1), mesh%ed(ed)%c%p(2), &
+                 mesh%ed(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+         endif
 
          !Define the weight of the edge
          wt = 1. / (1. - zp) - rinv
@@ -6935,9 +6966,15 @@ contains
          !print*, ed, zp, wt
 
          !Get Normal vector component at this edge and rotate it
-         nr=mesh%edhx(ed)%nr
-         call aplyr (mesh%edhx(ed)%nr(1), mesh%edhx(ed)%nr(2), &
-              mesh%edhx(ed)%nr(3), cx, sx, cy, sy, nx, ny, nz)
+         if (var%pos == 3)then
+             nr=mesh%edhx(ed)%nr
+             call aplyr (mesh%edhx(ed)%nr(1), mesh%edhx(ed)%nr(2), &
+                  mesh%edhx(ed)%nr(3), cx, sx, cy, sy, nx, ny, nz)
+         else if (var%pos==6) then
+             nr=mesh%ed(ed)%tg
+             call aplyr (mesh%ed(ed)%tg(1), mesh%ed(ed)%tg(2), &
+                  mesh%ed(ed)%tg(3), cx, sx, cy, sy, nx, ny, nz)
+         endif
 
          !Ignore z normal component and correct norm of 2d vector
          nx=nx/dsqrt(1-nz**2)
