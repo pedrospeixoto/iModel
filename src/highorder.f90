@@ -17,7 +17,8 @@ module highorder
        pi, &
        pi2, &
        r8, &
-       unitspharea
+       unitspharea, &
+       day2sec
 
   !Use main grid data structures
   use datastruct, only: &
@@ -50,6 +51,17 @@ module highorder
 
   !Logical for plots or not
   logical:: plots
+
+
+  !Logical for moist shallow water model
+  logical:: moistswm
+
+  !Logical for moist shallow water model initial condition
+  integer:: moistswm_ic
+
+  ! Reconstruction interpolation method for high order adv scheme in the moist swm
+  character (len=8) :: reconadvmtd = "lsqhxe"
+  !character (len=8) :: reconadvmtd = "lsqtrc"
 
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
@@ -321,6 +333,7 @@ contains
     integer(i4) :: nlines
     integer(i4) :: ncolumns
     real(r8):: time
+    !real(r8):: mass, mass0
 
     !Numero de vizinhos e vizinhos de cada no
     integer(i4),allocatable   :: nbsv(:,:)   
@@ -419,7 +432,7 @@ contains
        !call interpolation_g(mesh)
        !call flux_edges_g(nodes,mesh,0,0.0D0)  
 
-      do i=1,nodes
+       do i=1,nodes
           node(i)%phi_exa=node(i)%phi_new2
        enddo
 
@@ -450,6 +463,8 @@ contains
              call flux_gas(nodes,mesh,k-1,time)
              call rungekutta(nodes,mesh,k) 
           enddo
+          
+       
           time=time+node(0)%dt
           print*, time
        enddo
@@ -475,13 +490,16 @@ contains
           node(i)%phi_exa=node(i)%phi_new2
        enddo
 
+
        !Avanço temporal 
-       time=0.0D0 
+       time=0.0D0
+
        do j=0,node(0)%ntime+1
           !Atualizando a solucao
           do i=1,nodes
              node(i)%phi_old=node(i)%phi_new2
           enddo
+ 
           !Plotando Inicial e Final
 !          if(j==0.or.j==node(0)%ntime)then   
 !             do i=1,nodes
@@ -559,129 +577,145 @@ contains
     !Exponential/Gaussian parameters
     real (r8):: L
 
-    !Keep a local copy of point position
-    if(present(time))then !Exact scalar for rotation
-       if(testcase==5.or. testcase==7)then
-          lonp=lon-time*2.*pi/T          
-       end if
-       if(lonp<-pi)then
-          lonp=lonp+pi2
-       elseif(lonp>pi)then
-          lonp=lonp-pi2
-       end if
+
+    if(.not. moistswm) then
+      !Keep a local copy of point position
+      if(present(time))then !Exact scalar for rotation
+         if(testcase==5.or. testcase==7)then
+            lonp=lon-time*2.*pi/T          
+         end if
+         if(lonp<-pi)then
+            lonp=lonp+pi2
+         elseif(lonp>pi)then
+            lonp=lonp-pi2
+         end if
+      else
+         lonp=lon
+      end if
+      latp=lat
+
+      !Center of bell, hill or cilinder
+      ! It depends on the test case
+      select case(testcase)
+      case(1) !Nondivergent case-1
+         lon1=0._r8
+         lat1=pi/(3._r8)
+         lon2=0._r8
+         lat2=-pi/(3._r8)
+      case(3) !Divergent case 3
+         lon1=-pi/(4._r8)
+         lat1=0._r8
+         lon2=pi/(4._r8)
+         lat2=0._r8
+      case(2, 4) !Nondivergent case-2 and case 4 (rotation
+         lon1=-pi/(6._r8)
+         lat1=0._r8
+         lon2=pi/(6._r8)
+         lat2=0._r8
+      case (5, 7) !Passive Adv - Rotation
+         lon1=0.
+         lat1=0.
+      case default
+         lon1=0.
+         lat1=0.
+         lon2=0.
+         lat2=0.
+      end select
+
+      !Initial scalar fields
+      select case(initialfield)
+      case(0) !Constant
+         f=1._r8
+      case(1) !Cosine bell
+         b=0.1_r8
+         c=0.9_r8
+         r=1._r8/2._r8
+         r1= arcdistll(lonp, latp, lon1, lat1)
+         if(r1<r)then
+            h1=(1._r8/2._r8)*(1._r8+dcos(pi*r1/r))
+            f=b+c*h1
+            return
+         end if
+         r2= arcdistll(lonp, latp, lon2, lat2)
+         if(r2<r)then
+            h2=(1._r8/2._r8)*(1._r8+dcos(pi*r2/r))
+            f=b+c*h2
+            return
+         end if
+         f=b
+      case(2) !Gaussian
+         b0=5
+         call sph2cart(lonp, latp, p(1), p(2), p(3))
+         call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
+         call sph2cart(lon2, lat2, p2(1), p2(2), p2(3))
+         h1=dexp(-b0*norm(p-p1)**2)
+         h2=dexp(-b0*norm(p-p2)**2)
+         f=h1+h2
+      case(3) !Non-smooth- Slotted cylinder
+         b=0.1_r8
+         c=1._r8 !0.9
+         r=1._r8/2._r8
+         f=b
+
+         r1= arcdistll(lonp, latp, lon1, lat1)
+         if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
+            f=c
+            return
+         end if
+         r2= arcdistll(lonp, latp, lon2, lat2)
+         if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
+            f=c
+            return
+         end if
+         if(r1<=r.and.abs(lonp-lon1) < r/(6._r8) .and. &
+              (latp-lat1)<-(5._r8)*r/(12._r8))then
+            f=c
+            return
+         end if
+         if(r2<=r.and.abs(lonp-lon2)<r/(6._r8).and. &
+              (latp-lat2)>(5._r8)*r/(12._r8))then
+            f=c
+            return
+         end if
+      case(4) !Passive Adv - Rotation
+         r = (latp-lat1)**2+(lonp-lon1)**2
+         L=5*pi/180._r8
+         f=exp(-r/L)
+      case(5) !Global positive function
+         f=dsin(latp)
+         !f=(dcos(latp))**3*(dsin(lonp))**2
+      case(6) !One Gaussian  
+         b0=5
+         call sph2cart(lonp, latp, p(1), p(2), p(3))
+         call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
+         f=dexp(-b0*norm(p-p1)**2)
+      case(7) !Gaussian
+         b0=5
+         call sph2cart(lonp, latp, p(1), p(2), p(3))
+         call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
+         f=dexp(-b0*norm(p-p1)**2)       
+      case default
+      f=0.
+
+    end select
+    
     else
-       lonp=lon
-    end if
-    latp=lat
 
-    !Center of bell, hill or cilinder
-    ! It depends on the test case
-    select case(testcase)
-    case(1) !Nondivergent case-1
-       lon1=0._r8
-       lat1=pi/(3._r8)
-       lon2=0._r8
-       lat2=-pi/(3._r8)
-    case(3) !Divergent case 3
-       lon1=-pi/(4._r8)
-       lat1=0._r8
-       lon2=pi/(4._r8)
-       lat2=0._r8
-    case(2, 4) !Nondivergent case-2 and case 4 (rotation
-       lon1=-pi/(6._r8)
-       lat1=0._r8
-       lon2=pi/(6._r8)
-       lat2=0._r8
-    case (5, 7) !Passive Adv - Rotation
-       lon1=0.
-       lat1=0.
-    case default
-       lon1=0.
-       lat1=0.
-       lon2=0.
-       lat2=0.
-    end select
-
-    !Initial scalar fields
-    select case(initialfield)
-    case(0) !Constant
-       f=1._r8
-    case(1) !Cosine bell
-       b=0.1_r8
-       c=0.9_r8
-       r=1._r8/2._r8
-       r1= arcdistll(lonp, latp, lon1, lat1)
-       if(r1<r)then
-          h1=(1._r8/2._r8)*(1._r8+dcos(pi*r1/r))
-          f=b+c*h1
-          return
-       end if
-       r2= arcdistll(lonp, latp, lon2, lat2)
-       if(r2<r)then
-          h2=(1._r8/2._r8)*(1._r8+dcos(pi*r2/r))
-          f=b+c*h2
-          return
-       end if
-       f=b
-    case(2) !Gaussian
-       b0=5
-       call sph2cart(lonp, latp, p(1), p(2), p(3))
-       call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
-       call sph2cart(lon2, lat2, p2(1), p2(2), p2(3))
-       h1=dexp(-b0*norm(p-p1)**2)
-       h2=dexp(-b0*norm(p-p2)**2)
-       f=h1+h2
-    case(3) !Non-smooth- Slotted cylinder
-       b=0.1_r8
-       c=1._r8 !0.9
-       r=1._r8/2._r8
-       f=b
-
-       r1= arcdistll(lonp, latp, lon1, lat1)
-       if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
-          f=c
-          return
-       end if
-       r2= arcdistll(lonp, latp, lon2, lat2)
-       if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
-          f=c
-          return
-       end if
-       if(r1<=r.and.abs(lonp-lon1) < r/(6._r8) .and. &
-            (latp-lat1)<-(5._r8)*r/(12._r8))then
-          f=c
-          return
-       end if
-       if(r2<=r.and.abs(lonp-lon2)<r/(6._r8).and. &
-            (latp-lat2)>(5._r8)*r/(12._r8))then
-          f=c
-          return
-       end if
-    case(4) !Passive Adv - Rotation
-       r = (latp-lat1)**2+(lonp-lon1)**2
-       L=5*pi/180._r8
-       f=exp(-r/L)
-    case(5) !Global positive function
-       f=dsin(latp)
-       !f=(dcos(latp))**3*(dsin(lonp))**2
-    case(6) !One Gaussian  
-       b0=5
-       call sph2cart(lonp, latp, p(1), p(2), p(3))
-       call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
-       f=dexp(-b0*norm(p-p1)**2)
-    case(7) !Gaussian
-       b0=5
-       call sph2cart(lonp, latp, p(1), p(2), p(3))
-       call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
-       f=dexp(-b0*norm(p-p1)**2)       
-    case default
-       f=0.
-    end select
+    select case(moistswm_ic) 
+      case(2) ! Gaussian hill
+        call sph2cart(lon, lat, p(1), p(2), p(3))
+        call sph2cart(0._r8, 0._r8, p1(1), p1(2), p1(3))
+        f = dexp(-5._r8*norm(p-p1)**2)
+     case default
+        print*, 'Highorder error: invalid initial scalar field'
+        stop
+      end select 
+    endif
 
     return
   end function f
 
-  function velocity(p, time)
+  function velocity(p, time, uedges, mesh)
     !-----------------------------------
     !  V - velocity in Cartesian coordinates
     !
@@ -700,10 +734,39 @@ contains
     real (r8):: lat
     real (r8):: utmp
     real (r8):: vtmp
-    call cart2sph(p(1), p(2), p(3), lon, lat)
-    utmp=u(lon, lat, time)
-    vtmp=v(lon, lat, time)
-    call convert_vec_sph2cart(utmp, vtmp, p, velocity)
+
+    ! Moist shallow water normal velocity
+    type(grid_structure), intent(inout), optional :: mesh
+    type(scalar_field)  , intent(inout), optional :: uedges
+    real (r8):: urecon(1:3)
+    real (r8):: u0
+    
+    ! Advection test cases
+    if (.not. moistswm)then
+       call cart2sph(p(1), p(2), p(3), lon, lat)
+       utmp=u(lon, lat, time)
+       vtmp=v(lon, lat, time)
+       call convert_vec_sph2cart(utmp, vtmp, p, velocity)
+    
+    else ! Moist SW test cases
+       select case(moistswm_ic)
+          case(2)
+             u0 = 2._r8*pi*erad/(12._r8*day2sec)
+             call cart2sph(p(1), p(2), p(3), lon, lat)
+             utmp = u0*cos(lat)
+             vtmp = 0._r8
+             call convert_vec_sph2cart(utmp, vtmp, p, velocity)
+          case default
+             print*, 'Highorder error: Invalid velocity vector field.'
+             stop
+       end select
+       ! Reconstruct the vector field at given point
+       urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
+       !print*, maxval(abs(velocity-urecon))/maxval(abs(velocity))
+       !stop
+       velocity = urecon
+    endif
+
     return
   end function velocity
 
@@ -3020,16 +3083,16 @@ read(*,*)
     return
   end subroutine time_step
 
-  subroutine flux_olg(nodes,mesh,z,time)  
+  subroutine flux_olg(nodes,mesh,z,time,uedges)  
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
     !----------------------------------------------------------------------------------------------
     implicit none
     integer(i4),intent(in):: nodes
-    type(grid_structure),intent(in):: mesh
+    type(grid_structure),intent(inout):: mesh
     integer,intent(in),optional   :: z
     real(r8),intent(in),optional  :: time
-
+    type(scalar_field), intent(inout), optional :: uedges ! Only for moist shallow water model
     integer(i4):: i
     integer(i4):: j
     integer(i4):: k
@@ -3070,7 +3133,7 @@ read(*,*)
           p2=node(i)%edge(n)%xyz2(2,:) 
           do s=1,diml
              !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
-             dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time),node(i)%G(s)%lvn(n,1:3))
+             dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time, uedges, mesh),node(i)%G(s)%lvn(n,1:3))
              !Determinando os coeficientes da matriz de rotação para o node i 
              xx=mesh%v(i)%p(1)
              yy=mesh%v(i)%p(2)
@@ -3142,16 +3205,17 @@ read(*,*)
   
   
   
-    subroutine flux_gas(nodes,mesh,z,time)  
+    subroutine flux_gas(nodes,mesh,z,time, uedges)  
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
     !----------------------------------------------------------------------------------------------
 
     implicit none 
     integer,intent(in)    :: nodes
-    type(grid_structure),intent(in)      :: mesh
+    type(grid_structure),intent(inout)      :: mesh
     integer,intent(in),optional   :: z
     real(r8),intent(in),optional  :: time
+    type(scalar_field), intent(inout), optional :: uedges ! Only for moist shallow water model
     integer(i4)   :: i
     integer(i4)   :: j
     integer(i4)   :: k
@@ -3222,7 +3286,7 @@ read(*,*)
 !           p1=node(i)%edge(n)%xyz2(1,:) 
 !           p2=node(i)%edge(n)%xyz2(2,:) 
 !           vn=node(i)%G(1)%lvn(n,1:3)
-           dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
+           dot = dot_product (velocity(p3, time, uedges, mesh),node(i)%G(1)%lvn(n,1:3))
            if(dot>=0.0D0)then
               sinal=+1.0D0
            else
