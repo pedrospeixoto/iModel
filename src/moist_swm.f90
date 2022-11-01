@@ -96,8 +96,8 @@ module moist_swm
     vector_gas, &
     flux_olg, &
     flux_gas, &
-    gaussrootsweights
-
+    gaussrootsweights, &
+    reconstruct_velocity_quadrature
     !use refinter, only: &
     !andean_mountain_data, &
     !smooth_andean_mountain, &
@@ -532,7 +532,7 @@ subroutine highorder_adv_vars()
     do i=1,nodes
         node(i)%phi_exa=node(i)%phi_new2
     enddo
-    print*, minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2)
+    !print*, minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2)
 
 end subroutine highorder_adv_vars
 
@@ -1231,6 +1231,11 @@ subroutine initialize_global_moist_swm_vars()
     call zero_vector(cloudeq)
     call zero_vector(raineq)
     call zero_vector(tracereq)
+
+    !===============================================================
+    ! Reconstructs to normal velocity at quadrature points
+    !===============================================================
+    call reconstruct_velocity_quadrature(mesh, u)
 
     !===============================================================
     !Calculate temperature tendency
