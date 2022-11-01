@@ -60,8 +60,8 @@ module highorder
   integer:: moistswm_ic
 
   ! Reconstruction interpolation method for high order adv scheme in the moist swm
-  character (len=8) :: reconadvmtd = "lsqhxe"
-  !character (len=8) :: reconadvmtd = "lsqtrc"
+  !character (len=8) :: reconadvmtd = "lsqhxe"
+  character (len=8) :: reconadvmtd = "lsqtrc"
 
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
@@ -3917,6 +3917,8 @@ read(*,*)
          end do
       end do
 
+    !print*, error
+    !stop
     ! Gassmann method
     else
       do i = 1,nodes
