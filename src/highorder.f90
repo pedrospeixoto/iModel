@@ -117,6 +117,7 @@ module highorder
      real(r8),allocatable:: lpg(:,:)
      real(r8),allocatable:: lwg(:)
      real(r8),allocatable:: lvn(:,:)
+     real(r8),allocatable:: velocity_quadrature(:) ! Normal velocity at quadrature points - used in the moist swm
      integer(i4),allocatable:: upwind_donald(:)
   end type gauss_structure
 
@@ -715,7 +716,7 @@ contains
     return
   end function f
 
-  function velocity(p, time, uedges, mesh)
+  function velocity(p, time)
     !-----------------------------------
     !  V - velocity in Cartesian coordinates
     !
@@ -735,38 +736,10 @@ contains
     real (r8):: utmp
     real (r8):: vtmp
 
-    ! Moist shallow water normal velocity
-    type(grid_structure), intent(inout), optional :: mesh
-    type(scalar_field)  , intent(inout), optional :: uedges
-    real (r8):: urecon(1:3)
-    real (r8):: u0
-    
-    ! Advection test cases
-    if (.not. moistswm)then
-       call cart2sph(p(1), p(2), p(3), lon, lat)
-       utmp=u(lon, lat, time)
-       vtmp=v(lon, lat, time)
-       call convert_vec_sph2cart(utmp, vtmp, p, velocity)
-    
-    else ! Moist SW test cases
-       select case(moistswm_ic)
-          case(2)
-             u0 = 2._r8*pi*erad/(12._r8*day2sec)
-             call cart2sph(p(1), p(2), p(3), lon, lat)
-             utmp = u0*cos(lat)
-             vtmp = 0._r8
-             call convert_vec_sph2cart(utmp, vtmp, p, velocity)
-          case default
-             print*, 'Highorder error: Invalid velocity vector field.'
-             stop
-       end select
-       ! Reconstruct the vector field at given point
-       urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
-       !print*, maxval(abs(velocity-urecon))/maxval(abs(velocity))
-       !stop
-       velocity = urecon
-    endif
-
+    call cart2sph(p(1), p(2), p(3), lon, lat)
+    utmp=u(lon, lat, time)
+    vtmp=v(lon, lat, time)
+    call convert_vec_sph2cart(utmp, vtmp, p, velocity)
     return
   end function velocity
 
@@ -1037,6 +1010,7 @@ contains
           allocate(node(i)%G(1))
           allocate(node(i)%G(1)%lwg(2*ngbr1))
           allocate(node(i)%G(1)%lpg(2*ngbr1,3))
+          allocate(node(i)%G(1)%velocity_quadrature(2*ngbr1))
           allocate(node(i)%G(1)%lvn(2*ngbr1,3))
           allocate(node(i)%G(1)%upwind_donald(2*ngbr1))
 
@@ -1052,6 +1026,8 @@ contains
           allocate(node(i)%G(1)%lwg(2*ngbr1))
           allocate(node(i)%G(1)%lpg(2*ngbr1,3))
           allocate(node(i)%G(1)%lvn(2*ngbr1,3))
+          allocate(node(i)%G(1)%velocity_quadrature(2*ngbr1))
+          allocate(node(i)%G(2)%velocity_quadrature(2*ngbr1))
           allocate(node(i)%G(1)%upwind_donald(2*ngbr1))
           allocate(node(i)%G(2)%lwg(2*ngbr1))
           allocate(node(i)%G(2)%lpg(2*ngbr1,3))
@@ -3133,7 +3109,11 @@ read(*,*)
           p2=node(i)%edge(n)%xyz2(2,:) 
           do s=1,diml
              !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
-             dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time, uedges, mesh),node(i)%G(s)%lvn(n,1:3))
+             if (.not. moistswm)then
+               dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time),node(i)%G(s)%lvn(n,1:3))
+             else
+               dot=node(i)%G(s)%velocity_quadrature(n)
+             end if
              !Determinando os coeficientes da matriz de rotação para o node i 
              xx=mesh%v(i)%p(1)
              yy=mesh%v(i)%p(2)
@@ -3286,7 +3266,13 @@ read(*,*)
 !           p1=node(i)%edge(n)%xyz2(1,:) 
 !           p2=node(i)%edge(n)%xyz2(2,:) 
 !           vn=node(i)%G(1)%lvn(n,1:3)
-           dot = dot_product (velocity(p3, time, uedges, mesh),node(i)%G(1)%lvn(n,1:3))
+
+           if (.not. moistswm)then
+              dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
+           else
+              dot = node(i)%G(1)%velocity_quadrature(n)
+           endif
+
            if(dot>=0.0D0)then
               sinal=+1.0D0
            else
@@ -3861,7 +3847,105 @@ read(*,*)
   end subroutine flux_edges_g
 
 
+  subroutine reconstruct_velocity_quadrature(mesh, uedges)  
+    !----------------------------------------------------------------------------------------------
+    ! Reconstructs to normal velocity at quadrature points
+    !----------------------------------------------------------------------------------------------
+    implicit none
 
+    type(grid_structure),intent(inout):: mesh
+    type(scalar_field), intent(inout) :: uedges ! Only for moist shallow water model
+    integer(i4):: nodes, z
+    integer(i4):: i
+    integer(i4):: j
+    integer(i4):: k
+    integer(i4):: w
+    integer(i4):: l
+    integer(i4):: n
+    integer(i4):: s
+    integer(i4):: contador
+    integer(i4):: cc
+    integer(i4):: diml
+    integer(i4):: jend
+    real(r8):: dot
+    real(r8):: u0, utmp, vtmp, lat, lon
+    real(r8):: urecon(1:3)
+    real(r8):: uexact(1:3)
+    real(r8):: p(1:3)
+    real(r8):: error
+    real(r8),allocatable:: p1(:),p2(:),p3(:)
+    allocate(p1(3),p2(3),p3(3))
 
+    z = 0
+    nodes = size(mesh%v(:)%p(1))
+    error = 0.d0
+
+    if (method=='O')then
+      do i=1,nodes
+         node(i)%S(z)%flux=0.0D0
+         jend=node(i)%ngbr(1)%numberngbr
+         diml=nint((order)/2.0D0)
+         !Percorrendo todas as faces do volume de controle i
+         if(controlvolume=="D")then
+            cc=2
+         else
+            cc=1
+         endif
+
+         do n=1,cc*jend
+            p1=node(i)%edge(n)%xyz2(1,:) 
+            p2=node(i)%edge(n)%xyz2(2,:) 
+            do s=1,diml
+              ! Quadrature point
+              p = node(i)%G(s)%lpg(n,1:3)
+
+              ! Reconstruct the vector field at given point
+              urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
+
+              ! Exact velocity field
+              !call cart2sph(p(1), p(2), p(3), lon, lat)
+              !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+              !utmp = u0*cos(lat)
+              !vtmp = 0._r8
+              !call convert_vec_sph2cart(utmp, vtmp, p, uexact)            
+              !error = max(error, maxval(abs(uexact-urecon))/maxval(abs(uexact)))
+              !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge
+              dot=dot_product(urecon, node(i)%G(s)%lvn(n,1:3))
+              node(i)%G(s)%velocity_quadrature(n) = dot
+              !print*, node(i)%G(s)%velocity_quadrature(n) 
+            end do
+         end do
+      end do
+
+    ! Gassmann method
+    else
+      do i = 1,nodes
+         node(i)%S(z)%flux = 0.0D0
+         jend = node(i)%ngbr(1)%numberngbr
+         do n = 1,jend     
+           contador = contador + 1
+           w=node(i)%upwind_voronoi(n)
+           !Reconstruction point
+           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
+           p3 = p3/norm(p3)
+           
+           ! Reconstruct the vector field at given point
+           urecon = vector_reconstruct (p3, uedges, mesh, reconadvmtd)
+
+           !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge
+           dot = dot_product (urecon, node(i)%G(1)%lvn(n,1:3))
+           node(i)%G(1)%velocity_quadrature(n) = dot
+
+           !call cart2sph(p3(1), p3(2), p3(3), lon, lat)
+           !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+           !utmp = u0*cos(lat)
+           !vtmp = 0._r8
+           !call convert_vec_sph2cart(utmp, vtmp, p3, uexact)            
+           !error = max(error, maxval(abs(uexact-urecon))/maxval(abs(uexact)))
+         end do
+      end do
+    endif
+ 
+  end subroutine reconstruct_velocity_quadrature
 
 end module highorder
