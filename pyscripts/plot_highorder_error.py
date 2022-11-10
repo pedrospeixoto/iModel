@@ -23,12 +23,14 @@ grids = (1,2,3,4,5)
 # errors data
 errors = np.zeros((len(grids),4))
 
-basename_ol_2 = '_HC_trsk10_areageo_advmethodO_advorder2_tracer_error_t1036800_'
-basename_ol_3 = '_HC_trsk10_areageo_advmethodO_advorder3_tracer_error_t1036800_'
-basename_ol_4 = '_HC_trsk10_areageo_advmethodO_advorder4_tracer_error_t1036800_'
-basename_gass = '_HC_trsk10_areageo_advmethodG_tracer_error_t1036800_'
+basename_ol_2 = '_HTC_trsk10_areageo_advmethodO_advorder2_tracer_error_t1036800_'
+basename_ol_3 = '_HTC_trsk10_areageo_advmethodO_advorder3_tracer_error_t1036800_'
+basename_ol_4 = '_HTC_trsk10_areageo_advmethodO_advorder4_tracer_error_t1036800_'
+basename_gass = '_HTC_trsk10_areageo_advmethodG_tracer_error_t1036800_'
 
 basenames = [basename_ol_2, basename_ol_3, basename_ol_4, basename_gass]
+#basenames = [basename_ol_2, basename_ol_3, basename_ol_4]
+#basenames = [basename_ol_2, basename_gass]
 
 # data directory
 datadir = "../data/"
@@ -45,7 +47,7 @@ for g in range(0, len(grids)):
     # Grid level
     glevel = str(g+1)
 
-    for k in range(0,4):
+    for k in range(0,len(basenames)):
         # File to be opened
         filename = 'moist_swm_tc2_dt'+dt[g]+basenames[k]+gridname+str(glevel)+'.dat'
         print(filename)

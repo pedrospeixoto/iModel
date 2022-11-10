@@ -91,5 +91,10 @@ cmap_data = [(1.0, 1.0, 1.0),
              (0.6274510025978088, 0.42352941632270813, 0.23529411852359772),
              (0.4000000059604645, 0.20000000298023224, 0.0)]
 colormap = mcolors.ListedColormap(cmap_data, 'precipitation')
-
 """
+#filename = "moist_swm_tc2_dt3200_HTC_trsk10_areageo_advmethodO_advorder3_htracer_t1036800_icos_pol_scvt_h1_3.dat"
+filename = "moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder3_htracer_t1036800_icos_pol_scvt_h1_4.dat"
+colormap = 'jet'
+map_projection = 'mercator'
+
+#plot(filename, colormap, map_projection)
