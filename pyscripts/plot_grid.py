@@ -1,8 +1,8 @@
 ####################################################################################
 #
-# Plotting routines.
+# This Python script plot iModel grids
 #
-# Luan da Fonseca Santos - July 2022
+# Luan da Fonseca Santos - November 2022
 # (luan.santos@usp.br)
 ####################################################################################
 
@@ -11,7 +11,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 
 ####################################################################################
-# This routine plots the icos grid.
+# This routine plots the grid.
 ####################################################################################
 fig_format = 'png' # Figure format
 def plot_grid(map_projection, lats, lons, N, name):
@@ -47,32 +47,14 @@ def plot_grid(map_projection, lats, lons, N, name):
    #if map_projection == 'mercator':
    #   ax.gridlines(draw_labels=True)
 
-   # Get quadrature nodes
-   quadrature_nodes = np.loadtxt("../grid/icos_pol_scvt_h1_2_gaussnodes.gmt")
-   quadlons = quadrature_nodes[:,0]
-   quadlats = quadrature_nodes[:,1]
-   Nquad = len(quadlons)
-
-   for i in range(0, Nquad):
-       # Plot vertices
-       A_lon, A_lat = quadlons[i], quadlats[i]
-       #print(A_lon, A_lat)
-       plt.plot(A_lon, A_lat, marker='+', color='red')
-
-   #for i in range(120, Nquad):
-       # Plot vertices
-   #    A_lon, A_lat = quadlons[i], quadlats[i]
-       #print(A_lon, A_lat)
-   #    plt.plot(A_lon, A_lat, marker='X', color='gray')
-
-
-
    # Save the figure
    plt.savefig(graphsdir+name+"_"+map_projection+'.'+fig_format, format=fig_format)
-   print('Figure has been saved in latlon_'+map_projection+'.'+fig_format)
+   print('Figure has been saved in ../graphs/latlon_'+map_projection+'.'+fig_format)
    print("--------------------------------------------------------\n")
    plt.close()
 
+#-----------------------------------------------------------------------------
+# Let us plot the grid
 
 # Grid directory
 griddir = "../grid/"
@@ -93,6 +75,7 @@ f.readline()
 n_edges = (num_lines-1)//3
 grid_vertices = np.zeros((2*n_edges,2))
 
+# Get the grid data
 k = 0
 for i in range(0, n_edges):
     # Read a line

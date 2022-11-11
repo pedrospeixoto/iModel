@@ -1,3 +1,9 @@
+#-----------------------------------------------------------------------
+# Python script to plot high-order advection
+# schem errors and convergence rate
+# Luan Santos - october 2022
+#-----------------------------------------------------------------------
+
 import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
