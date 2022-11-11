@@ -70,11 +70,12 @@ for g in range(0, len(grids)):
         plot(filename, colormap, map_projection)
 
 # Plot the error graph
-colors = ('green','blue','red','orange')
-labels = ('Ollivier-Gooch 2nd order', 'Ollivier-Gooch 3rd order', 'Ollivier-Gooch 4th order', 'Gassmann')
+colors  = ('green','blue','red','orange')
+markers = ('x','D','o','*')
+labels  = ('Ollivier-Gooch 2nd order', 'Ollivier-Gooch 3rd order', 'Ollivier-Gooch 4th order', 'Gassmann')
 ref = np.amax(errors)
 for k in range(0, 4):
-    plt.semilogy(grids, errors[:,k], color=colors[k], marker='x', label = labels[k])
+    plt.semilogy(grids, errors[:,k], color=colors[k], marker=markers[k], label = labels[k])
 
 # Plot reference lines
 order1 = np.zeros(len(grids))
@@ -82,7 +83,7 @@ order2 = np.zeros(len(grids))
 order3 = np.zeros(len(grids))
 order4 = np.zeros(len(grids))
 
-order1[0], order2[0], order3[0], order4[0] = 10.0*ref, 10.0*ref, 10.0*ref, 10.0*ref
+order1[0], order2[0], order3[0], order4[0] = 1.0, 1.0, 1.0, 1.0
 for i in range(1, len(grids)):
     order1[i] = order1[i-1]/2.0
     order2[i] = order2[i-1]/4.0
@@ -93,6 +94,7 @@ plt.semilogy(grids, order1 , ':' , color='black', label = '1st order')
 plt.semilogy(grids, order2 , '--', color='black', label = '2nd order')
 plt.semilogy(grids, order3 , '-.', color='black', label = '3rd order')
 plt.semilogy(grids, order4 , '--', color='black', label = '4rd order')
+plt.xticks(grids)
 plt.xlabel('Grid level')
 plt.ylabel('Error')
 plt.legend()
@@ -106,8 +108,9 @@ n = len(grids)
 for k in range(0, 4):
     CR_linf = np.abs(np.log(errors[1:n,k])-np.log(errors[0:n-1,k]))/np.log(2.0)
     plt.ylim(0,4)
-    plt.plot(grids[1:n], CR_linf, color=colors[k], marker='x', label = labels[k])
+    plt.plot(grids[1:n], CR_linf, color=colors[k], marker=markers[k], label = labels[k])
 plt.xlabel('Grid level')
+plt.xticks(grids[1:n])
 plt.ylabel('Convergence rate')
 plt.legend()
 plt.grid(True, which="both")
