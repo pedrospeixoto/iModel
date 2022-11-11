@@ -23,7 +23,8 @@ module highorder
   !Use main grid data structures
   use datastruct, only: &
        grid_structure, &
-       scalar_field
+       scalar_field, &
+       vector
   !Use routines from the spherical inter pack
   use smeshpack
   use interpack
@@ -52,16 +53,8 @@ module highorder
   !Logical for plots or not
   logical:: plots
 
-
   !Logical for moist shallow water model
   logical:: moistswm
-
-  !Logical for moist shallow water model initial condition
-  integer:: moistswm_ic
-
-  ! Reconstruction interpolation method for high order adv scheme in the moist swm
-  !character (len=8) :: reconadvmtd = "lsqhxe"
-  character (len=8) :: reconadvmtd = "lsqtrc"
 
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
@@ -117,7 +110,7 @@ module highorder
      real(r8),allocatable:: lpg(:,:)
      real(r8),allocatable:: lwg(:)
      real(r8),allocatable:: lvn(:,:)
-     real(r8),allocatable:: velocity_quadrature(:) ! Normal velocity at quadrature points - used in the moist swm
+     type (vector), allocatable:: velocity_quadrature(:) ! Normal velocity at quadrature points - used in the moist swm
      integer(i4),allocatable:: upwind_donald(:)
   end type gauss_structure
 
@@ -217,6 +210,9 @@ module highorder
   !Criando a estrutura no
   type (node_structure),allocatable  :: node(:)  
 
+  ! Used in vector reconstruction- store shared edges indexes
+  integer(i4), allocatable:: sh_edges_indexes(:,:)
+  integer(i4), allocatable:: edges_indexes(:,:,:)
   !===============================================================================================  
 
 contains   
@@ -578,140 +574,125 @@ contains
     !Exponential/Gaussian parameters
     real (r8):: L
 
+    !Keep a local copy of point position
+    if(present(time))then !Exact scalar for rotation
+       if(testcase==5.or. testcase==7)then
+          lonp=lon-time*2.*pi/T          
+       end if
+       if(lonp<-pi)then
+          lonp=lonp+pi2
+       elseif(lonp>pi)then
+          lonp=lonp-pi2
+       end if
+    else
+       lonp=lon
+    end if
+    latp=lat
 
-    if(.not. moistswm) then
-      !Keep a local copy of point position
-      if(present(time))then !Exact scalar for rotation
-         if(testcase==5.or. testcase==7)then
-            lonp=lon-time*2.*pi/T          
-         end if
-         if(lonp<-pi)then
-            lonp=lonp+pi2
-         elseif(lonp>pi)then
-            lonp=lonp-pi2
-         end if
-      else
-         lonp=lon
-      end if
-      latp=lat
+    !Center of bell, hill or cilinder
+    ! It depends on the test case
+    select case(testcase)
+    case(1) !Nondivergent case-1
+       lon1=0._r8
+       lat1=pi/(3._r8)
+       lon2=0._r8
+       lat2=-pi/(3._r8)
+    case(3) !Divergent case 3
+       lon1=-pi/(4._r8)
+       lat1=0._r8
+       lon2=pi/(4._r8)
+       lat2=0._r8
+    case(2, 4) !Nondivergent case-2 and case 4 (rotation
+       lon1=-pi/(6._r8)
+       lat1=0._r8
+       lon2=pi/(6._r8)
+       lat2=0._r8
+    case (5, 7) !Passive Adv - Rotation
+       lon1=0.
+       lat1=0.
+    case default
+       lon1=0.
+       lat1=0.
+       lon2=0.
+       lat2=0.
+    end select
 
-      !Center of bell, hill or cilinder
-      ! It depends on the test case
-      select case(testcase)
-      case(1) !Nondivergent case-1
-         lon1=0._r8
-         lat1=pi/(3._r8)
-         lon2=0._r8
-         lat2=-pi/(3._r8)
-      case(3) !Divergent case 3
-         lon1=-pi/(4._r8)
-         lat1=0._r8
-         lon2=pi/(4._r8)
-         lat2=0._r8
-      case(2, 4) !Nondivergent case-2 and case 4 (rotation
-         lon1=-pi/(6._r8)
-         lat1=0._r8
-         lon2=pi/(6._r8)
-         lat2=0._r8
-      case (5, 7) !Passive Adv - Rotation
-         lon1=0.
-         lat1=0.
-      case default
-         lon1=0.
-         lat1=0.
-         lon2=0.
-         lat2=0.
-      end select
+    !Initial scalar fields
+    select case(initialfield)
+    case(0) !Constant
+       f=1._r8
+    case(1) !Cosine bell
+       b=0.1_r8
+       c=0.9_r8
+       r=1._r8/2._r8
+       r1= arcdistll(lonp, latp, lon1, lat1)
+       if(r1<r)then
+          h1=(1._r8/2._r8)*(1._r8+dcos(pi*r1/r))
+          f=b+c*h1
+          return
+       end if
+       r2= arcdistll(lonp, latp, lon2, lat2)
+       if(r2<r)then
+          h2=(1._r8/2._r8)*(1._r8+dcos(pi*r2/r))
+          f=b+c*h2
+          return
+       end if
+       f=b
+    case(2) !Gaussian
+       b0=5
+       call sph2cart(lonp, latp, p(1), p(2), p(3))
+       call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
+       call sph2cart(lon2, lat2, p2(1), p2(2), p2(3))
+       h1=dexp(-b0*norm(p-p1)**2)
+       h2=dexp(-b0*norm(p-p2)**2)
+       f=h1+h2
+    case(3) !Non-smooth- Slotted cylinder
+       b=0.1_r8
+       c=1._r8 !0.9
+       r=1._r8/2._r8
+       f=b
 
-      !Initial scalar fields
-      select case(initialfield)
-      case(0) !Constant
-         f=1._r8
-      case(1) !Cosine bell
-         b=0.1_r8
-         c=0.9_r8
-         r=1._r8/2._r8
-         r1= arcdistll(lonp, latp, lon1, lat1)
-         if(r1<r)then
-            h1=(1._r8/2._r8)*(1._r8+dcos(pi*r1/r))
-            f=b+c*h1
-            return
-         end if
-         r2= arcdistll(lonp, latp, lon2, lat2)
-         if(r2<r)then
-            h2=(1._r8/2._r8)*(1._r8+dcos(pi*r2/r))
-            f=b+c*h2
-            return
-         end if
-         f=b
-      case(2) !Gaussian
-         b0=5
-         call sph2cart(lonp, latp, p(1), p(2), p(3))
-         call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
-         call sph2cart(lon2, lat2, p2(1), p2(2), p2(3))
-         h1=dexp(-b0*norm(p-p1)**2)
-         h2=dexp(-b0*norm(p-p2)**2)
-         f=h1+h2
-      case(3) !Non-smooth- Slotted cylinder
-         b=0.1_r8
-         c=1._r8 !0.9
-         r=1._r8/2._r8
-         f=b
-
-         r1= arcdistll(lonp, latp, lon1, lat1)
-         if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
-            f=c
-            return
-         end if
-         r2= arcdistll(lonp, latp, lon2, lat2)
-         if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
-            f=c
-            return
-         end if
-         if(r1<=r.and.abs(lonp-lon1) < r/(6._r8) .and. &
-              (latp-lat1)<-(5._r8)*r/(12._r8))then
-            f=c
-            return
-         end if
-         if(r2<=r.and.abs(lonp-lon2)<r/(6._r8).and. &
-              (latp-lat2)>(5._r8)*r/(12._r8))then
-            f=c
-            return
-         end if
-      case(4) !Passive Adv - Rotation
-         r = (latp-lat1)**2+(lonp-lon1)**2
-         L=5*pi/180._r8
-         f=exp(-r/L)
-      case(5) !Global positive function
-         f=dsin(latp)
-         !f=(dcos(latp))**3*(dsin(lonp))**2
-      case(6) !One Gaussian  
-         b0=5
-         call sph2cart(lonp, latp, p(1), p(2), p(3))
-         call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
-         f=dexp(-b0*norm(p-p1)**2)
-      case(7) !Gaussian
-         b0=5
-         call sph2cart(lonp, latp, p(1), p(2), p(3))
-         call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
-         f=dexp(-b0*norm(p-p1)**2)       
-      case default
-      f=0.
+       r1= arcdistll(lonp, latp, lon1, lat1)
+       if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
+          f=c
+          return
+       end if
+       r2= arcdistll(lonp, latp, lon2, lat2)
+       if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
+          f=c
+          return
+       end if
+       if(r1<=r.and.abs(lonp-lon1) < r/(6._r8) .and. &
+            (latp-lat1)<-(5._r8)*r/(12._r8))then
+          f=c
+          return
+       end if
+       if(r2<=r.and.abs(lonp-lon2)<r/(6._r8).and. &
+            (latp-lat2)>(5._r8)*r/(12._r8))then
+          f=c
+          return
+       end if
+    case(4) !Passive Adv - Rotation
+       r = (latp-lat1)**2+(lonp-lon1)**2
+       L=5*pi/180._r8
+       f=exp(-r/L)
+    case(5) !Global positive function
+       f=dsin(latp)
+       !f=(dcos(latp))**3*(dsin(lonp))**2
+    case(6) !One Gaussian  
+       b0=5
+       call sph2cart(lonp, latp, p(1), p(2), p(3))
+       call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
+       f=dexp(-b0*norm(p-p1)**2)
+    case(7) !Gaussian
+       b0=5
+       call sph2cart(lonp, latp, p(1), p(2), p(3))
+       call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
+       f=dexp(-b0*norm(p-p1)**2)       
+    case default
+       f=0.
 
     end select
-    
-    else
-
-    select case(moistswm_ic) 
-      case(2) ! Gaussian hill
-        call sph2cart(lon, lat, p(1), p(2), p(3))
-        call sph2cart(0._r8, 0._r8, p1(1), p1(2), p1(3))
-        f = dexp(-5._r8*norm(p-p1)**2)
-     case default
-        print*, 'Highorder error: invalid initial scalar field'
-        stop
-      end select 
-    endif
 
     return
   end function f
@@ -2019,7 +2000,6 @@ contains
     if(method=='G') diml=1
     allocate(x(diml),w(diml))
     call gaussrootsweights(diml, x, w)
-
     do i=1,nodes
        jend=node(i)%ngbr(1)%numberngbr
        !Percorrendo todas as faces do volume de controle i
@@ -3110,9 +3090,9 @@ read(*,*)
           do s=1,diml
              !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
              if (.not. moistswm)then
-               dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time),node(i)%G(s)%lvn(n,1:3))
+               dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time), node(i)%G(s)%lvn(n,1:3))
              else
-               dot=node(i)%G(s)%velocity_quadrature(n)
+               dot=dot_product(node(i)%G(s)%velocity_quadrature(n)%v, node(i)%G(s)%lvn(n,1:3))
              end if
              !Determinando os coeficientes da matriz de rotação para o node i 
              xx=mesh%v(i)%p(1)
@@ -3270,7 +3250,7 @@ read(*,*)
            if (.not. moistswm)then
               dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
            else
-              dot = node(i)%G(1)%velocity_quadrature(n)
+              dot = dot_product (node(i)%G(1)%velocity_quadrature(n)%v, node(i)%G(1)%lvn(n,1:3))
            endif
 
            if(dot>=0.0D0)then
@@ -3847,107 +3827,135 @@ read(*,*)
   end subroutine flux_edges_g
 
 
-  subroutine reconstruct_velocity_quadrature(mesh, uedges)  
+  subroutine init_quadrature_edges(mesh)  
     !----------------------------------------------------------------------------------------------
-    ! Reconstructs to normal velocity at quadrature points
+    ! Reconstructs the normal velocity at quadrature points
     !----------------------------------------------------------------------------------------------
     implicit none
 
     type(grid_structure),intent(inout):: mesh
-    type(scalar_field), intent(inout) :: uedges ! Only for moist shallow water model
-    integer(i4):: nodes, z
     integer(i4):: i
     integer(i4):: j
-    integer(i4):: k
-    integer(i4):: w
-    integer(i4):: l
-    integer(i4):: n
-    integer(i4):: s
-    integer(i4):: contador
-    integer(i4):: cc
-    integer(i4):: diml
-    integer(i4):: jend
-    real(r8):: dot
-    real(r8):: u0, utmp, vtmp, lat, lon
-    real(r8):: urecon(1:3)
-    real(r8):: uexact(1:3)
-    real(r8):: p(1:3)
-    real(r8):: error
-    real(r8),allocatable:: p1(:),p2(:),p3(:)
-    allocate(p1(3),p2(3),p3(3))
+    integer(i4):: j1, j2
+    integer(i4):: e
+    integer(i4):: k, q, nquad, maxnnb
+    real(r8):: p(1:3), lon, lat
 
-    z = 0
-    nodes = size(mesh%v(:)%p(1))
-    error = 0.d0
+    ! Number of quadrature points
+    nquad = nint((order)/2.0D0)
 
-    if (method=='O')then
-      do i=1,nodes
-         node(i)%S(z)%flux=0.0D0
-         jend=node(i)%ngbr(1)%numberngbr
-         diml=nint((order)/2.0D0)
-         !Percorrendo todas as faces do volume de controle i
-         if(controlvolume=="D")then
-            cc=2
-         else
-            cc=1
-         endif
+    ! Maximum of neighbors in a Voronoi cell
+    maxnnb = maxval(mesh%v(:)%nnb)
 
-         do n=1,cc*jend
-            p1=node(i)%edge(n)%xyz2(1,:) 
-            p2=node(i)%edge(n)%xyz2(2,:) 
-            do s=1,diml
-              ! Quadrature point
-              p = node(i)%G(s)%lpg(n,1:3)
+    ! Allocation
+    allocate(sh_edges_indexes(1:mesh%ne, 1:4))
+    allocate(edges_indexes(1:mesh%nv, 1:maxnnb, 1:nquad))
+    sh_edges_indexes = 0
 
-              ! Reconstruct the vector field at given point
-              urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
+    do i = 1, mesh%nv
+      do j = 1, mesh%v(i)%nnb
+        do q = 1, nquad
+          ! Get the quadrature points
+          p = node(i)%G(q)%lpg(j,1:3)
 
-              ! Exact velocity field
-              !call cart2sph(p(1), p(2), p(3), lon, lat)
-              !u0 = 2._r8*pi*erad/(12._r8*day2sec)
-              !utmp = u0*cos(lat)
-              !vtmp = 0._r8
-              !call convert_vec_sph2cart(utmp, vtmp, p, uexact)            
-              !error = max(error, maxval(abs(uexact-urecon))/maxval(abs(uexact)))
-              !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge
-              dot=dot_product(urecon, node(i)%G(s)%lvn(n,1:3))
-              node(i)%G(s)%velocity_quadrature(n) = dot
-              !print*, node(i)%G(s)%velocity_quadrature(n) 
-            end do
-         end do
+          ! Get the nearest edge index
+          e =  getnearhxedge(p, mesh)
+
+          ! Store edge index
+          edges_indexes(i,j,q) = e
+
+          ! Save the index j
+          if(sh_edges_indexes(e,1) == 0)then
+            sh_edges_indexes(e,1) = j
+          else
+            sh_edges_indexes(e,2) = j
+          end if
+        end do
       end do
+    end do
+
+  end subroutine init_quadrature_edges
+
+  subroutine reconstruct_velocity_quadrature(mesh, uedges)  
+    !----------------------------------------------------------------------------------------------
+    ! Reconstructs the normal velocity at quadrature points
+    !----------------------------------------------------------------------------------------------
+    implicit none
+
+    type(grid_structure),intent(inout):: mesh
+    type(scalar_field), intent(inout) :: uedges
+    real(r8):: urecon(1:3)
+    real(r8):: p(1:3), p1(1:3), p2(1:3)
+    real(r8):: u0, utmp, vtmp, lat, lon, aux, aux1, aux2,error, uexact(1:3)
+    integer(i4):: i, j, k, e, q
+    integer(i4):: nquad
+    integer(i4):: i1, i2, j1, j2, q1, q2
+    character (len=8) :: reconadvmtd = "lsqhxe"
+
+    ! Number of quadrature points
+    nquad = nint((order)/2.0D0)
+
+    ! Olliver-Gooch method
+    if (method=='O')then
+      do e = 1, mesh%ne ! Edges loop
+        do q = 1, nquad ! Quadrature points loop
+          q1 = q
+          if (q==1) then
+            q2 = nquad
+          else
+            q2 = 1
+          end if
+
+          !Get neighbor Voronoi cells
+          i1 = mesh%edhx(e)%sh(1)
+          i2 = mesh%edhx(e)%sh(2)
+          
+          ! Get edge e indexes
+          j1 = sh_edges_indexes(e,1)
+          j2 = sh_edges_indexes(e,2)
+          
+          ! Quadrature points
+          p1 = node(i1)%G(q1)%lpg(j1,1:3)
+          p2 = node(i2)%G(q2)%lpg(j2,1:3)
+          
+          ! Reconstruct the velocity field at quadrature points
+          urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+
+          ! Store the velocity
+          node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon
+          node(i2)%G(q2)%velocity_quadrature(j2)%v = urecon
+
+          !p = p1
+          !call cart2sph(p(1), p(2), p(3), lon, lat)
+          !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+          !utmp = u0*cos(lat)
+          !vtmp = 0._r8
+          !call convert_vec_sph2cart(utmp, vtmp, p, uexact)
+          !error = max(error, norm2(uexact-urecon)/norm2(uexact))
+      end do    
+    end do
 
     !print*, error
     !stop
-    ! Gassmann method
+
     else
-      do i = 1,nodes
-         node(i)%S(z)%flux = 0.0D0
-         jend = node(i)%ngbr(1)%numberngbr
-         do n = 1,jend     
-           contador = contador + 1
-           w=node(i)%upwind_voronoi(n)
-           !Reconstruction point
-           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-           p3 = p3/norm(p3)
-           
-           ! Reconstruct the vector field at given point
-           urecon = vector_reconstruct (p3, uedges, mesh, reconadvmtd)
+      ! Gassman method
+      do i = 1,mesh%nv
+        do j = 1,node(i)%ngbr(1)%numberngbr
+          k=node(i)%upwind_voronoi(j)
 
-           !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge
-           dot = dot_product (urecon, node(i)%G(1)%lvn(n,1:3))
-           node(i)%G(1)%velocity_quadrature(n) = dot
+          !Reconstruction point
+          p =(mesh%v(i)%p+mesh%v(k)%p)/2.0D0 
+          p = p/norm(p)
 
-           !call cart2sph(p3(1), p3(2), p3(3), lon, lat)
-           !u0 = 2._r8*pi*erad/(12._r8*day2sec)
-           !utmp = u0*cos(lat)
-           !vtmp = 0._r8
-           !call convert_vec_sph2cart(utmp, vtmp, p3, uexact)            
-           !error = max(error, maxval(abs(uexact-urecon))/maxval(abs(uexact)))
-         end do
+          ! Reconstruct the vector field at given point
+          urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
+
+          ! Store the velocity field
+          node(i)%G(1)%velocity_quadrature(j)%v = urecon 
+        end do
       end do
     endif
- 
   end subroutine reconstruct_velocity_quadrature
 
 end module highorder

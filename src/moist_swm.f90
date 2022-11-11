@@ -47,7 +47,8 @@ module moist_swm
     sph2cart, &
     cart2sph, &
     convert_vec_cart2sph, &
-    norm
+    norm, &
+    getnearhxedge
 
     !Use routines from the interpolation pack
     use interpack, only: &
@@ -78,7 +79,6 @@ module moist_swm
     controlvolume, &
     method, &
     moistswm, &
-    moistswm_ic, &
     order, &
     find_neighbors, &
     allocation, &
@@ -97,7 +97,8 @@ module moist_swm
     flux_olg, &
     flux_gas, &
     gaussrootsweights, &
-    reconstruct_velocity_quadrature
+    reconstruct_velocity_quadrature, &
+    init_quadrature_edges
     !use refinter, only: &
     !andean_mountain_data, &
     !smooth_andean_mountain, &
@@ -450,7 +451,10 @@ subroutine allocate_global_moistswm_vars()
     call initialize_global_moist_swm_vars()
 
     if (order >= 2)then
-        call highorder_adv_vars()
+      call highorder_adv_vars()
+      if (method == 'O')then
+         call init_quadrature_edges(mesh)
+      end if
     end if
 
 
@@ -474,8 +478,7 @@ subroutine highorder_adv_vars()
 
     controlvolume = "V"
     moistswm   = .True.
-    moistswm_ic = 2 
-    nodes = size(mesh%v(:)%p(1))
+    nodes = mesh%nv
 
     !Alocando nos
     allocate(node(0:nodes))
@@ -1450,7 +1453,6 @@ subroutine initialize_global_moist_swm_vars()
     call swm_phys_pars(usetime=.true.)
 
     !Allocate variables
-
     call allocate_global_moistswm_vars()
 
     !Pre calculate grid properties
@@ -1503,27 +1505,16 @@ subroutine initialize_global_moist_swm_vars()
 
 
     !Variables at Voronoi centers
-    if (order > 1) then
-        do i=1, mesh%nv
-            tracer%f(i) = node(i)%phi_new2
-            htracer%f(i) = tracer%f(i)
-            tracer_exact%f(i) = tracer%f(i)
-            tracer_error%f(i) = tracer%f(i)
-            !print*, node(i)%phi_new2 - dexp(-5._r8*norm(p-pc)**2)
-        end do
-    
-    else
-        do i=1, mesh%nv
-            lon = mesh%v(i)%lon
-            lat = mesh%v(i)%lat
-            call sph2cart(lon, lat, p(1), p(2), p(3))
-            call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
-            tracer%f(i) = dexp(-5._r8*norm(p-pc))**2
-            htracer%f(i) = tracer%f(i)
-            tracer_exact%f(i) = tracer%f(i)
-            tracer_error%f(i) = tracer%f(i)
-        end do
-    endif
+    do i=1, mesh%nv
+      lon = mesh%v(i)%lon
+      lat = mesh%v(i)%lat
+      call sph2cart(lon, lat, p(1), p(2), p(3))
+      call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
+      tracer%f(i) = dexp(-5._r8*norm(p-pc)**2)
+      htracer%f(i) = tracer%f(i)
+      tracer_exact%f(i) = tracer%f(i)
+      tracer_error%f(i) = tracer%f(i)
+    end do
 
     !Calculate derived initial fields
     call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, masseq%f, momeq%f, tempeq%f, vapoureq%f, &
@@ -1635,6 +1626,7 @@ subroutine initialize_global_moist_swm_vars()
       print '(a33, 2e16.8)','Change in mass of tracer:', (Ttracer-Ttracer0)/Ttracer0
       print '(a33, 2e16.8)','Change in mass of h*(total water):', (Twater-iniwater)/iniwater
       print*,''
+      !stop
 
       !update fields
       u_old=u
@@ -2613,34 +2605,34 @@ subroutine plotfields_mswm(k, time)
     integer(i4),allocatable   :: nbsv(:,:)   
 
     if (order == 1) then
-        !Interpolate scalar to edges and calculate flux at edges
-        call scalar_hx2ed(q, q_ed, mesh)      !q cell->edge
-        call scalar_elem_product(u, q_ed, uq) !Flux uq at edges
-        call div_hx(uq, div, mesh)
+      !Interpolate scalar to edges and calculate flux at edges
+      call scalar_hx2ed(q, q_ed, mesh)      !q cell->edge
+      call scalar_elem_product(u, q_ed, uq) !Flux uq at edges
+      call div_hx(uq, div, mesh)
 
     else if (order >= 2) then
-        nodes = size(mesh%v(:)%p(1))
+      nodes = mesh%nv
 
-        do i = 1, nodes
-            node(i)%phi_new2 = q%f(i)
-            node(i)%phi_new  = q%f(i)
-        end do
+      do i = 1, nodes
+        node(i)%phi_new2 = q%f(i)
+        node(i)%phi_new  = q%f(i)
+      end do
 
-        if (method == 'O')then
-            call vector_olg2(nodes)
-            call reconstruction_olg(nodes, mesh) 
-            call flux_olg(nodes, mesh, 0, 0.d0, u)
-        else ! Gassman method
-            call vector_gas(nodes, mesh)
-            call reconstruction_gas(nodes, mesh) 
-            call flux_gas(nodes, mesh, 0, 0.d0, u)
-        end if
+      if (method == 'O')then ! Ollivier-Gooch method
+        call vector_olg2(nodes)
+        call reconstruction_olg(nodes, mesh) 
+        call flux_olg(nodes, mesh, 0, 0.d0, u)
+      else ! Gassman method
+        call vector_gas(nodes, mesh)
+        call reconstruction_gas(nodes, mesh) 
+        call flux_gas(nodes, mesh, 0, 0.d0, u)
+      end if
 
-        do i=1,nodes
-            area=mesh%hx(i)%areag 
-            div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
-            div%f(i) = div%f(i)/erad
-        end do
+      do i=1,nodes
+        area=mesh%hx(i)%areag 
+        div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
+        div%f(i) = div%f(i)/erad
+      end do
 
     endif
     return

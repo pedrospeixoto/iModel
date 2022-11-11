@@ -6501,16 +6501,78 @@ contains
           stop
        end select
     end if
-    !print*, k
 
     call vecrecon_lsqfitpol (k, stencil, var, mesh)
 
     vecrecon_lsq=vecrecon_lsqeval(k, p, var)
-
     return
 
   end function vecrecon_lsq
 
+  !=====================================================================================
+  !    POLINOMIAL Least Square Vector Reconstruction
+  !=====================================================================================
+
+  function vecrecon_lsq_ed (p, var, mesh, e)
+    !----------------------------------------------------------
+    !
+    ! This function assumes that the point p lives in Voronoi edge "e"
+    !
+    ! Evaluate the reconstructed vector using a least square fit
+    ! using the two surrounding Voronoi cells
+    !
+    ! It uses 12 hexagon midpoint normal vector components for 
+    ! each one of the two surrounding Voronoi cells and average them
+    ! at the end
+    !----------------------------------------------------------------
+    !Approximation point
+    real (r8), intent(in) :: p(1:3)
+
+    !Variable
+    type(scalar_field), intent(inout) :: var
+
+    !Stencil used
+    character(len=4) :: stencil="hxe"
+
+    !Mesh
+    type(grid_structure), intent(in) :: mesh
+
+    !Edge where p lives
+    integer (i4), intent(in):: e
+    
+    ! Voronoi cells sharing edge e
+    integer (i4) :: k1, k2
+
+    !Returning value of approximation
+    real (r8):: vecrecon_lsq_ed(1:3), vecrecon_lsq_ed_1(1:3), vecrecon_lsq_ed_2(1:3)
+
+    if(var%pos/=3 .and. var%pos/=6)then
+       print*, "vecrecon_lsq_ed warning: vector field given in incorrect position", var%pos
+       stop
+    end if
+
+    ! Get surrounding Voronoi cells
+    k1 = mesh%edhx(e)%sh(1)
+    k2 = mesh%edhx(e)%sh(2)
+
+    ! Least reconstruction using Voronoi cell k1
+    call vecrecon_lsqfitpol (k1, stencil, var, mesh)
+    vecrecon_lsq_ed_1 = vecrecon_lsqeval(k1, p, var)
+
+    ! Least reconstruction using Voronoi cell k2
+    call vecrecon_lsqfitpol (k2, stencil, var, mesh)
+    vecrecon_lsq_ed_2 = vecrecon_lsqeval(k2, p, var)
+
+
+    ! Force vectors to be tangent to the sphere
+    vecrecon_lsq_ed_1=proj_vec_sphere(vecrecon_lsq_ed_1, p)
+    vecrecon_lsq_ed_2=proj_vec_sphere(vecrecon_lsq_ed_2, p)
+
+    ! Average the vectors
+    vecrecon_lsq_ed = (vecrecon_lsq_ed_1+vecrecon_lsq_ed_2)*0.5_r8
+    return
+
+  end function vecrecon_lsq_ed
 
   function vecrecon_lsqeval(i, p, var)
     !----------------------------------------------------------
@@ -6555,7 +6617,6 @@ contains
     b=var%pol(i)%c(3:4)
     c=var%pol(i)%c(5:6)
     nr=a*x+b*y+c
-
     !Rotate vector to original position
     call aplyrt (nr(1), nr(2), &
          var%pol(i)%cx, var%pol(i)%sx, var%pol(i)%cy, var%pol(i)%sy, &
