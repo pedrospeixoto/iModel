@@ -123,9 +123,6 @@ module datastruct
      !  between triangle and hexagonal edges
      type(point_structure) :: c
 
-     !Gaussian quadrature points at edges - used in highorder module
-     type(point_structure), allocatable :: gp(:)
-
      !Tangent unit vector to edge placed at the midpoint, 
      ! it must be tangent to the sphere, and is 
      ! defined in the deriction from v(1) to v(2)
