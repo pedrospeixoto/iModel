@@ -2596,7 +2596,6 @@ subroutine plotfields_mswm(k, time)
     integer(i4) :: i
     integer(i4) :: j
     integer(i4) :: k
-    integer(i4) :: nodes
     integer(i4) :: ngbr
     integer(i4) :: nlines
     integer(i4) :: ncolumns
@@ -2613,10 +2612,15 @@ subroutine plotfields_mswm(k, time)
     else if (order >= 2) then
       nodes = mesh%nv
 
-      do i = 1, nodes
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, node, q) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
         node(i)%phi_new2 = q%f(i)
         node(i)%phi_new  = q%f(i)
       end do
+      !$omp end parallel do
 
       if (method == 'O')then ! Ollivier-Gooch method
         call vector_olg2(nodes)
@@ -2628,12 +2632,17 @@ subroutine plotfields_mswm(k, time)
         call flux_gas(nodes, mesh, 0, 0.d0, u)
       end if
 
-      do i=1,nodes
-        area=mesh%hx(i)%areag 
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, div, node) &
+      !$omp private(area) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        area = mesh%hx(i)%areag 
         div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
         div%f(i) = div%f(i)/erad
       end do
-
+      !$omp end parallel do
     endif
     return
   end subroutine divhx

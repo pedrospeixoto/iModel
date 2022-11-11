@@ -3895,8 +3895,19 @@ read(*,*)
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
 
+    !Alocate space if necessary
+    if(.not.allocated(uedges%pol))then
+      allocate(uedges%pol(1:mesh%nv))
+    end if
+
     ! Olliver-Gooch method
     if (method=='O')then
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad) &
+      !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q) &
+      !$omp private(urecon) &
+      !$omp schedule(static)
       do e = 1, mesh%ne ! Edges loop
         do q = 1, nquad ! Quadrature points loop
           q1 = q
@@ -3926,20 +3937,24 @@ read(*,*)
           node(i2)%G(q2)%velocity_quadrature(j2)%v = urecon
 
           !p = p1
-          !call cart2sph(p(1), p(2), p(3), lon, lat)
+          !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
           !u0 = 2._r8*pi*erad/(12._r8*day2sec)
           !utmp = u0*cos(lat)
           !vtmp = 0._r8
-          !call convert_vec_sph2cart(utmp, vtmp, p, uexact)
+          !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
           !error = max(error, norm2(uexact-urecon)/norm2(uexact))
       end do    
     end do
-
-    !print*, error
-    !stop
+    !$omp end parallel do
 
     else
       ! Gassman method
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad, reconadvmtd) &
+      !$omp private(j, k, p) &
+      !$omp private(urecon) &
+      !$omp schedule(static)
       do i = 1,mesh%nv
         do j = 1,node(i)%ngbr(1)%numberngbr
           k=node(i)%upwind_voronoi(j)
@@ -3955,7 +3970,9 @@ read(*,*)
           node(i)%G(1)%velocity_quadrature(j)%v = urecon 
         end do
       end do
+      !$omp end parallel do
     endif
+
   end subroutine reconstruct_velocity_quadrature
 
 end module highorder
