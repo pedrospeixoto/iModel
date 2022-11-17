@@ -421,7 +421,7 @@ contains
 
        call flux_edges_gas(nodes,mesh,0,0.0D0) 
 
-
+       call  init_quadrature_edges(mesh)
        ! GASSMANN NO PLANO
        !call matrix_g(nodes,mesh) 
        !call vector_g(nodes,mesh)
@@ -2019,6 +2019,7 @@ contains
           end do
        end do
     end do
+
     deallocate(x,w,p1,p2,p3,paux)
     return
   end subroutine gaussedges
@@ -3162,9 +3163,9 @@ read(*,*)
     deallocate(p1,p2,p3)
     return  
   end subroutine flux_olg
-  
-  
-  
+
+
+
     subroutine flux_gas(nodes,mesh,z,time, uedges)  
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
@@ -3218,6 +3219,7 @@ read(*,*)
     real(r8),allocatable  :: p2(:)      
     real(r8),allocatable  :: p3(:)      
     real(r8),allocatable  :: vn(:)      
+    real(r8) :: dir_i(1:3), dir_j(1:3), rot_dir_i(1:3), rot_dir_j(1:3)
 
     allocate (p1(3),p2(3),p3(3),vn(3))
     FEPS = 1.0D-8
@@ -3226,7 +3228,7 @@ read(*,*)
     aaxx = 0.0D0
     erro_Linf = 0.0D0
     contador = 0  
-    
+
     do i = 1,nodes
          node(i)%S(z)%flux = 0.0D0
          jend = node(i)%ngbr(1)%numberngbr
@@ -3234,8 +3236,8 @@ read(*,*)
            contador = contador + 1
            w=node(i)%upwind_voronoi(n)
            p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-           p3 = p3/norm(p3)           
-
+           p3 = p3/norm(p3)       
+           !call cart2sph(p3(1), p3(2), p3(3), lon, lat)
 !           dot=dot_product(velocity(node(i)%G(1)%lpg(n,1:3), time),node(i)%G(1)%lvn(n,1:3))
            !SOLUCAO EXATA no ponto medio entre o node i e seu respectivo vizinho
 !           p3 = node(i)%G(1)%lpg(n,1:3)
@@ -3259,7 +3261,7 @@ read(*,*)
               sinal=-1.0D0
            endif
  
-          !Determinando os valores para o node i 
+           !Determinando os valores para o node i 
            xx = mesh%v(i)%p(1)
            yy = mesh%v(i)%p(2)
            zz = mesh%v(i)%p(3)
@@ -3269,30 +3271,52 @@ read(*,*)
            yy = mesh%v(w)%p(2)
            zz = mesh%v(w)%p(3)
            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-           cosseno=(xp/dsqrt(xp**2+yp**2))
-           seno=(yp/dsqrt(xp**2+yp**2))
-           phi_i = node(i)%coef(1)
-           derivada_i = 2.0D0*node(i)%coef(4)*(cosseno**2) + & 
-           2.0D0*node(i)%coef(5)*cosseno*seno + 2.0D0*node(i)%coef(6)*(seno**2)
+
+           !cosseno=(xp/dsqrt(xp**2+yp**2))
+           !seno=(yp/dsqrt(xp**2+yp**2))
+           !derivada_i = 2.0D0*node(i)%coef(4)*(cosseno**2) + & 
+           !2.0D0*node(i)%coef(5)*cosseno*seno + 2.0D0*node(i)%coef(6)*(seno**2)
  
-          !Determinando os valores dos vizinhos do node i 
+           phi_i = node(i)%coef(1)
+
+           ! Compute the second derivative in normal direction
+           dir_i = node(i)%G(1)%lvn(n,1:3)
+           dir_i = proj_vec_sphere(dir_i, mesh%v(i)%p)
+           call aplyr(dir_i(1),dir_i(2),dir_i(3),cx,sx,cy,sy,rot_dir_i(1),rot_dir_i(2),rot_dir_i(3))
+           rot_dir_i = rot_dir_i/norm(rot_dir_i)
+           derivada_i = 2.d0*node(i)%coef(4)*rot_dir_i(1)*rot_dir_i(1) + &
+                        2.d0*node(i)%coef(5)*rot_dir_i(1)*rot_dir_i(2) + &
+                        2.d0*node(i)%coef(6)*rot_dir_i(2)*rot_dir_i(2)
+
+           !Determinando os valores dos vizinhos do node i 
            xx = mesh%v(w)%p(1)
            yy = mesh%v(w)%p(2)
            zz = mesh%v(w)%p(3)
            call constr(xx,yy,zz,cx,sx,cy,sy)
+
            xx = mesh%v(i)%p(1)
            yy = mesh%v(i)%p(2)
            zz = mesh%v(i)%p(3)
            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-           cosseno=(xp/dsqrt(xp**2+yp**2))
-           seno=(yp/dsqrt(xp**2+yp**2))
+
+           !cosseno=(xp/dsqrt(xp**2+yp**2))
+           !seno=(yp/dsqrt(xp**2+yp**2))
+           !derivada_j = 2.0D0*node(w)%coef(4)*(cosseno**2) + &
+           !2.0D0*node(w)%coef(5)*cosseno*seno + 2.0D0*node(w)%coef(6)*(seno**2)
+
            phi_j = node(w)%coef(1)
-           derivada_j = 2.0D0*node(w)%coef(4)*(cosseno**2) + &
-           2.0D0*node(w)%coef(5)*cosseno*seno + 2.0D0*node(w)%coef(6)*(seno**2)
+
+           ! Compute second derivate in the normal direction to the edge
+           dir_j = -node(i)%G(1)%lvn(n,1:3)
+           dir_j = proj_vec_sphere(dir_j, mesh%v(w)%p)
+           call aplyr(dir_j(1),dir_j(2),dir_j(3),cx,sx,cy,sy,rot_dir_j(1),rot_dir_j(2),rot_dir_j(3))
+           rot_dir_j = rot_dir_j/norm(rot_dir_j)
+           derivada_j = 2.d0*node(w)%coef(4)*rot_dir_j(1)*rot_dir_j(1) + &
+                        2.d0*node(w)%coef(5)*rot_dir_j(1)*rot_dir_j(2) + &
+                        2.d0*node(w)%coef(6)*rot_dir_j(2)*rot_dir_j(2)
 
            !Distancia entre o node i e seu respectivo vizinho   
-           dist=arclen(mesh%v(i)%p,mesh%v(w)%p)
-           
+           dist=arclen(mesh%v(i)%p,mesh%v(w)%p)           
 
 !           p1 = mesh%v(i)%p
 !           call cart2sph (p1(1), p1(2), p1(3),lon,lat)
@@ -3307,17 +3331,15 @@ read(*,*)
 !          print*, dabs(-sol_exata - (derivada_i + derivada_j)/2.0D0) , 'ERRO'
 
 !          read(*,*)           
-                      
-                 
-          
+
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
-           aux3 = sinal*(1.0D0/48.0D0)*((dist)**2)*(derivada_j - derivada_i)
+           aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
+           !print*,aux2
            
 !          sol_numerica = aux1 - aux2 + aux3
 !          sol_numerica = sol_numerica*node(i)%G(1)%lwg(n)*dot
-           node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1 - aux2 + aux3)*node(i)%G(1)%lwg(n)*dot
-
+           node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
           
 !           erro = dabs(sol_numerica -  sol_exata)  
 !           aaxx = erro * erro
@@ -3328,6 +3350,7 @@ read(*,*)
 !          phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))    
        end do
     end do
+
 !    print*, erro_Linf!, 'erro_Linf'
 !    print*, dsqrt (temp/contador)! , 'erro_L2'
 !    print*, contador 
@@ -3351,8 +3374,6 @@ read(*,*)
    return  
    end subroutine flux_gas   
     
-    
-
   subroutine rungekutta(nodes,mesh,k)  
     !----------------------------------------------------------------------------------------------
     !    AVançando no tempo
@@ -3843,6 +3864,10 @@ read(*,*)
 
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
+    
+    if (method=='G') then
+      nquad = 1
+    end if
 
     ! Maximum of neighbors in a Voronoi cell
     maxnnb = maxval(mesh%v(:)%nnb)
