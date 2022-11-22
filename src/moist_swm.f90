@@ -78,6 +78,7 @@ module moist_swm
     node, &
     controlvolume, &
     method, &
+    monotonicfilter, &
     moistswm, &
     order, &
     find_neighbors, &
@@ -450,13 +451,13 @@ subroutine allocate_global_moistswm_vars()
 
     call initialize_global_moist_swm_vars()
 
-    if (order >= 2)then
+    if (order >= 2 .or. method == 'G')then
       call highorder_adv_vars()
+
       if (method == 'O')then
          call init_quadrature_edges(mesh)
       end if
     end if
-
 
 end subroutine allocate_global_moistswm_vars
 
@@ -477,66 +478,66 @@ subroutine highorder_adv_vars()
     integer(i4),allocatable   :: nbsv(:,:)   
 
     controlvolume = "V"
-    moistswm   = .True.
+    moistswm = .True.
     nodes = mesh%nv
 
-    !Alocando nos
-    allocate(node(0:nodes))
+    if (order >= 2 .or. method == 'G') then
+        !Alocando nos
+        allocate(node(0:nodes))
 
-    !Alocacao basica de memoria
-    do i = 1,nodes
-       allocate(node(i)%ngbr(1:order-1))
-       ngbr = mesh%v(i)%nnb
-       allocate(node(i)%ngbr(1)%lvv(1:ngbr+1))
-       allocate(node(i)%ngbr(1)%lvd(1:ngbr+1))
-       node(i)%ngbr(1)%numberngbr = ngbr
+        !Alocacao basica de memoria
+        do i = 1,nodes
+          allocate(node(i)%ngbr(1:order-1))
+          ngbr = mesh%v(i)%nnb
+          allocate(node(i)%ngbr(1)%lvv(1:ngbr+1))
+          allocate(node(i)%ngbr(1)%lvd(1:ngbr+1))
+          node(i)%ngbr(1)%numberngbr = ngbr
 
-       !Armazena os primeiros vizinhos e suas respectivas distancias
-       node(i)%ngbr(1)%lvv(1:ngbr+1) = (/i,mesh%v(i)%nb(1:ngbr)/)
-       node(i)%ngbr(1)%lvd(1:ngbr+1) = (/0.0D0,mesh%v(i)%nbdg(1:ngbr)/)
-    end do
+          !Armazena os primeiros vizinhos e suas respectivas distancias
+          node(i)%ngbr(1)%lvv(1:ngbr+1) = (/i,mesh%v(i)%nb(1:ngbr)/)
+          node(i)%ngbr(1)%lvd(1:ngbr+1) = (/0.0D0,mesh%v(i)%nbdg(1:ngbr)/)
+        end do
 
-    if (order > 2) then
-        nlines=maxval(mesh%v(:)%nnb)
-        ncolumns=maxval(mesh%v(:)%nnb)+1  
-        allocate(nbsv(13,nodes))
-        nbsv = 0
-        call find_neighbors(nbsv,nlines,ncolumns,nodes)
-        do i=1,nodes
-            allocate(node(i)%ngbr(2)%lvv(1:nbsv(1,i)+1))
-            allocate(node(i)%ngbr(2)%lvd(1:nbsv(1,i)+1))
-            node(i)%ngbr(2)%numberngbr = nbsv(1,i)
-            node(i)%ngbr(2)%lvv = (/i,nbsv(2:,i)/)
-         end do
-         deallocate(nbsv)
-    end if
-    
-    call allocation(nodes, mesh)
+        if (order > 2) then
+           nlines=maxval(mesh%v(:)%nnb)
+           ncolumns=maxval(mesh%v(:)%nnb)+1  
+           allocate(nbsv(13,nodes))
+           nbsv = 0
+           call find_neighbors(nbsv,nlines,ncolumns,nodes)
+           do i=1,nodes
+             allocate(node(i)%ngbr(2)%lvv(1:nbsv(1,i)+1))
+             allocate(node(i)%ngbr(2)%lvd(1:nbsv(1,i)+1))
+             node(i)%ngbr(2)%numberngbr = nbsv(1,i)
+             node(i)%ngbr(2)%lvv = (/i,nbsv(2:,i)/)
+           end do
+           deallocate(nbsv)
+       end if
+       call allocation(nodes, mesh)
 
-    call stencil(nodes,mesh)
+       call stencil(nodes,mesh)
 
-    ! Voronoi's cell - not Donald's cell!
-    call coordscirc(nodes,mesh)
+       ! Voronoi's cell - not Donald's cell!
+       call coordscirc(nodes,mesh)
 
-    call edges_voronoi(nodes)
+       call edges_voronoi(nodes)
 
-    call gaussedges(nodes,mesh)
+       call gaussedges(nodes,mesh)
 
-    call upwind_voronoi(nodes,mesh)
+       call upwind_voronoi(nodes,mesh)
 
-    if (method == 'O')then
-        call matrix_olg(nodes,mesh)
-    else !Gassman
-        call condition_initial_gas(nodes,mesh) 
-        call matrix_gas(nodes,mesh)
-    endif
+       if (method == 'O')then
+          call matrix_olg(nodes,mesh)
+       else !Gassman
+          call condition_initial_gas(nodes,mesh) 
+          call matrix_gas(nodes,mesh)
+       endif
 
-    !node(:)%phi_new2 = 1.d0
-    do i=1,nodes
-        node(i)%phi_exa=node(i)%phi_new2
-    enddo
+       !node(:)%phi_new2 = 1.d0
+       do i=1,nodes
+          node(i)%phi_exa=node(i)%phi_new2
+       enddo
     !print*, minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2)
-
+    end if
 end subroutine highorder_adv_vars
 
 subroutine initialize_global_moist_swm_vars()
@@ -1159,7 +1160,7 @@ subroutine initialize_global_moist_swm_vars()
       hqv%f = q0*hqv%f
 
     case default
-      print*, "SWM_initialize_fields error - please select a proper test case:", testcase
+      print*, "initialize_moist_swm_fields error - please select a proper test case:", testcase
       stop
     end select
 
@@ -1238,19 +1239,17 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
     ! Reconstructs to normal velocity at quadrature points
     !===============================================================
-    call reconstruct_velocity_quadrature(mesh, u)
+    if (order >=2 .or. method == 'G')then
+       call reconstruct_velocity_quadrature(mesh, u)
+    end if
 
     !===============================================================
     !Calculate temperature tendency
     !===============================================================
 
-    !Interpolate temperature to edges and calculate flux at edges
-    call scalar_hx2ed(htheta, htheta_ed, mesh)      !htheta: cell->edge
-    call scalar_elem_product(u, htheta_ed, uhtheta) !Flux uhtheta at edges
-
     !Calculate divergence / temp eq RHS
-    call div_hx(uhtheta, div_uhtheta, mesh)  
-    !call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
+    call divhx(u, htheta, htheta_ed, uhtheta, div_uhtheta, mesh)    
+
     !Temp. eq. RHS
     tempeq = -div_uhtheta%f
     
@@ -1258,13 +1257,8 @@ subroutine initialize_global_moist_swm_vars()
     !Calculate vapour tendency
     !===============================================================
 
-    !Interpolate vapour to edges and calculate flux at edges
-    call scalar_hx2ed(hqv, hqv_ed, mesh)      !hqv: cell->edge
-    call scalar_elem_product(u, hqv_ed, uhqv) !Flux uhqv at edges
-
     !Calculate divergence / vapour eq RHS
-    call div_hx(uhqv, div_uhqv, mesh)
-    !call divhx(u, hqv, hqv_ed, uhqv, div_uhqv, mesh)
+    call divhx(u, hqv, hqv_ed, uhqv, div_uhqv, mesh)
 
     !Vapour eq. RHS
     vapoureq = -div_uhqv%f
@@ -1273,13 +1267,8 @@ subroutine initialize_global_moist_swm_vars()
     !Calculate cloud tendency
     !===============================================================
 
-    !Interpolate vapour to edges and calculate flux at edges
-    call scalar_hx2ed(hqc, hqc_ed, mesh)      !hqc: cell->edge
-    call scalar_elem_product(u, hqc_ed, uhqc) !Flux uhqc at edges
-
-    !Calculate divergence / cloud eq RHS  
-    call div_hx(uhqc, div_uhqc, mesh)
-    !call divhx(u, hqc, hqc_ed, uhqc, div_uhqc, mesh)
+    !Calculate divergence / cloud eq RHS
+    call divhx(u, hqc, hqc_ed, uhqc, div_uhqc, mesh)
 
     !Cloud eq. RHS
     cloudeq = -div_uhqc%f
@@ -1288,13 +1277,8 @@ subroutine initialize_global_moist_swm_vars()
     !Calculate rain tendency
     !===============================================================
 
-    !Interpolate vapour to edges and calculate flux at edges
-    call scalar_hx2ed(hqr, hqr_ed, mesh)      !hqr: cell->edge
-    call scalar_elem_product(u, hqr_ed, uhqr) !Flux uhqr at edges
-
     !Calculate divergence / rain eq RHS
-    call div_hx(uhqr, div_uhqr, mesh)
-    !call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
+    call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
 
     !Rain eq. RHS
     raineq = -div_uhqr%f
@@ -1540,6 +1524,7 @@ subroutine initialize_global_moist_swm_vars()
     htracer_old=htracer
  
     Ttracer0 = sumf_areas(htracer)
+
     !Time loop
     do k=1, ntime
       !Calculate u and h for time:
@@ -1548,9 +1533,11 @@ subroutine initialize_global_moist_swm_vars()
                          h, u, htheta, hqv, hqc, hqr, htracer, dt)
 
       !Apply the monotonic filter for tracers
-      !call monotonic_filter(hqv)             
-      !call monotonic_filter(hqr)
-      !call monotonic_filter(hqc)
+      if (order==1 .and. monotonicfilter)then
+         call monotonic_filter(hqv)             
+         call monotonic_filter(hqr)
+         call monotonic_filter(hqc)
+      end if
 
       call scalar_elem_divide(hqv, h, qv)
       call scalar_elem_divide(hqc, h, qc)
@@ -2007,6 +1994,8 @@ subroutine plotfields_mswm(k, time)
     !Temporary Integer fo nopv flag
     integer::inoPV
 
+    !Monotonization flag
+    character (len=6)::mono
     !Couters
     !integer(i4)::i
     !integer(i4)::j
@@ -2051,6 +2040,8 @@ subroutine plotfields_mswm(k, time)
     read(fileunit,*)  method
     read(fileunit,*)  buffer
     read(fileunit,*)  advmtd
+    read(fileunit,*)  buffer
+    read(fileunit,*)  mono
     read(fileunit,*)  buffer
     read(fileunit,*)  areamtd
     read(fileunit,*)  buffer
@@ -2274,7 +2265,8 @@ subroutine plotfields_mswm(k, time)
     print*, "Vector recon method     : ", reconmtd
     print*, "Coriolis recon method   : ", coriolis_reconmtd
     print*, "Gradient method         : ", gradmtd
-    print*, "Advection method order  : ", advmtd
+    print*, "Advection method        : ", method
+    print*, "Advection order         : ", advmtd
     print*, "Area method             : ", areamtd
     print*, "Hollingsworth depth     : ", hollgw
     print*, "PV stabilization mtd    : ", pv_stab
@@ -2329,7 +2321,7 @@ subroutine plotfields_mswm(k, time)
       swmname=trim(swmname)//"_"//trim(hyperdiffus)//"_hyperdiffusion_10to"//trim(adjustl(trim(atmp)))     
     end if 
 
-    ! Advection scheme order
+    ! Advection scheme
     if (method /= 'O' .and. method /= 'G') then
         print*, "Invalid advection method. Please select a proper method."
         stop
@@ -2356,10 +2348,26 @@ subroutine plotfields_mswm(k, time)
 
     if (method == 'O') then
         swmname=trim(swmname)//"_advmethod"//trim(method)//"_advorder"//trim(advmtd)
-    else
+    else if (method == 'G') then
         order = 3
         swmname=trim(swmname)//"_advmethod"//trim(method)
+    else
+        print*, "Invalid advection method. Please select a proper method."
+        stop
     endif
+
+    ! Monotonic limiter
+    select case(mono)
+    case('0')
+       monotonicfilter = .False.
+    case('1')
+       monotonicfilter = .True.
+    case default
+        print*, "Invalid monotonic limiter. Please select a proper one."
+        stop
+    end select
+    swmname=trim(swmname)//"_mono"//trim(mono)
+
     print*, "SWM Name for Plots: ", trim(swmname)
     return
   end subroutine swm_phys_pars

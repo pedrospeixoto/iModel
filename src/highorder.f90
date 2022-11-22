@@ -56,6 +56,9 @@ module highorder
   !Logical for moist shallow water model
   logical:: moistswm
 
+  !Logical for monotonic filter
+  logical:: monotonicfilter
+
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
 
@@ -213,6 +216,7 @@ module highorder
   ! Used in vector reconstruction- store shared edges indexes
   integer(i4), allocatable:: sh_edges_indexes(:,:)
   integer(i4), allocatable:: edges_indexes(:,:,:)
+
   !===============================================================================================  
 
 contains   
@@ -242,6 +246,9 @@ contains
     !Temp char
     character (len=64):: atmp
 
+    !Monotonic limiter var
+    character (len=8):: mono
+
     !Couters
     integer(i4)::i
     integer(i4)::j
@@ -262,6 +269,8 @@ contains
     read(fileunit,*)  method
     read(fileunit,*)  buffer
     read(fileunit,*)  order
+    read(fileunit,*)  buffer     
+    read(fileunit,*)  mono     
     read(fileunit,*)  buffer     
     read(fileunit,*)  charradius  
     read(fileunit,*)  buffer        
@@ -307,6 +316,19 @@ contains
     transpname=trim(adjustl(trim(transpname)))//"_v"//trim(adjustl(trim(atmp)))
     write(atmp,'(i8)') int(initialfield)
     transpname=trim(adjustl(trim(transpname)))//"_in"//trim(adjustl(trim(atmp)))    
+
+    ! Monotonic limiter
+    select case(mono)
+    case('0')
+       monotonicfilter = .False.
+    case('1')
+       monotonicfilter = .True.
+    case default
+        print*, "Invalid monotonic limiter. Please select a proper one."
+        stop
+    end select
+    transpname=trim(transpname)//"_mono"//trim(mono)
+
 
     return
   end subroutine gettransppars
@@ -3056,6 +3078,9 @@ read(*,*)
     integer(i4):: w
     integer(i4):: l
     integer(i4):: n
+    integer(i4):: e
+    integer(i4):: i1
+    integer(i4):: i2
     integer(i4):: s
     integer(i4):: cc
     integer(i4):: diml
@@ -3071,10 +3096,16 @@ read(*,*)
     real(r8):: cy
     real(r8):: sx
     real(r8):: sy
+    real(r8):: pol, pol_filtered
+    real(r8):: minval_i , maxval_i
+    real(r8):: minval_i1, maxval_i1
+    real(r8):: minval_i2, maxval_i2
     real(r8):: FEPS
     real(r8),allocatable:: p1(:),p2(:),p3(:)
     allocate(p1(3),p2(3),p3(3))
     FEPS = 1.0D-8
+
+
     do i=1,nodes
        node(i)%S(z)%flux=0.0D0
        jend=node(i)%ngbr(1)%numberngbr
@@ -3104,25 +3135,105 @@ read(*,*)
              p3(1)=node(i)%G(s)%lpg(n,1)
              p3(2)=node(i)%G(s)%lpg(n,2)
              p3(3)=node(i)%G(s)%lpg(n,3)
-             call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp) 
+             call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp)
              if(dot<FEPS.and.dot>-1.0*FEPS)then
                 node(i)%S(z)%flux=node(i)%S(z)%flux+0.0D0
              elseif(dot>0)then
-                if(order==2)then           
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(i)%coef(1) + node(i)%coef(2)*xp + & 
-                        node(i)%coef(3)*yp)*node(i)%G(s)%lwg(n)*dot
+                if(order==2)then
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(i)%coef(1) + node(i)%coef(2)*xp + & 
+                        node(i)%coef(3)*yp
+
+                   ! Correct the value if monotonic limiter is applied
+                   if (monotonicfilter)then
+                     if(moistswm)then ! To ensure mass conservation
+                        e = edges_indexes(i,n,1)
+                        i1 = mesh%edhx(e)%sh(1)
+                        i2 = mesh%edhx(e)%sh(2)
+                        
+                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                        minval_i = min(minval_i1, minval_i2)
+                        maxval_i = max(maxval_i1, maxval_i2)
+                        
+                     else
+                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                     end if
+                     
+                     pol_filtered = max(pol,minval_i)
+                     pol_filtered = min(pol_filtered,maxval_i)
+                        
+                     pol = pol_filtered
+ 
+                   end if
+
+                   ! Flux update
+                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
                 end if
-                if(order==3)then    
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
-                        node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp)*node(i)%G(s)%lwg(n)*dot 
-                   !print*,node(i)%S(z)%flux ,i,s,'lc'   
-                   !print*, node(i)%G(s)%lwg(n)*dot, 'peso dot lc'   
+
+                if(order==3)then
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
+                        node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp
+
+                   ! Correct the value if monotonic limiter is applied
+                   if (monotonicfilter)then
+                     if(moistswm)then ! To ensure mass conservation
+                        e = edges_indexes(i,n,1)
+                        i1 = mesh%edhx(e)%sh(1)
+                        i2 = mesh%edhx(e)%sh(2)
+                        
+                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                        minval_i = min(minval_i1, minval_i2)
+                        maxval_i = max(maxval_i1, maxval_i2)
+                        
+                     else
+                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                     end if
+                     
+                     pol_filtered = max(pol,minval_i)
+                     pol_filtered = min(pol_filtered,maxval_i)
+                     pol = pol_filtered
+                   end if
+
+                   ! Flux update
+                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot 
                 end if
+
                 if(order==4) then     
-                   node(i)%S(z)%flux = node(i)%S(z)%flux  + (node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
                         node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp + &                     
                         node(i)%coef(7)*xp*xp*xp + node(i)%coef(8)*xp*xp*yp + &
-                        node(i)%coef(9)*xp*yp*yp + node(i)%coef(10)*yp*yp*yp)*node(i)%G(s)%lwg(n)*dot 
+                        node(i)%coef(9)*xp*yp*yp + node(i)%coef(10)*yp*yp*yp
+
+                   ! Correct the value if monotonic limiter is applied
+                   if (monotonicfilter)then
+                     if(moistswm)then ! To ensure mass conservation
+                        e = edges_indexes(i,n,1)
+                        i1 = mesh%edhx(e)%sh(1)
+                        i2 = mesh%edhx(e)%sh(2)
+                        
+                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                        minval_i = min(minval_i1, minval_i2)
+                        maxval_i = max(maxval_i1, maxval_i2)
+                        
+                     else
+                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                     end if
+                     
+                     pol_filtered = max(pol,minval_i)
+                     pol_filtered = min(pol_filtered,maxval_i)
+                     pol = pol_filtered
+                   end if
+
+                   ! Flux update
+                   node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
                 end if
              else
    
@@ -3139,22 +3250,100 @@ read(*,*)
                 call constr(xx,yy,zz,cx,sx,cy,sy)
                 call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp) 
 
+                if(order==2)then
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(w)%coef(1) + node(w)%coef(2)*xp + & 
+                        node(w)%coef(3)*yp
 
-                if(order==2)then          
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(w)%coef(1) + node(w)%coef(2)*xp + & 
-                        node(w)%coef(3)*yp)*node(i)%G(s)%lwg(n)*dot
+                   ! Correct the value if monotonic limiter is applied
+                   if (monotonicfilter)then
+                     if(moistswm)then ! To ensure mass conservation
+                        e = edges_indexes(i,n,1)
+                        i1 = mesh%edhx(e)%sh(1)
+                        i2 = mesh%edhx(e)%sh(2)
+                        
+                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                        minval_i = min(minval_i1, minval_i2)
+                        maxval_i = max(maxval_i1, maxval_i2)
+                        
+                     else
+                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                     end if
+                     
+                     pol_filtered = max(pol,minval_i)
+                     pol_filtered = min(pol_filtered,maxval_i)
+                     pol = pol_filtered
+                   end if
 
-
+                   ! Flux update
+                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
                 end if
-                if(order==3)then 
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + (node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
-                        node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp)*node(i)%G(s)%lwg(n)*dot  
+
+                if(order==3)then
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
+                        node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp
+
+                   ! Correct the value if monotonic limiter is applied
+                   if (monotonicfilter)then
+                     if(moistswm)then ! To ensure mass conservation
+                        e = edges_indexes(i,n,1)
+                        i1 = mesh%edhx(e)%sh(1)
+                        i2 = mesh%edhx(e)%sh(2)
+                        
+                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                        minval_i = min(minval_i1, minval_i2)
+                        maxval_i = max(maxval_i1, maxval_i2)
+                        
+                     else
+                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                     end if
+                     
+                     pol_filtered = max(pol,minval_i)
+                     pol_filtered = min(pol_filtered,maxval_i)
+                     pol = pol_filtered
+                   end if
+
+                   ! Flux update
+                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot  
                 end if
-                if(order==4)then 
-                   node(i)%S(z)%flux = node(i)%S(z)%flux  + (node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
+
+                if(order==4)then
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
                         node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp + &                     
                         node(w)%coef(7)*xp*xp*xp + node(w)%coef(8)*xp*xp*yp + node(w)%coef(9)*xp*yp*yp + &
-                        node(w)%coef(10)*yp*yp*yp)*node(i)%G(s)%lwg(n)*dot 
+                        node(w)%coef(10)*yp*yp*yp
+
+                   ! Correct the value if monotonic limiter is applied
+                   if (monotonicfilter)then
+                     if(moistswm)then ! To ensure mass conservation
+                        e = edges_indexes(i,n,1)
+                        i1 = mesh%edhx(e)%sh(1)
+                        i2 = mesh%edhx(e)%sh(2)
+                        
+                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                        minval_i = min(minval_i1, minval_i2)
+                        maxval_i = max(maxval_i1, maxval_i2)
+                        
+                     else
+                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                     end if
+                     
+                     pol_filtered = max(pol,minval_i)
+                     pol_filtered = min(pol_filtered,maxval_i)
+ 
+                     pol = pol_filtered
+                   end if
+
+                   ! Flux update
+                   node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
                 end if
              endif
           enddo
@@ -3850,7 +4039,7 @@ read(*,*)
 
   subroutine init_quadrature_edges(mesh)  
     !----------------------------------------------------------------------------------------------
-    ! Reconstructs the normal velocity at quadrature points
+    ! Initialize some index variables regarding quadrature edges
     !----------------------------------------------------------------------------------------------
     implicit none
 
@@ -3898,7 +4087,6 @@ read(*,*)
         end do
       end do
     end do
-
   end subroutine init_quadrature_edges
 
   subroutine reconstruct_velocity_quadrature(mesh, uedges)  
@@ -4000,4 +4188,41 @@ read(*,*)
 
   end subroutine reconstruct_velocity_quadrature
 
+  subroutine monotonic_limiter(Pol,no,mesh,min_output, max_output)
+      implicit none
+      
+      type(grid_structure),intent(in)      :: mesh
+      integer (i4), intent(in) :: no
+      real (r8), intent (in)   :: Pol
+      real (r8), intent (out)  :: min_output, max_output
+      real (r8), allocatable   :: limitador (:)
+      
+      
+      integer   :: i,l,j,jend
+      real(r8)  :: maximo,minimo
+     
+      i = no
+       
+      if (order == 2) then
+        jend = node(i)%ngbr(1)%numberngbr
+        allocate (limitador (1:jend+1))
+      else 
+        jend = node(i)%ngbr(1)%numberngbr+node(i)%ngbr(2)%numberngbr
+        allocate (limitador (1:jend+1))
+      end if       
+  
+      limitador(1) = node(i)%coef(1)    
+      do l=1,jend 
+        j = node(i)%stencil(l)
+        limitador(l+1) = node(j)%coef(1)
+      end do 
+      
+      max_output = maxval(limitador)
+      min_output = minval(limitador)
+
+      deallocate (limitador)
+      return
+  end subroutine monotonic_limiter
+    
+ 
 end module highorder

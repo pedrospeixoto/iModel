@@ -1,12 +1,12 @@
 !Moist shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-3 0
+2 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
 30 30
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-800 0 0
+1000 0 0
 !Scalar/vector location (HC or HTC)
-HC
+HTC
 !Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
 trsk10
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
@@ -20,7 +20,9 @@ trsk
 !Advection method (G-FV_GAS, O-FV_OLG)
 O
 !Order of advection method (1-first order (TRSK), 2-second order, 3-third order, 4-fourth order. Only for O-FV_OLG scheme)
-2
+3
+!Monotonic limiter (0-no, 1-yes)
+1
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
@@ -80,7 +82,7 @@ trsk : simple difference
 
 !Advection method
 O - Ollivier-Gooch scheme on the sphere
-G - Gassmann method from Skamarock e Gassmann(2011)
+G - Gassmann method from Skamarock and Gassmann(2011)
 
 !Order of advection method
 1 - TRSK
