@@ -1,8 +1,8 @@
 !Grid parameters 
-!Number of vertices (may be changed if icos/octg mesh is chosen) 
-600
+!Number of vertices (may be changed if icos/octg mesh is chosen)
+1000
 !Kind of mesh use: icos, octg, read, rand
-icos
+read
 !Position: eqs, pol, ran, ref, readref, readref_andes
 pol
 !Optimization of mesh: nopt, sprg, scvt, salt, hr95
@@ -12,9 +12,9 @@ nopt
 !Show ongoing process details on screen? 0-No; 1-Yes
 1
 !Test case to be done - uncomment method to be used in imodel.f90
-3
+15
 !If mesh read from file give filename (Extensions: .xyz cartesian coords, .gmt lon, lat)
-icos_pol_scvt_h1_5.xyz
+icos_pol_scvt_h1_3.xyz
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos0 Symmetry implied; 4- Both 2 and 3
 1
 
@@ -24,7 +24,7 @@ icos_pol_scvt_h1_5.xyz
 !   octg (octahedral) \\
 !   read (read from file - give filename where indicated) \\
 !   rand (random points - be careful, you can get ugly meshes...) \\
-   
+
 !Mesh Positions 
 !  eqs (equator symmetric)\\
 !  pol (north pole point)\\
@@ -57,6 +57,7 @@ icos_pol_scvt_h1_5.xyz
 !  case(14)!Horizontal Discret Shallow water model diagnostics\\
 !  case(15)!Shallow water model test cases\\
 !  case(16)!Superconv tests\\
+!  case(17)!Highorder advection tests\\
 !  case(18)!Moist shallow water model test cases\\
 
 !Hierarchical grid construction: 0-No; 1-Yes; 2-New only; 3-Icos interior
