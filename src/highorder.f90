@@ -502,6 +502,7 @@ contains
 
        call matrix_olg(nodes,mesh)
 
+       call  init_quadrature_edges(mesh)
        !call reconstruction_olg(nodes,mesh)  
 
        !call interpolation(nodes,mesh) 
@@ -3187,7 +3188,7 @@ read(*,*)
 
                 ! Correct the value if monotonic limiter is applied
                 if (monotonicfilter)then
-                  if(moistswm)then ! To ensure mass conservation
+                  !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
                     i2 = mesh%edhx(e)%sh(2)
@@ -3198,9 +3199,9 @@ read(*,*)
                     minval_i = min(minval_i1, minval_i2)
                     maxval_i = max(maxval_i1, maxval_i2)
                         
-                  else
-                    call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                  end if
+                  !else
+                  !  call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                  !end if
                      
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
@@ -3246,7 +3247,7 @@ read(*,*)
 
                 ! Correct the value if monotonic limiter is applied
                 if (monotonicfilter)then
-                  if(moistswm)then ! To ensure mass conservation
+                  !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
                     i2 = mesh%edhx(e)%sh(2)
@@ -3257,9 +3258,9 @@ read(*,*)
                     minval_i = min(minval_i1, minval_i2)
                     maxval_i = max(maxval_i1, maxval_i2)
                         
-                  else
-                      call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                  end if
+                  !else
+                  !    call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                  !end if
                      
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
