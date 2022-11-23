@@ -1533,10 +1533,11 @@ subroutine initialize_global_moist_swm_vars()
                          h, u, htheta, hqv, hqc, hqr, htracer, dt)
 
       !Apply the monotonic filter for tracers
-      if (order==1 .and. monotonicfilter)then
-         call monotonic_filter(hqv)             
-         call monotonic_filter(hqr)
-         call monotonic_filter(hqc)
+      !if (order==1 .and. monotonicfilter)then
+      if (monotonicfilter)then
+         !call monotonic_filter(hqv)             
+         !call monotonic_filter(hqr)
+         !call monotonic_filter(hqc)
       end if
 
       call scalar_elem_divide(hqv, h, qv)

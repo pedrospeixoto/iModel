@@ -352,7 +352,7 @@ contains
     integer(i4) :: nlines
     integer(i4) :: ncolumns
     real(r8):: time
-    !real(r8):: mass, mass0
+    real(r8):: mass, mass0, mass_var
 
     !Numero de vizinhos e vizinhos de cada no
     integer(i4),allocatable   :: nbsv(:,:)   
@@ -421,7 +421,6 @@ contains
 
        call upwind_voronoi(nodes,mesh)
 
-
     endif
 
     call time_step(nodes,mesh,0.5785D0) 
@@ -455,6 +454,9 @@ contains
           node(i)%phi_exa=node(i)%phi_new2
        enddo
 
+       ! Initial mass
+       mass0 = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
+
        !Avanço temporal 
        time=0.0D0 
        do j=0,node(0)%ntime+1
@@ -482,10 +484,15 @@ contains
              call flux_gas(nodes,mesh,k-1,time)
              call rungekutta(nodes,mesh,k) 
           enddo
-          
-       
+
+          ! Mass update
+          mass = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
+         
+          mass_var = abs((mass0-mass)/mass0)
           time=time+node(0)%dt
-          print*, time
+          print*, "Time:",  time
+          print '(a33, 3e16.8)','min, max, mass variation = ',minval(node(:)%phi_new2), maxval(node(:)%phi_new2), mass_var
+          print*,''
        enddo
 
 
@@ -508,6 +515,13 @@ contains
        do i=1,nodes
           node(i)%phi_exa=node(i)%phi_new2
        enddo
+
+       ! Initial mass
+       if(controlvolume=='V')then
+         mass0 = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
+       else
+         mass0 = sum(node(1:nodes)%phi_new2*node(1:nodes)%area)
+       end if
 
 
        !Avanço temporal 
@@ -537,8 +551,22 @@ contains
              call flux_olg(nodes,mesh,k-1,time)
              call rungekutta(nodes,mesh,k) 
           enddo
+
+ 
           time=time+node(0)%dt
-          print*, time
+
+          ! Mass update
+          if(controlvolume=='V')then
+            mass = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
+          else
+            mass = sum(node(1:nodes)%phi_new2*node(1:nodes)%area)
+          end if
+
+          mass_var = abs((mass0-mass)/mass0)
+
+          print*, "Time:",  time
+          print '(a33, 3e16.8)','min, max, mass variation = ',minval(node(:)%phi_new2), maxval(node(:)%phi_new2), mass_var
+          print*,''
        enddo
 
     end if
@@ -3137,111 +3165,59 @@ read(*,*)
              p3(3)=node(i)%G(s)%lpg(n,3)
              call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp)
              if(dot<FEPS.and.dot>-1.0*FEPS)then
-                node(i)%S(z)%flux=node(i)%S(z)%flux+0.0D0
-             elseif(dot>0)then
+              node(i)%S(z)%flux=node(i)%S(z)%flux+0.0D0
+              elseif(dot>0)then
                 if(order==2)then
                    ! Polynomial evaluated at quadrature point
                    pol = node(i)%coef(1) + node(i)%coef(2)*xp + & 
                         node(i)%coef(3)*yp
 
-                   ! Correct the value if monotonic limiter is applied
-                   if (monotonicfilter)then
-                     if(moistswm)then ! To ensure mass conservation
-                        e = edges_indexes(i,n,1)
-                        i1 = mesh%edhx(e)%sh(1)
-                        i2 = mesh%edhx(e)%sh(2)
-                        
-                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
-                        minval_i = min(minval_i1, minval_i2)
-                        maxval_i = max(maxval_i1, maxval_i2)
-                        
-                     else
-                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                     end if
-                     
-                     pol_filtered = max(pol,minval_i)
-                     pol_filtered = min(pol_filtered,maxval_i)
-                        
-                     pol = pol_filtered
- 
-                   end if
-
-                   ! Flux update
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
-                end if
-
-                if(order==3)then
+                else if(order==3)then
                    ! Polynomial evaluated at quadrature point
                    pol = node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
                         node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp
 
-                   ! Correct the value if monotonic limiter is applied
-                   if (monotonicfilter)then
-                     if(moistswm)then ! To ensure mass conservation
-                        e = edges_indexes(i,n,1)
-                        i1 = mesh%edhx(e)%sh(1)
-                        i2 = mesh%edhx(e)%sh(2)
-                        
-                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
-                        minval_i = min(minval_i1, minval_i2)
-                        maxval_i = max(maxval_i1, maxval_i2)
-                        
-                     else
-                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                     end if
-                     
-                     pol_filtered = max(pol,minval_i)
-                     pol_filtered = min(pol_filtered,maxval_i)
-                     pol = pol_filtered
-                   end if
-
-                   ! Flux update
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot 
-                end if
-
-                if(order==4) then     
+                else if(order==4) then     
                    ! Polynomial evaluated at quadrature point
                    pol = node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
                         node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp + &                     
                         node(i)%coef(7)*xp*xp*xp + node(i)%coef(8)*xp*xp*yp + &
                         node(i)%coef(9)*xp*yp*yp + node(i)%coef(10)*yp*yp*yp
-
-                   ! Correct the value if monotonic limiter is applied
-                   if (monotonicfilter)then
-                     if(moistswm)then ! To ensure mass conservation
-                        e = edges_indexes(i,n,1)
-                        i1 = mesh%edhx(e)%sh(1)
-                        i2 = mesh%edhx(e)%sh(2)
-                        
-                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
-                        minval_i = min(minval_i1, minval_i2)
-                        maxval_i = max(maxval_i1, maxval_i2)
-                        
-                     else
-                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                     end if
-                     
-                     pol_filtered = max(pol,minval_i)
-                     pol_filtered = min(pol_filtered,maxval_i)
-                     pol = pol_filtered
-                   end if
-
-                   ! Flux update
-                   node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
                 end if
+
+                ! Correct the value if monotonic limiter is applied
+                if (monotonicfilter)then
+                  if(moistswm)then ! To ensure mass conservation
+                    e = edges_indexes(i,n,1)
+                    i1 = mesh%edhx(e)%sh(1)
+                    i2 = mesh%edhx(e)%sh(2)
+                        
+                    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                    minval_i = min(minval_i1, minval_i2)
+                    maxval_i = max(maxval_i1, maxval_i2)
+                        
+                  else
+                    call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                  end if
+                     
+                  pol_filtered = max(pol,minval_i)
+                  pol_filtered = min(pol_filtered,maxval_i)
+                        
+                  pol = pol_filtered
+                end if
+
+                ! Flux update
+                node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
+
              else
    
-             if(controlvolume=="D")then
-                w=node(i)%G(s)%upwind_donald(n)
-             else
-                w=node(i)%upwind_voronoi(n)
-             endif
+                if(controlvolume=="D")then
+                  w=node(i)%G(s)%upwind_donald(n)
+                else
+                  w=node(i)%upwind_voronoi(n)
+                endif
 
                 !Determinando o valor do fluxo - UPWIND    
                 xx=mesh%v(w)%p(1)
@@ -3255,96 +3231,44 @@ read(*,*)
                    pol = node(w)%coef(1) + node(w)%coef(2)*xp + & 
                         node(w)%coef(3)*yp
 
-                   ! Correct the value if monotonic limiter is applied
-                   if (monotonicfilter)then
-                     if(moistswm)then ! To ensure mass conservation
-                        e = edges_indexes(i,n,1)
-                        i1 = mesh%edhx(e)%sh(1)
-                        i2 = mesh%edhx(e)%sh(2)
-                        
-                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
-                        minval_i = min(minval_i1, minval_i2)
-                        maxval_i = max(maxval_i1, maxval_i2)
-                        
-                     else
-                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                     end if
-                     
-                     pol_filtered = max(pol,minval_i)
-                     pol_filtered = min(pol_filtered,maxval_i)
-                     pol = pol_filtered
-                   end if
-
-                   ! Flux update
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
-                end if
-
-                if(order==3)then
+                else if(order==3)then
                    ! Polynomial evaluated at quadrature point
                    pol = node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
                         node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp
 
-                   ! Correct the value if monotonic limiter is applied
-                   if (monotonicfilter)then
-                     if(moistswm)then ! To ensure mass conservation
-                        e = edges_indexes(i,n,1)
-                        i1 = mesh%edhx(e)%sh(1)
-                        i2 = mesh%edhx(e)%sh(2)
-                        
-                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
-                        minval_i = min(minval_i1, minval_i2)
-                        maxval_i = max(maxval_i1, maxval_i2)
-                        
-                     else
-                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                     end if
-                     
-                     pol_filtered = max(pol,minval_i)
-                     pol_filtered = min(pol_filtered,maxval_i)
-                     pol = pol_filtered
-                   end if
-
-                   ! Flux update
-                   node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot  
-                end if
-
-                if(order==4)then
+                else if(order==4)then
                    ! Polynomial evaluated at quadrature point
                    pol = node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
                         node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp + &                     
                         node(w)%coef(7)*xp*xp*xp + node(w)%coef(8)*xp*xp*yp + node(w)%coef(9)*xp*yp*yp + &
                         node(w)%coef(10)*yp*yp*yp
-
-                   ! Correct the value if monotonic limiter is applied
-                   if (monotonicfilter)then
-                     if(moistswm)then ! To ensure mass conservation
-                        e = edges_indexes(i,n,1)
-                        i1 = mesh%edhx(e)%sh(1)
-                        i2 = mesh%edhx(e)%sh(2)
-                        
-                        call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                        call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
-                        minval_i = min(minval_i1, minval_i2)
-                        maxval_i = max(maxval_i1, maxval_i2)
-                        
-                     else
-                        call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                     end if
-                     
-                     pol_filtered = max(pol,minval_i)
-                     pol_filtered = min(pol_filtered,maxval_i)
- 
-                     pol = pol_filtered
-                   end if
-
-                   ! Flux update
-                   node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
                 end if
+
+                ! Correct the value if monotonic limiter is applied
+                if (monotonicfilter)then
+                  if(moistswm)then ! To ensure mass conservation
+                    e = edges_indexes(i,n,1)
+                    i1 = mesh%edhx(e)%sh(1)
+                    i2 = mesh%edhx(e)%sh(2)
+                        
+                    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                        
+                    minval_i = min(minval_i1, minval_i2)
+                    maxval_i = max(maxval_i1, maxval_i2)
+                        
+                  else
+                      call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
+                  end if
+                     
+                  pol_filtered = max(pol,minval_i)
+                  pol_filtered = min(pol_filtered,maxval_i)
+ 
+                  pol = pol_filtered
+                end if
+
+                ! Flux update
+                node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
              endif
           enddo
        enddo
