@@ -184,6 +184,9 @@ module highorder
      !Termos Geometricos
      real(r8),allocatable:: geometric(:,:)
 
+     !Flux at each edge
+     real(r8),allocatable:: edge_flux(:)
+
      !Condition initial
      real(r8):: phi
 
@@ -1023,6 +1026,8 @@ contains
        allocate(node(i)%edge(VD*ngbr1))
        allocate(node(i)%edgeg(ngbr1+1))
 
+       allocate(node(i)%edge_flux(VD*ngbr1))
+
        do j=1,VD*ngbr1
           allocate(node(i)%edge(j)%xyz2(2,3))
           allocate(node(i)%edge(j)%pg(2))
@@ -1107,7 +1112,7 @@ contains
           allocate(node(i)%upwind_voronoi(1:ngbr1))
 
        end if
-    end do
+     end do
     return
   end subroutine allocation
 
@@ -3145,6 +3150,10 @@ read(*,*)
        else
           cc=1
        endif
+
+       ! Flux at edges
+       node(i)%edge_flux(:) = 0._r8
+
        do n=1,cc*jend
           p1=node(i)%edge(n)%xyz2(1,:) 
           p2=node(i)%edge(n)%xyz2(2,:) 
@@ -3206,11 +3215,14 @@ read(*,*)
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
                         
-                  pol = pol_filtered
+                  !pol = pol_filtered
                 end if
 
                 ! Flux update
                 node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
+
+                ! Store flux at edge
+                node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
 
              else
    
@@ -3265,11 +3277,16 @@ read(*,*)
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
  
-                  pol = pol_filtered
+                  !pol = pol_filtered
                 end if
 
                 ! Flux update
                 node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
+
+                ! Store flux at edge
+                node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
+
+
              endif
           enddo
        enddo
@@ -3346,22 +3363,12 @@ read(*,*)
     do i = 1,nodes
          node(i)%S(z)%flux = 0.0D0
          jend = node(i)%ngbr(1)%numberngbr
+         node(i)%edge_flux(:) = 0._r8
          do n = 1,jend     
            contador = contador + 1
            w=node(i)%upwind_voronoi(n)
            p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
            p3 = p3/norm(p3)       
-           !call cart2sph(p3(1), p3(2), p3(3), lon, lat)
-!           dot=dot_product(velocity(node(i)%G(1)%lpg(n,1:3), time),node(i)%G(1)%lvn(n,1:3))
-           !SOLUCAO EXATA no ponto medio entre o node i e seu respectivo vizinho
-!           p3 = node(i)%G(1)%lpg(n,1:3)
-!           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-!           p3 = p3/norm(p3)
-!           call cart2sph (p3(1), p3(2), p3(3),lon,lat)
-!           sol_exata = f(lon,lat)*node(i)%G(1)%lwg(n)*dot 
-!           p1=node(i)%edge(n)%xyz2(1,:) 
-!           p2=node(i)%edge(n)%xyz2(2,:) 
-!           vn=node(i)%G(1)%lvn(n,1:3)
 
            if (.not. moistswm)then
               dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
@@ -3386,10 +3393,6 @@ read(*,*)
            zz = mesh%v(w)%p(3)
            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
 
-           !cosseno=(xp/dsqrt(xp**2+yp**2))
-           !seno=(yp/dsqrt(xp**2+yp**2))
-           !derivada_i = 2.0D0*node(i)%coef(4)*(cosseno**2) + & 
-           !2.0D0*node(i)%coef(5)*cosseno*seno + 2.0D0*node(i)%coef(6)*(seno**2)
  
            phi_i = node(i)%coef(1)
 
@@ -3413,11 +3416,6 @@ read(*,*)
            zz = mesh%v(i)%p(3)
            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
 
-           !cosseno=(xp/dsqrt(xp**2+yp**2))
-           !seno=(yp/dsqrt(xp**2+yp**2))
-           !derivada_j = 2.0D0*node(w)%coef(4)*(cosseno**2) + &
-           !2.0D0*node(w)%coef(5)*cosseno*seno + 2.0D0*node(w)%coef(6)*(seno**2)
-
            phi_j = node(w)%coef(1)
 
            ! Compute second derivate in the normal direction to the edge
@@ -3432,61 +3430,21 @@ read(*,*)
            !Distancia entre o node i e seu respectivo vizinho   
            dist=arclen(mesh%v(i)%p,mesh%v(w)%p)           
 
-!           p1 = mesh%v(i)%p
-!           call cart2sph (p1(1), p1(2), p1(3),lon,lat)
-!           print*, lon,lat ,'node i'
-!           call aplyr(p1(1), p1(2), p1(3),cx,sx,cy,sy,xp,yp,zp) 
-!           p2 = mesh%v(w)%p
-!           call cart2sph (p2(1), p2(2), p2(3),lon,lat)
-!          print*, lon,lat , 'node w'
-!          print*, i, derivada_i,'derivada_i'
-!          print*, w, derivada_j,'derivada_j'
-!          print*,(derivada_i + derivada_j)/2.0D0, 'media das derivadas'
-!          print*, dabs(-sol_exata - (derivada_i + derivada_j)/2.0D0) , 'ERRO'
-
-!          read(*,*)           
-
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
            aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
            !print*,aux2
            
-!          sol_numerica = aux1 - aux2 + aux3
-!          sol_numerica = sol_numerica*node(i)%G(1)%lwg(n)*dot
            node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
-          
-!           erro = dabs(sol_numerica -  sol_exata)  
-!           aaxx = erro * erro
-!           if ( erro_Linf < abs (erro))  erro_Linf =  abs ( erro )
-!           temp = temp +  aaxx
-!          phi%f(contador) = erro
-!          write(atime,'(i8)') nint(time)
-!          phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))    
-       end do
+
+           ! Store flux at edge
+           node(i)%edge_flux(n) = node(i)%edge_flux(n) +  (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
+
+      end do
     end do
-
-!    print*, erro_Linf!, 'erro_Linf'
-!    print*, dsqrt (temp/contador)! , 'erro_L2'
-!    print*, contador 
-!    print*,erro_Linf
-!    print*,dsqrt (temp/contador)
-!    call plot_scalarfield(phi,mesh) 
-!    read(*,*)  
-
-!    temp = 0.0D0
-!    do i = 1,nodes
-!       div_est = node(i)%S(z)%flux/mesh%hx(i)%areag
-!       erro = dabs(div_est)
-!       aaxx = erro * erro
-!       if (erro_Linf < abs (erro))  erro_Linf =  abs ( erro )
-!       temp = temp +  aaxx
-!    end do
-!    print*, erro_Linf, 'norma 1'
-!    print*, dsqrt (temp/nodes) , 'norma 2'
-!    read(*,*)
-   deallocate(p1,p2,p3,vn)   
+  deallocate(p1,p2,p3,vn)   
    return  
-   end subroutine flux_gas   
+   end subroutine flux_gas 
     
   subroutine rungekutta(nodes,mesh,k)  
     !----------------------------------------------------------------------------------------------
@@ -3978,14 +3936,13 @@ read(*,*)
 
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
-    
+
     if (method=='G') then
       nquad = 1
     end if
 
     ! Maximum of neighbors in a Voronoi cell
     maxnnb = maxval(mesh%v(:)%nnb)
-
     ! Allocation
     allocate(sh_edges_indexes(1:mesh%ne, 1:4))
     allocate(edges_indexes(1:mesh%nv, 1:maxnnb, 1:nquad))

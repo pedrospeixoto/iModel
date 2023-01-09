@@ -1669,4 +1669,54 @@ contains
 
   end subroutine zero_vector
 
+  subroutine flux_hx(u, div, flux, mesh)
+    !---------------------------------------------------------------
+    !Calculate divergence at voronoi cells (hexagons)
+    !   based on edge normal velocities
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in):: u ! velocity at cell edges
+    type(scalar_field), intent(inout):: div !divergence - must be already allocated
+    real(r8), allocatable, intent(inout) :: flux(:,:)
+    integer(i4):: i, j, k, l, ed
+    real(r8):: signcor
+
+    !$omp parallel do &
+    !$omp default(none) &
+    !$omp shared(mesh, u, div, flux) &
+    !$omp shared(useStagHTC, useStagHC, useTiledAreas ) &
+    !$omp private(j, l, signcor) &
+    !$omp schedule(static)
+    do i=1,mesh%nv
+      !Divergence of uh on unit sphere using div_cell_Cgrig
+      !For all edges forming the hexagon
+      div%f(i)=0._r8
+      flux(i,:)=0._r8
+      do j=1, mesh%v(i)%nnb
+        !Get edge index
+        l=mesh%v(i)%ed(j)
+        !Get edge outer normal related to the hexagon
+        if(useStagHTC)then
+          signcor=real(mesh%hx(i)%ttgout(j), r8)
+        elseif(useStagHC)then
+          signcor=real(mesh%hx(i)%nr(j), r8)
+        end if
+        !Calculate numerical integration
+        !lengths are multiplied by erad, and area by erad**2, therefore /erad
+        flux(i,j) = signcor*u%f(l)*mesh%edhx(l)%leng
+        div%f(i)=div%f(i)+flux(i,j)
+      end do
+      if(useTiledAreas)then
+        div%f(i)=div%f(i)/mesh%hx(i)%areat/erad
+      else
+        div%f(i)=div%f(i)/mesh%hx(i)%areag/erad
+      end if
+    end do
+    !$omp end parallel do
+
+    return
+
+  end subroutine flux_hx
+
+
 end module swm_operators
