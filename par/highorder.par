@@ -4,9 +4,9 @@ V
 !Method (G-FV_GAS, O-FV_OLG)
 O
 !Order of method (2-second order, 3-third order, 4-fourth order)
-3
+2
 !Monotonic limiter? (0-no, 1-yes)
-1
+0
 !Sphere radius (U=1.0D0, T=6371220.0D0)
 U
 !Case for velocity field (1-ndiv, 2-ndiv, 3-div, 4-divrot, 5-Rot, 6-RossHarw, 7-RotVarSpeed)
