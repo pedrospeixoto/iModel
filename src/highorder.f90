@@ -3444,7 +3444,7 @@ read(*,*)
     end do
   deallocate(p1,p2,p3,vn)   
    return  
-   end subroutine flux_gas 
+   end subroutine flux_gas   
     
   subroutine rungekutta(nodes,mesh,k)  
     !----------------------------------------------------------------------------------------------
@@ -4000,7 +4000,7 @@ read(*,*)
       !$omp parallel do &
       !$omp default(none) &
       !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad) &
-      !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q) &
+      !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q,lon,lat,utmp,vtmp,u0,uexact) &
       !$omp private(urecon) &
       !$omp schedule(static)
       do e = 1, mesh%ne ! Edges loop
@@ -4023,9 +4023,16 @@ read(*,*)
           ! Quadrature points
           p1 = node(i1)%G(q1)%lpg(j1,1:3)
           p2 = node(i2)%G(q2)%lpg(j2,1:3)
-          
+         
+          !print*,p1
           ! Reconstruct the velocity field at quadrature points
-          urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+          !urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+          call cart2sph(p1(1), p1(2), p1(3), lon, lat)
+          u0 = 2._r8*pi*erad/(12._r8*day2sec)
+          utmp = u0*cos(lat)
+          vtmp = 0._r8
+          call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
+          urecon=uexact 
 
           ! Store the velocity
           node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon

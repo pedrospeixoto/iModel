@@ -1,6 +1,5 @@
 #-----------------------------------------------------------------------
-# Python script to plot high-order advection
-# schem errors and convergence rate
+# Python script to run and plot high-order advection output
 # Luan Santos - october 2022
 #-----------------------------------------------------------------------
 
@@ -8,111 +7,173 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 from plot_scalar_field import plot
+import subprocess
+import os.path
+
+# Program to be run
+program = "./imodel"
+run = True # Run the simulation?
+
+# Times
+dt = ('12800','6400','3200','1600','800','400','200','100')
+
+# Grid levels
+glevels = (1,2,3,4,5)
+
+# FV Schemes
+mono_values = (0,) # mononotic options
+fvs = ('upw1','trsk','og2','og3', 'og4', 'gass')
+rk = 'rk3'
 
 # Grid name
 #gridname = 'icos_readref_sa_andes3_scvt_h1_'
 gridname = 'icos_pol_scvt_h1_'
 
-# Map projection
+# Plotting parameters
 #map_projection = 'sphere'
 map_projection = 'mercator'
 
-# Colormap
-colormap = 'seismic'
+def replace_line(filename, content, line_number):
+    import re
+    if os.path.exists(filename): # The file exists
+        # Open the grid file
+        file  = open(filename, "r")
+        lines = file.readlines()
 
-# Times
-dt = ('12800','6400','3200','1600','800','400','200')
+        # new content
+        lines[line_number-1] = content+'\n'
 
-# Grid levels
-grids = (1,2,3,4,5)
+        # Close the file
+        file.close()
+
+        # Write new file
+        with open(filename, 'w') as file:
+            for line in lines:
+                file.write(line)
+
+    else:   # The file does not exist
+        print("ERROR in edit_file_line: file"+filename+" not found in /par.")
+        exit()
 
 # errors data
-errors = np.zeros((len(grids),4))
-
-basename_ol_2 = '_HTC_trsk10_areageo_advmethodO_advorder2_tracer_error_t1036800_'
-basename_ol_3 = '_HTC_trsk10_areageo_advmethodO_advorder3_tracer_error_t1036800_'
-basename_ol_4 = '_HTC_trsk10_areageo_advmethodO_advorder4_tracer_error_t1036800_'
-basename_gass = '_HTC_trsk10_areageo_advmethodG_tracer_error_t1036800_'
-
-basenames = [basename_ol_2, basename_ol_3, basename_ol_4, basename_gass]
-#basenames = [basename_ol_2, basename_ol_3, basename_ol_4]
-#basenames = [basename_ol_2, basename_gass]
+errors = np.zeros((len(glevels),len(mono_values),len(fvs)))
 
 # data directory
 datadir = "../data/"
 
-# data directory
+# graphs directory
 graphdir = "../graphs/"
 
+# par directory
+pardir = '../par/'
 
 # imodel latlon grid size
 nlat = 720
 nlon = 1440
 
-for g in range(0, len(grids)):
+# Define high order test in mesh.par'
+replace_line(pardir+'mesh.par', 'read', 5)
+replace_line(pardir+'mesh.par', 'nopt', 9)
+replace_line(pardir+'mesh.par', '1', 11)
+replace_line(pardir+'mesh.par', '18', 15)
+
+# Define moist swm par
+replace_line(pardir+'moist_swm.par', '2 0', 3)
+replace_line(pardir+'moist_swm.par', '12 12', 5)
+replace_line(pardir+'moist_swm.par', 'trsk10', 11)
+replace_line(pardir+'moist_swm.par', rk, 23)
+replace_line(pardir+'moist_swm.par', 'geo', 27)
+
+# compile the code
+subprocess.run('cd .. ; make', shell=True)
+
+for g in range(0, len(glevels)):
     # Grid level
-    glevel = str(g+1)
+    glevel = glevels[g]
 
-    for k in range(0,len(basenames)):
-        # File to be opened
-        filename = 'moist_swm_tc2_dt'+dt[g]+basenames[k]+gridname+str(glevel)+'.dat'
-        print(filename)
+    # update par files
+    replace_line(pardir+'mesh.par', gridname+str(glevel)+'.xyz', 17)
+    replace_line(pardir+'moist_swm.par', dt[glevel-1] + ' 0 0 ', 7)
 
-        # Open the file and reshape
-        f = open(datadir+filename,'rb')
-        data = np.fromfile(f, dtype='float32')
-        data = np.reshape(data,(nlat,nlon,3))
+    for mono in range(0,len(mono_values)):
+        # update monotonic scheme
+        replace_line(pardir+'moist_swm.par', str(mono), 25)
+        for fv in range(0,len(fvs)):
+            replace_line(pardir+'moist_swm.par', fvs[fv], 21)
 
-        # Get data
-        val = data[:,:,2]
-        errors[g,k] = np.amax(abs(val))
+            # File to be opened
+            filename = 'moist_swm_tc2_dt'+dt[glevel-1]+'_HTC_trsk10_areageo_advmethod_'+fvs[fv]
+            filename_field = filename+'_'+rk+'_mono'+str(mono)+'_tracer_t1036800_'+gridname+str(glevel)+'.dat'
+            filename_error = filename+'_'+rk+'_mono'+str(mono)+'_tracer_error_t1036800_'+gridname+str(glevel)+'.dat'
 
-        plot(filename, colormap, map_projection)
+            # Run the program
+            if (run):
+                subprocess.run('cd .. ; ./imodel', shell=True)
+
+            # Open the file and reshape
+            f = open(datadir+filename_error,'rb')
+            data = np.fromfile(f, dtype='float32')
+            data = np.reshape(data,(nlat,nlon,3))
+
+            # Get data
+            val = data[:,:,2]
+            errors[g,mono,fv] = np.amax(abs(val))
+
+            # Plot the fields
+            plot(filename_field, 'jet', map_projection, -0.2, 1.0)
+            qabs = max(abs(np.amin(val)), abs(np.amax(val)))
+            qmin, qmax = -qabs, qabs
+            plot(filename_error, 'seismic', map_projection, qmin, qmax)
 
 # Plot the error graph
-colors  = ('green','blue','red','orange')
-markers = ('x','D','o','*')
-labels  = ('Ollivier-Gooch 2nd order', 'Ollivier-Gooch 3rd order', 'Ollivier-Gooch 4th order', 'Gassmann')
-ref = np.amax(errors)
-for k in range(0, 4):
-    plt.semilogy(grids, errors[:,k], color=colors[k], marker=markers[k], label = labels[k])
+colors  = ('green','blue','red','orange','purple','gray')
+markers = ('x','D','o','*','+','d')
+labels  = fvs
 
-# Plot reference lines
-order1 = np.zeros(len(grids))
-order2 = np.zeros(len(grids))
-order3 = np.zeros(len(grids))
-order4 = np.zeros(len(grids))
+emin = np.amin(abs(errors))
+emax = np.amax(abs(errors))
 
-order1[0], order2[0], order3[0], order4[0] = 1.0, 1.0, 1.0, 1.0
-for i in range(1, len(grids)):
-    order1[i] = order1[i-1]/2.0
-    order2[i] = order2[i-1]/4.0
-    order3[i] = order3[i-1]/8.0
-    order4[i] = order4[i-1]/16.0
+for mono in range(0,len(mono_values)):
+    for fv in range(0,len(fvs)):
+        plt.semilogy(glevels, errors[:,mono,fv], color=colors[fv], marker=markers[fv], label = labels[fv])
+    plt.ylim(0.95*emin, 1.05*emax)
 
-plt.semilogy(grids, order1 , ':' , color='black', label = '1st order')
-plt.semilogy(grids, order2 , '--', color='black', label = '2nd order')
-plt.semilogy(grids, order3 , '-.', color='black', label = '3rd order')
-plt.semilogy(grids, order4 , '--', color='black', label = '4rd order')
-plt.xticks(grids)
-plt.xlabel('Grid level')
-plt.ylabel('Error')
-plt.legend()
-plt.grid(True, which="both")
-plt.savefig(graphdir+'errors_adv.png', format='png')
-plt.close()
+    # Plot reference lines
+    order1 = np.zeros(len(glevels))
+    order2 = np.zeros(len(glevels))
+    order3 = np.zeros(len(glevels))
+    order4 = np.zeros(len(glevels))
+
+    order1[0], order2[0], order3[0], order4[0] = emax, emax, emax, emax
+    for i in range(1, len(glevels)):
+        order1[i] = order1[i-1]/2.0
+        order2[i] = order2[i-1]/4.0
+        order3[i] = order3[i-1]/8.0
+        order4[i] = order4[i-1]/16.0
+
+    #plt.semilogy(glevels, order1 , ':' , color='black', label = '1st order')
+    #plt.semilogy(glevels, order2 , '--', color='black', label = '2nd order')
+    #plt.semilogy(glevels, order3 , '-.', color='black', label = '3rd order')
+    #plt.semilogy(glevels, order4 , '--', color='black', label = '4rd order')
+    plt.xticks(glevels)
+    plt.xlabel('Grid level')
+    plt.ylabel('Error')
+    plt.legend()
+    plt.grid(True, which="both")
+    plt.savefig(graphdir+'errors_adv_mono'+str(mono)+'.pdf', format='pdf')
+    plt.close()
 
 
-# Compute and plot the convergence rate
-n = len(grids)
-for k in range(0, 4):
-    CR_linf = np.abs(np.log(errors[1:n,k])-np.log(errors[0:n-1,k]))/np.log(2.0)
-    plt.ylim(0,4)
-    plt.plot(grids[1:n], CR_linf, color=colors[k], marker=markers[k], label = labels[k])
-plt.xlabel('Grid level')
-plt.xticks(grids[1:n])
-plt.ylabel('Convergence rate')
-plt.legend()
-plt.grid(True, which="both")
-plt.savefig(graphdir+'convergence_rate.png', format='png')
-plt.close()
+    # Compute and plot the convergence rate
+    n = len(glevels)
+    for fv in range(0, len(fvs)):
+        CR_linf = np.abs(np.log(errors[1:n,mono,fv])-np.log(errors[0:n-1,mono,fv]))/np.log(2.0)
+        plt.ylim(0,4)
+        plt.plot(glevels[1:n], CR_linf, color=colors[fv], marker=markers[fv], label = labels[fv])
+    plt.xlabel('Grid level')
+    plt.xticks(glevels[1:n])
+    plt.ylabel('Convergence rate')
+    plt.legend()
+    plt.grid(True, which="both")
+    plt.savefig(graphdir+'convergence_rate_mono'+str(mono)+'.pdf', format='pdf')
+    plt.close()

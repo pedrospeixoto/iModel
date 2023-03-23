@@ -534,15 +534,11 @@ subroutine allocate_global_moistswm_vars()
     IF(ist>0) STOP 'Error in allocate_globalmoistswmvars'
 
     call initialize_global_moist_swm_vars()
-
-   if (order >= 2 .or. method == 'G')then
+    if (advmtd=='gass' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. advmtd=='upw1')then
       call highorder_adv_vars()
-
-      if (method == 'O')then
-         call init_quadrature_edges(mesh)
-      end if
-   end if
-end subroutine allocate_global_moistswm_vars
+      call init_quadrature_edges(mesh)
+    end if
+  end subroutine allocate_global_moistswm_vars
 
 
 !--------------------------------------------------------------------------
@@ -1310,7 +1306,7 @@ subroutine initialize_global_moist_swm_vars()
     real(r8), intent(inout)::tracereq(:) 
 
     !Compute the SWM tendency
-    call tendency(h, u, masseq, momeq)
+    !call tendency(h, u, masseq, momeq)
 
     !Initialize RHS of temperature and moist variables equations (in paralel)
     call zero_vector(tempeq)
@@ -1322,7 +1318,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
     ! Reconstructs to normal velocity at quadrature points
     !===============================================================
-    if (order >=2 .or. method == 'G')then
+    if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. advmtd=='gass')then
        call reconstruct_velocity_quadrature(mesh, u)
     end if
 
@@ -1331,7 +1327,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / temp eq RHS
-    call divhx(u, htheta, htheta_ed, uhtheta, div_uhtheta, mesh)    
+    !call divhx(u, htheta, htheta_ed, uhtheta, div_uhtheta, mesh)    
 
     !Temp. eq. RHS
     tempeq = -div_uhtheta%f
@@ -1341,7 +1337,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / vapour eq RHS
-    call divhx(u, hqv, hqv_ed, uhqv, div_uhqv, mesh)
+    !call divhx(u, hqv, hqv_ed, uhqv, div_uhqv, mesh)
 
     !Vapour eq. RHS
     vapoureq = -div_uhqv%f
@@ -1351,7 +1347,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / cloud eq RHS
-    call divhx(u, hqc, hqc_ed, uhqc, div_uhqc, mesh)
+    !call divhx(u, hqc, hqc_ed, uhqc, div_uhqc, mesh)
 
     !Cloud eq. RHS
     cloudeq = -div_uhqc%f
@@ -1361,7 +1357,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / rain eq RHS
-    call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
+    !call divhx(u, hqr, hqr_ed, uhqr, div_uhqr, mesh)
 
     !Rain eq. RHS
     raineq = -div_uhqr%f
@@ -1377,7 +1373,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
     !Compute and add the source
     !===============================================================
-    if (time_integrator == 'rk4') then ! RK3 handles the source in a different way
+    if (time_integrator == 'rk4') then ! RK3 handles with the source in a different way
       call source(h, u, htheta, hqv, hqc, hqr, dt)
       momeq    = momeq    + Su%f 
       tempeq   = tempeq   + hStheta%f
@@ -1523,7 +1519,7 @@ subroutine initialize_global_moist_swm_vars()
     !Allocate variables
     call allocate_global_moistswm_vars()
 
-    if (order==1) then
+    if (advmtd=='trsk') then
       call init_edges(mesh)
     end if
 
@@ -1531,7 +1527,6 @@ subroutine initialize_global_moist_swm_vars()
     call initialize_gridprop()
    
     !Initialize fields
-
     call initialize_moist_swm_fields()
 
     !Compute the diffusion coeficient
@@ -1584,7 +1579,7 @@ subroutine initialize_global_moist_swm_vars()
       call sph2cart(lon, lat, p(1), p(2), p(3))
       call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
       tracer%f(i) = dexp(-5._r8*norm(p-pc)**2)
-      !h%f(i) = 1._r8
+      h%f(i) = 1._r8
       htracer%f(i) = h%f(i)*tracer%f(i)
       tracer_exact%f(i) = tracer%f(i)
       tracer_error%f(i) = tracer%f(i)
@@ -1595,7 +1590,7 @@ subroutine initialize_global_moist_swm_vars()
     cloudeq%f, raineq%f, tracereq%f)
 
     !Plot initial fields
-    !call plotfields_mswm(0, 0._r8)
+    call plotfields_mswm(0, 0._r8)
 
     !Calculate total mass
     hwater%f = hqv%f + hqc%f + hqr%f
@@ -1846,25 +1841,25 @@ subroutine plotfields_mswm(k, time)
         !call plot_scalarfield(unorth, mesh)
 
         div_uhtracer%name=trim(swmname)//"_div_uhtracer_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(div_uhtracer, mesh)
+        !call plot_scalarfield(div_uhtracer, mesh)
 
         theta%name=trim(swmname)//"_theta_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(theta, mesh)
+        !call plot_scalarfield(theta, mesh)
 
         qv%name=trim(swmname)//"_qv_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(qv, mesh)
+        !call plot_scalarfield(qv, mesh)
 
         qc%name=trim(swmname)//"_qc_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(qc, mesh)
+        !call plot_scalarfield(qc, mesh)
 
         qr%name=trim(swmname)//"_qr_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(qr, mesh)
+        !call plot_scalarfield(qr, mesh)
 
         tracer%name=trim(swmname)//"_tracer_t"//trim(adjustl(trim(atime)))
         call plot_scalarfield(tracer, mesh)
 
         htracer%name=trim(swmname)//"_htracer_t"//trim(adjustl(trim(atime)))
-        call plot_scalarfield(htracer, mesh)
+        !call plot_scalarfield(htracer, mesh)
 
         tracer_error%f = tracer_exact%f - htracer%f
         tracer_error%name=trim(swmname)//"_tracer_error_t"//trim(adjustl(trim(atime)))
@@ -1880,16 +1875,16 @@ subroutine plotfields_mswm(k, time)
      
         if(testcase==2)then
           h_error%name=trim(swmname)//"_h_error_t"//trim(adjustl(trim(atime)))
-          call plot_scalarfield(h_error, mesh)
+          !call plot_scalarfield(h_error, mesh)
 
           u_error%name=trim(swmname)//"_u_error_t"//trim(adjustl(trim(atime)))
-          call plot_scalarfield(u_error, mesh)
+          !call plot_scalarfield(u_error, mesh)
 
           theta_error%name=trim(swmname)//"_theta_error_t"//trim(adjustl(trim(atime)))
-          call plot_scalarfield(theta_error, mesh)
+          !call plot_scalarfield(theta_error, mesh)
 
           qv_error%name=trim(swmname)//"_qv_error_t"//trim(adjustl(trim(atime)))
-          call plot_scalarfield(qv_error, mesh)
+          !call plot_scalarfield(qv_error, mesh)
         end if
         !eta%name=trim(swmname)//"_eta_t"//trim(adjustl(trim(atime)))
         !call plot_scalarfield(eta, mesh)
@@ -2150,7 +2145,7 @@ subroutine plotfields_mswm(k, time)
     tracereq%f   = tracerf0
 
     ! Compute source
-    call source(h, u, htheta, hqv, hqc, hqr, dt)
+    !call source(h, u, htheta, hqv, hqc, hqr, dt)
 
     !momeq    = momeq    + Su%f 
     !tempeq   = tempeq   + hStheta%f
@@ -2162,24 +2157,24 @@ subroutine plotfields_mswm(k, time)
 
 
     !First RK step
-    u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf0(1:u%n) + Su%f(1:u%n)) / 3.0_r8
-    h_new%f(1:h%n)          = h%f(1:h%n)           + dt *  massf0(1:h%n) / 3.0_r8
-    htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf0(1:theta%n) + hStheta%f(1:theta%n)) / 3.0_r8
-    hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf0(1:qv%n)  + hSqv%f(1:qv%n)      ) / 3.0_r8
-    hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf0(1:qc%n)   + hSqc%f(1:qc%n)      ) / 3.0_r8
-    hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf0(1:qr%n)    + hSqr%f(1:qr%n)      ) / 3.0_r8
+    !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf0(1:u%n) + Su%f(1:u%n)) / 3.0_r8
+    !h_new%f(1:h%n)          = h%f(1:h%n)           + dt *  massf0(1:h%n) / 3.0_r8
+    !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf0(1:theta%n) + hStheta%f(1:theta%n)) / 3.0_r8
+    !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf0(1:qv%n)  + hSqv%f(1:qv%n)      ) / 3.0_r8
+    !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf0(1:qc%n)   + hSqc%f(1:qc%n)      ) / 3.0_r8
+    !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf0(1:qr%n)    + hSqr%f(1:qr%n)      ) / 3.0_r8
     htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf0(1:qr%n) / 3.0_r8
 
     call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
     massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1)
 
     !Second RK step
-    u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf1(1:u%n) + Su%f(1:u%n)) / 2.0_r8
-    h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf1(1:h%n) / 2.0_r8
-    htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf1(1:theta%n) + hStheta%f(1:theta%n)) / 2.0_r8
-    hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf1(1:qv%n)  + hSqv%f(1:qv%n)      ) / 2.0_r8
-    hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf1(1:qc%n)   + hSqc%f(1:qc%n)      ) / 2.0_r8
-    hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf1(1:qr%n)    + hSqr%f(1:qr%n)      ) / 2.0_r8
+    !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf1(1:u%n) + Su%f(1:u%n)) / 2.0_r8
+    !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf1(1:h%n) / 2.0_r8
+    !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf1(1:theta%n) + hStheta%f(1:theta%n)) / 2.0_r8
+    !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf1(1:qv%n)  + hSqv%f(1:qv%n)      ) / 2.0_r8
+    !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf1(1:qc%n)   + hSqc%f(1:qc%n)      ) / 2.0_r8
+    !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf1(1:qr%n)    + hSqr%f(1:qr%n)      ) / 2.0_r8
     htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf1(1:qr%n) / 2.0_r8
 
     call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
@@ -2188,12 +2183,12 @@ subroutine plotfields_mswm(k, time)
     ! Third  RK step
     ! Last RK step applies a different approach if the monotonic limiter is active 
     if(.not. monotonicfilter) then
-      u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf2(1:u%n) + Su%f(1:u%n))
-      h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n)
-      htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * tempf2(1:theta%n) + hStheta%f(1:theta%n)
-      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * vapourf2(1:qv%n)  + hSqv%f(1:qv%n)
-      hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * cloudf2(1:qc%n)   + hSqc%f(1:qc%n)
-      hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * rainf2(1:qr%n)    + hSqr%f(1:qr%n)
+      !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf2(1:u%n) + Su%f(1:u%n))
+      !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n)
+      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * tempf2(1:theta%n) + hStheta%f(1:theta%n)
+      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * vapourf2(1:qv%n)  + hSqv%f(1:qv%n)
+      !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * cloudf2(1:qc%n)   + hSqc%f(1:qc%n)
+      !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * rainf2(1:qr%n)    + hSqr%f(1:qr%n)
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf2(1:qr%n)
 
     else if(monotonicfilter) then
@@ -2245,6 +2240,7 @@ subroutine plotfields_mswm(k, time)
       call scalar_elem_product(u, hphi_ed, uhphi) !Flux uq at edges
       call flux_hx(uhphi, div_uhphi_star, F_star, mesh)
       !-----------------------------------------------------------------------------------
+
 
 
       !-----------------------------------------------------------------------------------
@@ -2412,8 +2408,6 @@ subroutine plotfields_mswm(k, time)
     read(fileunit,*)  sinterpol
     read(fileunit,*)  buffer
     read(fileunit,*)  gradmtd
-    read(fileunit,*)  buffer
-    read(fileunit,*)  method
     read(fileunit,*)  buffer
     read(fileunit,*)  advmtd
     read(fileunit,*)  buffer
@@ -2643,8 +2637,7 @@ subroutine plotfields_mswm(k, time)
     print*, "Vector recon method     : ", reconmtd
     print*, "Coriolis recon method   : ", coriolis_reconmtd
     print*, "Gradient method         : ", gradmtd
-    print*, "Advection method        : ", method
-    print*, "Advection order         : ", advmtd
+    print*, "Advection method        : ", advmethod
     print*, "Area method             : ", areamtd
     print*, "Hollingsworth depth     : ", hollgw
     print*, "PV stabilization mtd    : ", pv_stab
@@ -2698,41 +2691,38 @@ subroutine plotfields_mswm(k, time)
       write(atmp,'(f10.3)') real(dlog(K4_max)/dlog(10._r8)) 
       swmname=trim(swmname)//"_"//trim(hyperdiffus)//"_hyperdiffusion_10to"//trim(adjustl(trim(atmp)))     
     end if 
-
-    ! Advection scheme
-    if (method /= 'O' .and. method /= 'G') then
-        print*, "Invalid advection method. Please select a proper method."
-        stop
-    endif
-        
+   
     ! Advection scheme order
     select case(advmtd)
-    case('1')
-        order=1
+    case('upw1')
+        order=2
+        method='O'
 
-    case('2')
+    case('trsk')
         order=2
 
-    case('3')
-        order=3
+    case('og2')
+        order=2
+        method='O'
 
-    case('4')
+    case('og3') 
+        order=3
+        method='O'
+
+    case('gass')
+        order=3
+        method='G'
+
+    case('og4')
         order=4
+        method='O'
 
     case default
         print*, "Invalid advection method order. Please select a proper order."
         stop
     end select
 
-    if (method == 'O') then
-        swmname=trim(swmname)//"_advmethod"//trim(method)//"_advorder"//trim(advmtd)
-    else if (method == 'G') then
-        order = 3
-        swmname=trim(swmname)//"_advmethod"//trim(method)
-    else
-        print*, "Invalid advection method. Please select a proper method."
-        stop
-    endif
+    swmname=trim(swmname)//"_advmethod_"//trim(advmtd)
 
     if (time_integrator == 'rk3' .or. time_integrator == 'rk4') then
         swmname=trim(swmname)//"_"//trim(time_integrator)
@@ -2754,6 +2744,7 @@ subroutine plotfields_mswm(k, time)
     swmname=trim(swmname)//"_mono"//trim(mono)
 
     print*, "SWM Name for Plots: ", trim(swmname)
+
     return
   end subroutine swm_phys_pars
 
@@ -2996,13 +2987,13 @@ subroutine plotfields_mswm(k, time)
     !Numero de vizinhos e vizinhos de cada no
     integer(i4),allocatable   :: nbsv(:,:)   
 
-    if (order == 1) then
+    if (advmtd=='trsk') then
       !Interpolate scalar to edges and calculate flux at edges
       call scalar_hx2ed(q, q_ed, mesh)      !q cell->edge
       call scalar_elem_product(u, q_ed, uq) !Flux uq at edges
       call div_hx(uq, div, mesh)
 
-    else if (order >= 2) then
+    else if (advmtd=='gass' .or. advmtd=='og2' .or. advmtd=='og3'.or. advmtd=='og4') then
       nodes = mesh%nv
 
       !$omp parallel do &
@@ -3036,7 +3027,10 @@ subroutine plotfields_mswm(k, time)
         div%f(i) = div%f(i)/erad
       end do
       !$omp end parallel do
-    endif
+
+    else if(advmtd=='upw1') then
+        call div_hx_upw1(div, q, u, mesh)
+    end if
     return
   end subroutine divhx
 
