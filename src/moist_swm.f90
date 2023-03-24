@@ -1508,6 +1508,7 @@ subroutine initialize_global_moist_swm_vars()
     real(r8):: Ttracer_change
 
     real(r8):: lon, lat, p(1:3), pc(1:3)
+    real(r8):: b, c, f, r1, r2, r, lonq, latq, lon2, lat2, lon3, lat3
 
 
     !Save global variable mesh
@@ -1580,6 +1581,30 @@ subroutine initialize_global_moist_swm_vars()
       call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
       tracer%f(i) = dexp(-5._r8*norm(p-pc)**2)
       h%f(i) = 1._r8
+
+       b=0.1_r8
+       c=1._r8 !0.9
+       r=1._r8/2._r8
+       f=b
+
+       r1= arcdistll(lonq, latq, lon2, lat2)
+       if(r1<=r.and.abs(lonq-lon2)>=r/(6._r8))then
+          f=c
+       end if
+       r2= arcdistll(lonq, latq, lon3, lat3)
+       if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
+          f=c
+       end if
+       if(r1<=r.and.abs(lonq-lon2) < r/(6._r8) .and. &
+            (latq-lat2)<-(5._r8)*r/(12._r8))then
+          f=c
+       end if
+       if(r2<=r.and.abs(lonq-lon3)<r/(6._r8).and. &
+            (latq-lat3)>(5._r8)*r/(12._r8))then
+          f=c
+       end if
+
+      !tracer%f(i) = f
       htracer%f(i) = h%f(i)*tracer%f(i)
       tracer_exact%f(i) = tracer%f(i)
       tracer_error%f(i) = tracer%f(i)
@@ -2037,23 +2062,23 @@ subroutine plotfields_mswm(k, time)
     !
     ! Combine them to estimate the solution at time t+dt
     !
-    u_new%f(1:u%n) = u%f(1:u%n) !+ dt * (momf0(1:u%n)+2._r8*momf1(1:u%n) &
-    !+2._r8*momf2(1:u%n)+momf3(1:u%n))/6._r8
+    u_new%f(1:u%n) = u%f(1:u%n) + dt * (momf0(1:u%n)+2._r8*momf1(1:u%n) &
+    +2._r8*momf2(1:u%n)+momf3(1:u%n))/6._r8
 
-    h_new%f(1:h%n) = h%f(1:h%n) !+ dt * (massf0(1:h%n)+2._r8*massf1(1:h%n) &
-    !+2._r8*massf2(1:h%n)+massf3(1:h%n))/6._r8
+    h_new%f(1:h%n) = h%f(1:h%n) + dt * (massf0(1:h%n)+2._r8*massf1(1:h%n) &
+    +2._r8*massf2(1:h%n)+massf3(1:h%n))/6._r8
 
-    htheta_new%f(1:theta%n) = htheta%f(1:theta%n) !+ dt * (tempf0(1:theta%n)+2._r8*tempf1(1:theta%n) &
-    !+2._r8*tempf2(1:theta%n)+tempf3(1:theta%n))/6._r8
+    htheta_new%f(1:theta%n) = htheta%f(1:theta%n) + dt * (tempf0(1:theta%n)+2._r8*tempf1(1:theta%n) &
+    +2._r8*tempf2(1:theta%n)+tempf3(1:theta%n))/6._r8
 
-    hqv_new%f(1:qv%n) = hqv%f(1:qv%n) !+ dt * (vapourf0(1:qv%n)+2._r8*vapourf1(1:qv%n) &
-    !+2._r8*vapourf2(1:qv%n)+vapourf3(1:qv%n))/6._r8
+    hqv_new%f(1:qv%n) = hqv%f(1:qv%n) + dt * (vapourf0(1:qv%n)+2._r8*vapourf1(1:qv%n) &
+    +2._r8*vapourf2(1:qv%n)+vapourf3(1:qv%n))/6._r8
 
-    hqc_new%f(1:qc%n) = hqc%f(1:qc%n) !+ dt * (cloudf0(1:qc%n)+2._r8*cloudf1(1:qc%n) &
-    !+2._r8*cloudf2(1:qc%n)+cloudf3(1:qc%n))/6._r8
+    hqc_new%f(1:qc%n) = hqc%f(1:qc%n) + dt * (cloudf0(1:qc%n)+2._r8*cloudf1(1:qc%n) &
+    +2._r8*cloudf2(1:qc%n)+cloudf3(1:qc%n))/6._r8
 
-    hqr_new%f(1:qr%n) = hqr%f(1:qr%n) !+ dt * (rainf0(1:qr%n)+2._r8*rainf1(1:qr%n) &
-    !+2._r8*rainf2(1:qr%n)+rainf3(1:qr%n))/6._r8
+    hqr_new%f(1:qr%n) = hqr%f(1:qr%n) + dt * (rainf0(1:qr%n)+2._r8*rainf1(1:qr%n) &
+    +2._r8*rainf2(1:qr%n)+rainf3(1:qr%n))/6._r8
 
     htracer_new%f(1:qr%n) = htracer%f(1:qr%n) + dt * (tracerf0(1:qr%n)+2._r8*tracerf1(1:qr%n) &
     +2._r8*tracerf2(1:qr%n)+tracerf3(1:qr%n))/6._r8
@@ -2201,16 +2226,16 @@ subroutine plotfields_mswm(k, time)
 
       !call  monotonicfilter_rk3(theta, htheta, htheta_new, h, hStheta,u_new)
       !call  monotonicfilter_rk3(qv, hqv, hqv_new, h, hSqv, u_new)
-      call  monotonicfilter_rk3(qr, hqr, hqr_new, h, hSqr, u_new)
-      call  monotonicfilter_rk3(qc, hqc, hqc_new, h, hSqc, u_new)
-      hSqv%f = 0._r8
+      !call  monotonicfilter_rk3(qr, hqr, hqr_new, h, hSqr, u_new)
+      !call  monotonicfilter_rk3(qc, hqc, hqc_new, h, hSqc, u_new)
+      hSqv%f=0._r8
       call  monotonicfilter_rk3(tracer, htracer, htracer_new, h_new, hSqv, u_new)
 
       !Update momentum and mass conservation equations
       u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf2(1:u%n) + Su%f(1:u%n))
       h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n)
-      htheta_new%f(1:theta%n) = htheta%f(1:theta%n) ! + dt * tempf2(1:theta%n) + hStheta%f(1:theta%n)
-      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)       ! + dt * vapourf2(1:qv%n)  + hSqv%f(1:qv%n)
+      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * tempf2(1:theta%n) + hStheta%f(1:theta%n)
+      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * vapourf2(1:qv%n)  + hSqv%f(1:qv%n)
       !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)       ! + dt * cloudf2(1:qc%n)   + hSqc%f(1:qc%n)
       !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)       ! + dt * rainf2(1:qr%n)    + hSqr%f(1:qr%n)
       !htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)   ! + dt * tracerf2(1:qr%n)
@@ -2228,24 +2253,21 @@ subroutine plotfields_mswm(k, time)
       type(scalar_field), intent(inout):: h_new 
       type(scalar_field), intent(inout):: u_new
       type(scalar_field), intent(inout):: hSphi
-      integer(i4) :: i, j, k, e, i1, i2, k1, i_upwind, scheme_order
+      integer(i4) :: i, j, k, e, i1, i2, j1, j2, k1, i_upwind, scheme_order
       real(r8) :: singcor, error, error1
+      real(r8) :: c1p,c2p,c1m,c2m 
+
 
       !-----------------------------------------------------------------------------------
-      ! Flux for hphi_star using low order scheme (TRSK) at time t
-      hphi_star%f = hphi%f + dt*hSphi%f ! equation 3b from Wang et al 2009
-
-      !Interpolate scalar to edges and calculate flux at edges
-      call scalar_hx2ed(hphi_star, hphi_ed, mesh)      !q cell->edge
-      call scalar_elem_product(u, hphi_ed, uhphi) !Flux uq at edges
-      call flux_hx(uhphi, div_uhphi_star, F_star, mesh)
+      ! Flux for hphi_star using 1st order upwind scheme at time t
+      hphi_star%f = hphi%f! + dt*hSphi%f ! equation 3b from Wang et al 2009
+      call flux_hx_upw1(div_uhphi_star, hphi_star, u, F_star, mesh)
+      !call div_hx_upw1(div_uhphi_step2, hphi_star, u, mesh)
       !-----------------------------------------------------------------------------------
-
-
 
       !-----------------------------------------------------------------------------------
       ! Flux for hphi from the previous RK step using highorder scheme at time t+dt/2
-      if (order>=2)then
+      if (advmtd=='gass' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
         !Calculate divergence and edges flux
         call divhx(u_new, hphi_step2, hphi_ed, uhphi, div_uhphi_step2, mesh)
 
@@ -2254,8 +2276,7 @@ subroutine plotfields_mswm(k, time)
           F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
           F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
         end do
-
-      else ! order = 1 (TRSK)
+      else !TRSK
         !Interpolate scalar to edges and calculate flux at edges
         call scalar_hx2ed(hphi_step2, hphi_ed, mesh)      !q cell->edge
         call scalar_elem_product(u_new, hphi_ed, uhphi) !Flux uq at edges
@@ -2263,13 +2284,12 @@ subroutine plotfields_mswm(k, time)
       end if
       !-----------------------------------------------------------------------------------
 
-
       !-----------------------------------------------------------------------------------
       ! Flux for hphi corrected (equation 4 from wang et al 2009)
       F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
       !-----------------------------------------------------------------------------------
 
-      ! Equation 5 from Wang et al 2009
+      ! Equation 5 from Wang et al 2009 - 1st order upwind solution
       hphi_tilda%f = hphi_star%f - dt*div_uhphi_star%f
 
       ! Compute negative and positive divergences
@@ -2309,29 +2329,28 @@ subroutine plotfields_mswm(k, time)
         end do
       end do
 
+      ! Flux correction
       do i = 1, mesh%nv
-
-        ! Equation 7a from  Wang et al 2009
-        if(abs(hphi_tilda%f(i)-hphi_tilda_min%f(i))>eps2) then
-          div_uhphi_cor_plus%f(i) = min(1._r8,  (hphi_tilda%f(i)-hphi_min%f(i))/&
-                     (hphi_tilda%f(i)-hphi_tilda_min%f(i)))*div_uhphi_cor_plus%f(i)
-        end if
-
-        ! Equation 7b from  Wang et al 2009
-        if(abs(hphi_tilda%f(i)-hphi_tilda_max%f(i))>eps2) then
-            div_uhphi_cor_minus%f(i) = min(1._r8,  (hphi_tilda%f(i)-hphi_max%f(i))/&
-                    (hphi_tilda%f(i)-hphi_tilda_max%f(i)))*div_uhphi_cor_minus%f(i)
-        end if
+        do j = 1, mesh%v(i)%nnb
+          k = mesh%v(i)%nb(j)
+          if(F_cor(i,j)>0._r8) then
+            if(abs(hphi_tilda%f(i)-hphi_tilda_min%f(i))>eps2 .and.  abs(hphi_tilda%f(k)-hphi_tilda_max%f(k))>eps2) then
+              F_cor(i,j) = min(1._r8,  (hphi_tilda%f(i)-hphi_min%f(i))/(hphi_tilda%f(i)-hphi_tilda_min%f(i)),&
+                            (hphi_tilda%f(k)-hphi_max%f(k))/(hphi_tilda%f(k)-hphi_tilda_max%f(k)))*F_cor(i,j)
+            end if
+          else
+            if(abs(hphi_tilda%f(i)-hphi_tilda_max%f(i))>eps2 .and.  abs(hphi_tilda%f(k)-hphi_tilda_min%f(k))>eps2) then
+              F_cor(i,j) =  min(1._r8,  (hphi_tilda%f(i)-hphi_max%f(i))/(hphi_tilda%f(i)-hphi_tilda_max%f(i)),&
+                            (hphi_tilda%f(k)-hphi_min%f(k))/(hphi_tilda%f(k)-hphi_tilda_min%f(k)))*F_cor(i,j)
+            end if
+          end if
+          !print*,i,k
+        end do
+        !print*
       end do
 
       do i = 1, mesh%nv
-        hphi_step2%f(i) = hphi_tilda%f(i) - dt*div_uhphi_cor_minus%f(i) - dt*div_uhphi_cor_plus%f(i)
-        !if(hphi_step2%f(i)>hphi_max%f(i))then
-        !  hphi_step2%f(i)=hphi_max%f(i)
-        !endif 
-        !if(hphi_step2%f(i)<hphi_min%f(i))then
-        !  hphi_step2%f(i)=hphi_min%f(i)
-        !endif 
+        hphi_step2%f(i) = hphi_tilda%f(i) - dt*(sum(F_cor(i,:)))/mesh%hx(i)%areag/erad
       end do
 
  end subroutine

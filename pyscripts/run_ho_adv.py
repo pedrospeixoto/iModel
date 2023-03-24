@@ -18,11 +18,11 @@ run = True # Run the simulation?
 dt = ('12800','6400','3200','1600','800','400','200','100')
 
 # Grid levels
-glevels = (1,2,3,4,5)
+glevels = (1,2,3,4)
 
 # FV Schemes
-mono_values = (0,) # mononotic options
-fvs = ('upw1','trsk','og2','og3', 'og4', 'gass')
+mono_values = (0,1) # mononotic options
+fvs = ('trsk','og2','og3', 'og4', 'gass')
 rk = 'rk3'
 
 # Grid name
@@ -97,14 +97,14 @@ for g in range(0, len(glevels)):
 
     for mono in range(0,len(mono_values)):
         # update monotonic scheme
-        replace_line(pardir+'moist_swm.par', str(mono), 25)
+        replace_line(pardir+'moist_swm.par', str(mono_values[mono]), 25)
         for fv in range(0,len(fvs)):
             replace_line(pardir+'moist_swm.par', fvs[fv], 21)
 
             # File to be opened
             filename = 'moist_swm_tc2_dt'+dt[glevel-1]+'_HTC_trsk10_areageo_advmethod_'+fvs[fv]
-            filename_field = filename+'_'+rk+'_mono'+str(mono)+'_tracer_t1036800_'+gridname+str(glevel)+'.dat'
-            filename_error = filename+'_'+rk+'_mono'+str(mono)+'_tracer_error_t1036800_'+gridname+str(glevel)+'.dat'
+            filename_field = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_tracer_t1036800_'+gridname+str(glevel)+'.dat'
+            filename_error = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_tracer_error_t1036800_'+gridname+str(glevel)+'.dat'
 
             # Run the program
             if (run):
@@ -120,10 +120,10 @@ for g in range(0, len(glevels)):
             errors[g,mono,fv] = np.amax(abs(val))
 
             # Plot the fields
-            plot(filename_field, 'jet', map_projection, -0.2, 1.0)
+            plot(filename_field, 'seismic', map_projection, -1.0, 1.0)
             qabs = max(abs(np.amin(val)), abs(np.amax(val)))
             qmin, qmax = -qabs, qabs
-            plot(filename_error, 'seismic', map_projection, qmin, qmax)
+            #plot(filename_error, 'seismic', map_projection, qmin, qmax)
 
 # Plot the error graph
 colors  = ('green','blue','red','orange','purple','gray')
@@ -160,7 +160,7 @@ for mono in range(0,len(mono_values)):
     plt.ylabel('Error')
     plt.legend()
     plt.grid(True, which="both")
-    plt.savefig(graphdir+'errors_adv_mono'+str(mono)+'.pdf', format='pdf')
+    plt.savefig(graphdir+'errors_adv_mono'+str(mono_values[mono])+'.pdf', format='pdf')
     plt.close()
 
 
@@ -175,5 +175,5 @@ for mono in range(0,len(mono_values)):
     plt.ylabel('Convergence rate')
     plt.legend()
     plt.grid(True, which="both")
-    plt.savefig(graphdir+'convergence_rate_mono'+str(mono)+'.pdf', format='pdf')
+    plt.savefig(graphdir+'convergence_rate_mono'+str(mono_values[mono])+'.pdf', format='pdf')
     plt.close()
