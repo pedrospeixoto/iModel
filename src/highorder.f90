@@ -4026,13 +4026,13 @@ read(*,*)
          
           !print*,p1
           ! Reconstruct the velocity field at quadrature points
-          !urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
-          call cart2sph(p1(1), p1(2), p1(3), lon, lat)
-          u0 = 2._r8*pi*erad/(12._r8*day2sec)
-          utmp = u0*cos(lat)
-          vtmp = 0._r8
-          call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
-          urecon=uexact 
+          urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+          !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
+          !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+          !utmp = u0*cos(lat)
+          !vtmp = 0._r8
+          !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
+          !urecon=uexact 
 
           ! Store the velocity
           node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon
