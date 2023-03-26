@@ -18,11 +18,11 @@ run = True # Run the simulation?
 dt = ('12800','6400','3200','1600','800','400','200','100')
 
 # Grid levels
-glevels = (1,2,3,4)
+glevels = (1,2,3,4,5,6,7)
 
 # FV Schemes
 mono_values = (0,1) # mononotic options
-fvs = ('trsk','og2','og3', 'og4', 'gass')
+fvs = ('og2','og3', 'og4', 'gass')
 rk = 'rk3'
 
 # Grid name
@@ -112,18 +112,25 @@ for g in range(0, len(glevels)):
 
             # Open the file and reshape
             f = open(datadir+filename_error,'rb')
-            data = np.fromfile(f, dtype='float32')
-            data = np.reshape(data,(nlat,nlon,3))
+            data_error = np.fromfile(f, dtype='float32')
+            data_error = np.reshape(data_error,(nlat,nlon,3))
+            f = open(datadir+filename_field,'rb')
+            data_field = np.fromfile(f, dtype='float32')
+            data_field = np.reshape(data_field,(nlat,nlon,3))
 
             # Get data
-            val = data[:,:,2]
-            errors[g,mono,fv] = np.amax(abs(val))
+            error_val = data_error[:,:,2]
+            val = data_field[:,:,2]
+            errors[g,mono,fv] = np.amax(abs(error_val))
 
             # Plot the fields
-            plot(filename_field, 'seismic', map_projection, -1.0, 1.0)
-            qabs = max(abs(np.amin(val)), abs(np.amax(val)))
-            qmin, qmax = -qabs, qabs
-            #plot(filename_error, 'seismic', map_projection, qmin, qmax)
+            q_min, q_max = np.amin(val), np.amax(val)
+            q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
+            title = 'Min = '+str(q_min)+', Max = '+str(q_max)
+            plot(filename_field, 'seismic', map_projection, -1.0, 1.0, title)
+            eabs = max(abs(np.amin(error_val)), abs(np.amax(error_val)))
+            emin, emax = -eabs, eabs
+            #plot(filename_error, 'seismic', map_projection, emin, emax)
 
 # Plot the error graph
 colors  = ('green','blue','red','orange','purple','gray')

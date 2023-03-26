@@ -7,7 +7,7 @@ import numpy as np
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 
-def plot(filename, colormap, map_projection, qmin=None, qmax=None):
+def plot(filename, colormap, map_projection, qmin=None, qmax=None, title=None):
     # Directories
     graphdir = '../graphs/'
     datadir = '../data/'
@@ -63,12 +63,15 @@ def plot(filename, colormap, map_projection, qmin=None, qmax=None):
 
     # Plot colorbar
     if map_projection == 'mercator':
-        plt.colorbar(orientation='horizontal',fraction=0.046, pad=0.04)
+        plt.colorbar(orientation='horizontal',fraction=0.046, pad=0.04, format='%.1e')
     elif map_projection == 'sphere':
-        plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04)
+        plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04, format='%.1e')
     elif map_projection == 'north_pole':
-        plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04)
+        plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04, format='%.1e')
 
+    # add title
+    if title:
+        plt.title(title)
 
     # Save the figure
     plt.savefig(graphdir+filename+'_'+map_projection+'.'+fig_format, format=fig_format)
