@@ -1774,28 +1774,26 @@ contains
 
   end subroutine div_hx_upw1
 
-  subroutine flux_hx_upw1(div, q, u, flux, mesh)
+  subroutine flux_hx_upw1(q, u, flux, mesh)
     !---------------------------------------------------------------
     !Calculate 1st order upwind flux  at voronoi edges of hexagons
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
     type(scalar_field), intent(in):: u ! velocity at cell edges
     type(scalar_field), intent(in):: q ! scalar field at cell centers
-    type(scalar_field), intent(inout):: div !divergence - must be already allocated
     real(r8), allocatable, intent(inout) :: flux(:,:)
     integer(i4):: i, j, k, l, ed
     real(r8):: signcor
 
     !$omp parallel do &
     !$omp default(none) &
-    !$omp shared(mesh, u, div, q, flux) &
+    !$omp shared(mesh, u, q, flux) &
     !$omp shared(useStagHTC, useStagHC, useTiledAreas ) &
     !$omp private(j, l, k, signcor) &
     !$omp schedule(static)
     do i=1,mesh%nv
       !Divergence of uh on unit sphere using div_cell_Cgrig
       !For all edges forming the hexagon
-      div%f(i)=0._r8
       flux(i,:)=0._r8
       do j=1, mesh%v(i)%nnb
         !Get edge index
@@ -1815,18 +1813,11 @@ contains
         !lengths are multiplied by erad, and area by erad**2, therefore /erad
         if(signcor*u%f(l)>0._r8)then
           flux(i,j) = signcor*u%f(l)*mesh%edhx(l)%leng*q%f(i)
-          div%f(i)=div%f(i)+flux(i,j)
         else
           flux(i,j) = signcor*u%f(l)*mesh%edhx(l)%leng*q%f(k)
-          div%f(i)=div%f(i)+flux(i,j) 
         end if
       end do
 
-      if(useTiledAreas)then
-        div%f(i)=div%f(i)/mesh%hx(i)%areat/erad
-      else
-        div%f(i)=div%f(i)/mesh%hx(i)%areag/erad
-      end if
     end do
     !$omp end parallel do
 
