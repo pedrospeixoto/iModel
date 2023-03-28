@@ -79,10 +79,7 @@ def plot(filename, colormap, map_projection, qmin=None, qmax=None, title=None):
     plt.close()
     print('Figure has been saved in '+graphdir+filename+'.'+fig_format)
 
-#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder4_rk3_mono1_tracer_t1036800_icos_pol_scvt_h1_3.dat'
-#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder4_rk3_mono1_h_t1036800_icos_pol_scvt_h1_3.dat'
-#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder1_rk3_mono1_tracer_t1036800_icos_pol_scvt_h1_3.dat'
-#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder3_rk3_mono0_tracer_t0_icos_pol_scvt_h1_4.dat'
+filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder3_rk3_mono0_tracer_t0_icos_pol_scvt_h1_4.dat'
 
 #plot(filename, 'jet', 'mercator')
 
