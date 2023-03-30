@@ -93,19 +93,26 @@ module highorder
   type (scalar_field):: phi
 
 
-  !Aux variables for RK3 when monotonic filter is employed (following Wang et al notation)
+  !--------------------------------------------------------------------------------------
+  ! Aux variables for RK3 when monotonic filter is employed (following Wang et al 2009 notation)
   type(scalar_field):: phi_star
   type(scalar_field):: phi_tilda
   type(scalar_field):: phi_tilda_min
   type(scalar_field):: phi_tilda_max
-  type(scalar_field):: div_uphi_step2
   type(scalar_field):: phi_min
   type(scalar_field):: phi_max 
-  
+  type(scalar_field):: div_uphi
+
+  ! RK variables
+  real(r8), dimension(:), allocatable:: phif0
+  real(r8), dimension(:), allocatable:: phif1
+  real(r8), dimension(:), allocatable:: phif2
+
+  ! Fluxes
   real(r8), dimension(:,:), allocatable:: F_star
   real(r8), dimension(:,:), allocatable:: F_cor
   real(r8), dimension(:,:), allocatable:: F_step2
-
+  !--------------------------------------------------------------------------------------
 
   !--------------------------------------------------------------------------------------
   ! node structure
@@ -293,9 +300,9 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  controlvolume
     read(fileunit,*)  buffer
-    read(fileunit,*)  method
+    read(fileunit,*)  advmtd
     read(fileunit,*)  buffer
-    read(fileunit,*)  order
+    read(fileunit,*)  time_integrator
     read(fileunit,*)  buffer     
     read(fileunit,*)  mono     
     read(fileunit,*)  buffer     
@@ -344,6 +351,37 @@ contains
     write(atmp,'(i8)') int(initialfield)
     transpname=trim(adjustl(trim(transpname)))//"_in"//trim(adjustl(trim(atmp)))    
 
+    ! Advection scheme order
+    select case(advmtd)
+    case('og2')
+        order=2
+        method='O'
+
+    case('og3') 
+        order=3
+        method='O'
+
+    case('og4')
+        order=4
+        method='O'
+
+    case('sg3')
+        order=3
+        method='G'
+
+    case default
+        print*, "Invalid advection method. Please select a proper order."
+        stop
+    end select
+
+    transpname=trim(transpname)//"_advmethod_"//trim(advmtd)
+    if (time_integrator == 'rk3' .or. time_integrator == 'rk4') then
+        transpname=trim(transpname)//"_"//trim(time_integrator)
+    else
+        print*, "Invalid time integrator. Please select a proper method."
+        stop
+    endif
+
     ! Monotonic limiter
     select case(mono)
     case('0')
@@ -356,8 +394,7 @@ contains
     end select
     transpname=trim(transpname)//"_mono"//trim(mono)
 
-
-    return
+   return
   end subroutine gettransppars
 
 
@@ -1030,6 +1067,9 @@ contains
     integer(i4):: VD
     integer(i4):: ngbr1
     integer(i4):: ngbr2
+    !Error flag
+    integer(i4):: ist
+
 
     do i=1,nodes
        ngbr1=node(i)%ngbr(1)%numberngbr
@@ -1137,6 +1177,35 @@ contains
 
        end if
      end do
+
+     if(time_integrator=='rk3') then
+        !Tracer
+        allocate(tracerf0(1:tracer%n))
+        allocate(tracerf1(1:tracer%n))
+        allocate(tracerf2(1:tracer%n))
+        if(monotonicfilter) then
+          phi_star%n = mesh%nv
+          phi_tilda%n = mesh%nv
+          phi_tilda_min%n = mesh%nv
+          phi_tilda_max%n = mesh%nv
+          phi_min%n = mesh%nv
+          phi_max%n = mesh%nv
+          div_uphi%n = mesh%nv
+  
+          allocate(phi_star%f(1:phi_star%n), stat=ist)
+          allocate(phi_tilda%f(1:phi_tilda%n), stat=ist)
+          allocate(phi_tilda_min%f(1:phi_tilda_min%n), stat=ist)
+          allocate(phi_tilda_max%f(1:phi_tilda_max%n), stat=ist)
+          allocate(phi_min%f(1:phi_min%n), stat=ist)
+          allocate(phi_max%f(1:phi_max%n), stat=ist)
+          allocate(div_uphi%f(1:div_uphi%n), stat=ist)
+
+          allocate(F_star(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+          allocate(F_step2(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+          allocate(F_cor(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+        end if
+      end if
+ 
     return
   end subroutine allocation
 
@@ -3220,7 +3289,7 @@ read(*,*)
                 end if
 
                 ! Correct the value if monotonic limiter is applied
-                if (monotonicfilter)then
+                if (monotonicfilter .and. time_integrator=='rk4')then
                   !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
@@ -3282,7 +3351,7 @@ read(*,*)
                 end if
 
                 ! Correct the value if monotonic limiter is applied
-                if (monotonicfilter)then
+                if (monotonicfilter .and. time_integrator=='rk4')then
                   !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
@@ -4174,7 +4243,7 @@ read(*,*)
       ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
       if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
         !Calculate divergence and edges flux
-        call divhx(u_step2, phi_step2, div_uphi_step2, mesh, erad)
+        call divhx(u_step2, phi_step2, div_uphi, mesh, erad)
 
         ! Store the flux
         !$omp parallel do &

@@ -92,7 +92,8 @@ module moist_swm
     sh_edges_indexes, &
     init_quadrature_edges, &
     divhx, &
-    phi_star, phi_min, phi_max, phi_tilda, phi_tilda_min, phi_tilda_max, div_uphi_step2, & 
+    phi_star, phi_min, phi_max, &
+    phi_tilda, phi_tilda_min, phi_tilda_max, div_uphi, & 
     F_star, F_cor, F_step2
 
     !use refinter, only: &
@@ -124,8 +125,8 @@ module moist_swm
     type(scalar_field):: hqv_old     !h*vapour - prognostic variable
     type(scalar_field):: hSqv        !Source for vapour equation
     type(scalar_field):: delta_qv    !Used in source computation 
-    type(scalar_field):: qv_exact    !Only for test cases 2 and 3
-    type(scalar_field):: qv_error    !Only for test cases 2 and 3
+    type(scalar_field):: qv_exact    !Only for test case 2
+    type(scalar_field):: qv_error    !Only for test case 2
 
     !Cloud state variables  (defined on voronoi centers)
     type(scalar_field):: qc          !cloud   - diagnostic variable
@@ -133,8 +134,8 @@ module moist_swm
     type(scalar_field):: hqc_old     !h*cloud - prognostic variable
     type(scalar_field):: hSqc        !Source for cloud equation
     type(scalar_field):: delta_qc    !used in source computation 
-    type(scalar_field):: qc_exact    !Only for test cases 2 and 3
-    type(scalar_field):: qc_error    !Only for test cases 2 and 3
+    type(scalar_field):: qc_exact    !Only for test case 2
+    type(scalar_field):: qc_error    !Only for test case 2
 
     !Rain state variables  (defined on voronoi centers)
     type(scalar_field):: qr          !rain   - diagnostic variable
@@ -142,28 +143,21 @@ module moist_swm
     type(scalar_field):: hqr_old     !h*rain - prognostic variable
     type(scalar_field):: hSqr        !Source for rain equation
     type(scalar_field):: delta_qr    !used in source computation 
-    type(scalar_field):: qr_exact    !Only for test cases 2 and 3
-    type(scalar_field):: qr_error    !Only for test cases 2 and 3
+    type(scalar_field):: qr_exact    !Only for test case 2
+    type(scalar_field):: qr_error    !Only for test case 2
 
     !Tracer state variables  (defined on voronoi centers)
     type(scalar_field):: tracer          !tracer   - diagnostic variable
     type(scalar_field):: htracer         !h*tracer - prognostic variable
     type(scalar_field):: htracer_old     !h*tracer - prognostic variable
-    type(scalar_field):: tracer_exact    !Only for test cases 2 and 3
-    type(scalar_field):: tracer_error    !Only for test cases 2 and 3
+    type(scalar_field):: tracer_exact    !Only for test case 2
+    type(scalar_field):: tracer_error    !Only for test case 2
 
     !Source for momentum equation
     type(scalar_field):: Su
 
     !Scalar fields from hx to ed (defined on edges)
     type(scalar_field):: theta_ed    !temperature
-
-    !velocity x scalar field (defined on edges - only normal component)
-    type(scalar_field):: uhtheta     !velocity*h*temperature
-    type(scalar_field):: uhqv        !velocity*h*vapour
-    type(scalar_field):: uhqc        !velocity*h*cloud
-    type(scalar_field):: uhqr        !velocity*h*rain
-    type(scalar_field):: uhtracer    !velocity*h*rain
 
     !Divergences (defined on voronoi centers)
     type(scalar_field):: div_uhtheta !div of velocity*h*temperature
@@ -172,25 +166,11 @@ module moist_swm
     type(scalar_field):: div_uhqr    !div of velocity*h*rain
     type(scalar_field):: div_uhtracer!div of velocity*h*tracer
 
-    !Exact divergences (defined on voronoi centers) 
-    !Only for test cases 2 and 3
-    type(scalar_field):: div_uhtheta_exact !div of velocity*h*temperature
-    type(scalar_field):: div_uhqv_exact    !div of velocity*h*temperature
-    type(scalar_field):: div_uhqc_exact    !div of velocity*h*cloud
-    type(scalar_field):: div_uhqr_exact    !div of velocity*h*rain
-
     !Gradients (defined on edges)
     type(scalar_field):: gradPI         !gradient of h^2*temperature
     type(scalar_field):: gradPI_oh      !gradient of h^2*temperature over h
     type(scalar_field):: grad_b         !gradient of topography
     type(scalar_field):: theta_grad_b   !temperature*gradient of topography
-
-    !Exact gradients (defined on edges)
-    !Only for test cases 2 and 3
-    type(scalar_field):: gradPI_exact       !gradient of h^2*temperature
-    type(scalar_field):: gradPI_oh_exact    !gradient of h^2*temperature over h
-    type(scalar_field):: grad_b_exact       !gradient of topography
-    type(scalar_field):: theta_grad_b_exact !temperature*gradient of topography
 
     !RHS
     type(scalar_field):: tempeq     !Temperature
@@ -348,11 +328,6 @@ subroutine allocate_global_moistswm_vars()
     allocate(div_uhtheta%f(1:div_uhqv%n), stat=ist)
     allocate(div_uhtracer%f(1:div_uhqv%n), stat=ist)
 
-    allocate(div_uhqv_exact%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhqc_exact%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhqr_exact%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhtheta_exact%f(1:div_uhqv%n), stat=ist)
-
     !Scalar fields on edges
     theta_ed%n=mesh%ne
     theta_ed%pos=edpos
@@ -366,21 +341,6 @@ subroutine allocate_global_moistswm_vars()
     allocate(gradPI_oh%f(1:gradPI%n), stat=ist)
     allocate(grad_b%f(1:gradPI%n), stat=ist)
     allocate(theta_grad_b%f(1:gradPI%n), stat=ist)
-
-    allocate(gradPI_exact%f(1:gradPI%n), stat=ist)
-    allocate(gradPI_oh_exact%f(1:gradPI%n), stat=ist)
-    allocate(grad_b_exact%f(1:gradPI%n), stat=ist)
-    allocate(theta_grad_b_exact%f(1:gradPI%n), stat=ist)
-
-    !velocity x scalar field (defined on edges - only normal component)
-    uhqv%n=mesh%ne
-    uhqv%name="uqv"
-    uhqv%pos=edpos
-    allocate(uhqv%f(1:uhqv%n), stat=ist)
-    allocate(uhqc%f(1:uhqv%n), stat=ist)
-    allocate(uhqr%f(1:uhqv%n), stat=ist)
-    allocate(uhtracer%f(1:uhtracer%n), stat=ist)
-    allocate(uhtheta%f(1:uhqv%n), stat=ist)
 
     !Runge-Kutta variables 
     !Temperature
@@ -509,7 +469,7 @@ subroutine highorder_adv_vars()
       phi_tilda_max%n = mesh%nv
       phi_min%n = mesh%nv
       phi_max%n = mesh%nv
-      div_uphi_step2%n = mesh%nv
+      div_uphi%n = mesh%nv
 
       allocate(phi_star%f(1:phi_star%n), stat=ist)
       allocate(phi_tilda%f(1:phi_tilda%n), stat=ist)
@@ -517,7 +477,7 @@ subroutine highorder_adv_vars()
       allocate(phi_tilda_max%f(1:phi_tilda_max%n), stat=ist)
       allocate(phi_min%f(1:phi_min%n), stat=ist)
       allocate(phi_max%f(1:phi_max%n), stat=ist)
-      allocate(div_uphi_step2%f(1:div_uphi_step2%n), stat=ist)
+      allocate(div_uphi%f(1:div_uphi%n), stat=ist)
 
       allocate(F_star(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
       allocate(F_step2(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
@@ -543,9 +503,6 @@ subroutine initialize_global_moist_swm_vars()
     !$OMP SHARED(div_uhqv,div_uhqc,div_uhqr,div_uhtheta) &
     !$OMP SHARED(div_uhtracer) &
     !$OMP SHARED(gradPI,gradPI_oh,grad_b,theta_grad_b) &
-    !$OMP SHARED(div_uhqv_exact,div_uhqc_exact,div_uhqr_exact,div_uhtheta_exact) &
-    !$OMP SHARED(gradPI_exact,gradPI_oh_exact,grad_b_exact,theta_grad_b_exact) &
-    !$OMP SHARED(uhqv,uhqc,uhqr,uhtheta) &
     !$OMP SHARED(uhtracer, theta_ed) &
     !$OMP SHARED(tempeq, tempf0, tempf1, tempf2, tempf3) &
     !$OMP SHARED(vapoureq, vapourf0, vapourf1, vapourf2, vapourf3) &
@@ -644,11 +601,6 @@ subroutine initialize_global_moist_swm_vars()
     div_uhtheta=div_uhqv
     div_uhtracer=div_uhqv
 
-    div_uhqv_exact=div_uhqv
-    div_uhqc_exact=div_uhqv
-    div_uhqr_exact=div_uhqv
-    div_uhtheta_exact=div_uhqv
-
     !Fields at edges
     theta_ed%f=0._r8
 
@@ -658,18 +610,6 @@ subroutine initialize_global_moist_swm_vars()
     grad_b=gradPI
     theta_grad_b=gradPI   
     
-    gradPI_exact=gradPI
-    gradPI_oh_exact=gradPI
-    grad_b_exact=gradPI
-    theta_grad_b_exact=gradPI   
-    
-    !velocity x scalar field
-    uhqv%f=0._r8
-    uhqc=uhqv
-    uhqr=uhqv
-    uhtheta=uhqv
-    uhtracer=uhqv
-
     ! Source for momentum equation
     Su%f=0._r8
 
@@ -1280,6 +1220,7 @@ subroutine initialize_global_moist_swm_vars()
       raineq   = raineq   + hSqr%f  
     end if 
     return
+
   end subroutine tendency_moist_swm
 
   subroutine source(h, u, htheta, hqv, hqc, hqr, dtime)
@@ -1476,33 +1417,33 @@ subroutine initialize_global_moist_swm_vars()
       tracer%f(i) = dexp(-5._r8*norm(p-pc)**2)
       h%f(i) = 1._r8
 
-       b=0.0_r8
-       c=1._r8 !0.9
-       r=1._r8/2._r8
-       f=b
-       lon1=0._r8
-       lat1=0._r8
-       lon2=0._r8
-       lat2=0._r8
-       lonp=lon
-       latp=lat
-       r1= arcdistll(lonp, latp, lon1, lat1)
-       if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
-          f=c
-       end if
-       r2= arcdistll(lonp, latp, lon2, lat2)
-       if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
-          f=c
-       end if
-       if(r1<=r.and.abs(lonp-lon1) < r/(6._r8) .and. &
-            (latp-lat1)<-(5._r8)*r/(12._r8))then
-          f=c
-       end if
-       if(r2<=r.and.abs(lonp-lon2)<r/(6._r8).and. &
-            (latp-lat2)>(5._r8)*r/(12._r8))then
-          f=c
-       end if
-      !tracer%f(i) = f
+      b=0.0_r8
+      c=1._r8 !0.9
+      r=1._r8/2._r8
+      f=b
+      lon1=0._r8
+      lat1=0._r8
+      lon2=0._r8
+      lat2=0._r8
+      lonp=lon
+      latp=lat
+      r1= arcdistll(lonp, latp, lon1, lat1)
+      if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
+        f=c
+      end if
+        r2= arcdistll(lonp, latp, lon2, lat2)
+      if(r2<=r.and.abs(lon-lon2)>=r/(6._r8))then
+        f=c
+      end if
+      if(r1<=r.and.abs(lonp-lon1) < r/(6._r8) .and. &
+        (latp-lat1)<-(5._r8)*r/(12._r8))then
+        f=c
+      end if
+      if(r2<=r.and.abs(lonp-lon2)<r/(6._r8).and. &
+        (latp-lat2)>(5._r8)*r/(12._r8))then
+        f=c
+      end if
+      tracer%f(i) = f
       htracer%f(i) = h%f(i)*tracer%f(i)
       tracer_exact%f(i) = tracer%f(i)
       tracer_error%f(i) = tracer%f(i)
