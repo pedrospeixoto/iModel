@@ -1,11 +1,10 @@
 !Parameters for the transport deformation test model
 !Control Volume (V-Voronoi, D-Donald)
 V
-!Method (G-FV_GAS, O-FV_OLG)
-O
-!Order of method (2-second order, 3-third order, 4-fourth order)
-2
 !Time integrator (rk3 or rk4)
+!Advection method (sg3, og2, og3, og4)
+og3
+!Time integration (rk3 or rk4)
 rk4
 !Monotonic limiter? (0-no, 1-yes)
 0
@@ -20,3 +19,14 @@ U
 !!Staggering (HC, HA)
 !Raio da esfera em estudo (U=Unitario ou T=Terra)
 HC
+
+
+!Advection method
+og2  - 2nd order Ollivier-Gooch scheme
+og3  - 3rd order Ollivier-Gooch scheme
+og3  - 4th order Ollivier-Gooch scheme
+sg3 - 3rd order scheme from Skamarock and Gassmann (2011)
+
+!Time integration
+rk3 - third order runge-kutta from Wicker and Skamarock (2002)
+rk4 - fourth order runge-kutta

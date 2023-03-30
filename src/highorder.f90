@@ -29,6 +29,8 @@ module highorder
   use smeshpack
   use interpack
 
+  ! 1st order upwind
+  use swm_operators, only: div_hx_upw1, flux_hx_upw1
   implicit none
 
   !Global variables
@@ -59,6 +61,13 @@ module highorder
   !Logical for monotonic filter
   logical:: monotonicfilter
 
+  ! High order advection scheme variable
+  character (len=6):: advmtd
+
+  ! Time integrator 
+  character (len=32):: time_integrator
+
+
   !Plotsteps - will plot at every plotsteps timesteps
   integer (i4):: plotsteps
 
@@ -84,6 +93,28 @@ module highorder
 
   ! Condition initial 
   type (scalar_field):: phi
+
+
+  !--------------------------------------------------------------------------------------
+  ! Aux variables for RK3 when monotonic filter is employed (following Wang et al 2009 notation)
+  type(scalar_field):: phi_star
+  type(scalar_field):: phi_tilda
+  type(scalar_field):: phi_tilda_min
+  type(scalar_field):: phi_tilda_max
+  type(scalar_field):: phi_min
+  type(scalar_field):: phi_max 
+  type(scalar_field):: div_uphi
+
+  ! RK variables
+  real(r8), dimension(:), allocatable:: phif0
+  real(r8), dimension(:), allocatable:: phif1
+  real(r8), dimension(:), allocatable:: phif2
+
+  ! Fluxes
+  real(r8), dimension(:,:), allocatable:: F_star
+  real(r8), dimension(:,:), allocatable:: F_cor
+  real(r8), dimension(:,:), allocatable:: F_step2
+  !--------------------------------------------------------------------------------------
 
   !--------------------------------------------------------------------------------------
   ! node structure
@@ -186,6 +217,9 @@ module highorder
      !Termos Geometricos
      real(r8),allocatable:: geometric(:,:)
 
+     !Flux at each edge
+     real(r8),allocatable:: edge_flux(:)
+
      !Condition initial
      real(r8):: phi
 
@@ -268,9 +302,9 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  controlvolume
     read(fileunit,*)  buffer
-    read(fileunit,*)  method
+    read(fileunit,*)  advmtd
     read(fileunit,*)  buffer
-    read(fileunit,*)  order
+    read(fileunit,*)  time_integrator
     read(fileunit,*)  buffer     
     read(fileunit,*)  time_integrator
     read(fileunit,*)  buffer  
@@ -321,6 +355,37 @@ contains
     write(atmp,'(i8)') int(initialfield)
     transpname=trim(adjustl(trim(transpname)))//"_in"//trim(adjustl(trim(atmp)))    
 
+    ! Advection scheme order
+    select case(advmtd)
+    case('og2')
+        order=2
+        method='O'
+
+    case('og3') 
+        order=3
+        method='O'
+
+    case('og4')
+        order=4
+        method='O'
+
+    case('sg3')
+        order=3
+        method='G'
+
+    case default
+        print*, "Invalid advection method. Please select a proper order."
+        stop
+    end select
+
+    transpname=trim(transpname)//"_advmethod_"//trim(advmtd)
+    if (time_integrator == 'rk3' .or. time_integrator == 'rk4') then
+        transpname=trim(transpname)//"_"//trim(time_integrator)
+    else
+        print*, "Invalid time integrator. Please select a proper method."
+        stop
+    endif
+
     ! Monotonic limiter
     select case(mono)
     case('0')
@@ -333,8 +398,7 @@ contains
     end select
     transpname=trim(transpname)//"_mono"//trim(mono)
 
-
-    return
+   return
   end subroutine gettransppars
 
 
@@ -1020,6 +1084,9 @@ endif
     integer(i4):: VD
     integer(i4):: ngbr1
     integer(i4):: ngbr2
+    !Error flag
+    integer(i4):: ist
+
 
     do i=1,nodes
        ngbr1=node(i)%ngbr(1)%numberngbr
@@ -1039,6 +1106,8 @@ endif
 
        allocate(node(i)%edge(VD*ngbr1))
        allocate(node(i)%edgeg(ngbr1+1))
+
+       allocate(node(i)%edge_flux(VD*ngbr1))
 
        do j=1,VD*ngbr1
           allocate(node(i)%edge(j)%xyz2(2,3))
@@ -1124,7 +1193,36 @@ endif
           allocate(node(i)%upwind_voronoi(1:ngbr1))
 
        end if
-    end do
+     end do
+
+     if(time_integrator=='rk3') then
+        !Tracer
+        allocate(tracerf0(1:tracer%n))
+        allocate(tracerf1(1:tracer%n))
+        allocate(tracerf2(1:tracer%n))
+        if(monotonicfilter) then
+          phi_star%n = mesh%nv
+          phi_tilda%n = mesh%nv
+          phi_tilda_min%n = mesh%nv
+          phi_tilda_max%n = mesh%nv
+          phi_min%n = mesh%nv
+          phi_max%n = mesh%nv
+          div_uphi%n = mesh%nv
+  
+          allocate(phi_star%f(1:phi_star%n), stat=ist)
+          allocate(phi_tilda%f(1:phi_tilda%n), stat=ist)
+          allocate(phi_tilda_min%f(1:phi_tilda_min%n), stat=ist)
+          allocate(phi_tilda_max%f(1:phi_tilda_max%n), stat=ist)
+          allocate(phi_min%f(1:phi_min%n), stat=ist)
+          allocate(phi_max%f(1:phi_max%n), stat=ist)
+          allocate(div_uphi%f(1:div_uphi%n), stat=ist)
+
+          allocate(F_star(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+          allocate(F_step2(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+          allocate(F_cor(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+        end if
+      end if
+ 
     return
   end subroutine allocation
 
@@ -3162,6 +3260,10 @@ read(*,*)
        else
           cc=1
        endif
+
+       ! Flux at edges
+       node(i)%edge_flux(:) = 0._r8
+
        do n=1,cc*jend
           p1=node(i)%edge(n)%xyz2(1,:) 
           p2=node(i)%edge(n)%xyz2(2,:) 
@@ -3204,7 +3306,7 @@ read(*,*)
                 end if
 
                 ! Correct the value if monotonic limiter is applied
-                if (monotonicfilter)then
+                if (monotonicfilter .and. time_integrator=='rk4')then
                   !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
@@ -3223,11 +3325,14 @@ read(*,*)
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
                         
-                  pol = pol_filtered
+                  !pol = pol_filtered
                 end if
 
                 ! Flux update
                 node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
+
+                ! Store flux at edge
+                node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
 
              else
    
@@ -3263,7 +3368,7 @@ read(*,*)
                 end if
 
                 ! Correct the value if monotonic limiter is applied
-                if (monotonicfilter)then
+                if (monotonicfilter .and. time_integrator=='rk4')then
                   !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
@@ -3282,11 +3387,16 @@ read(*,*)
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
  
-                  pol = pol_filtered
+                  !pol = pol_filtered
                 end if
 
                 ! Flux update
                 node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
+
+                ! Store flux at edge
+                node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
+
+
              endif
           enddo
        enddo
@@ -3363,22 +3473,12 @@ read(*,*)
     do i = 1,nodes
          node(i)%S(z)%flux = 0.0D0
          jend = node(i)%ngbr(1)%numberngbr
+         node(i)%edge_flux(:) = 0._r8
          do n = 1,jend     
            contador = contador + 1
            w=node(i)%upwind_voronoi(n)
            p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
            p3 = p3/norm(p3)       
-           !call cart2sph(p3(1), p3(2), p3(3), lon, lat)
-!           dot=dot_product(velocity(node(i)%G(1)%lpg(n,1:3), time),node(i)%G(1)%lvn(n,1:3))
-           !SOLUCAO EXATA no ponto medio entre o node i e seu respectivo vizinho
-!           p3 = node(i)%G(1)%lpg(n,1:3)
-!           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-!           p3 = p3/norm(p3)
-!           call cart2sph (p3(1), p3(2), p3(3),lon,lat)
-!           sol_exata = f(lon,lat)*node(i)%G(1)%lwg(n)*dot 
-!           p1=node(i)%edge(n)%xyz2(1,:) 
-!           p2=node(i)%edge(n)%xyz2(2,:) 
-!           vn=node(i)%G(1)%lvn(n,1:3)
 
            if (.not. moistswm)then
               dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
@@ -3403,10 +3503,6 @@ read(*,*)
            zz = mesh%v(w)%p(3)
            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
 
-           !cosseno=(xp/dsqrt(xp**2+yp**2))
-           !seno=(yp/dsqrt(xp**2+yp**2))
-           !derivada_i = 2.0D0*node(i)%coef(4)*(cosseno**2) + & 
-           !2.0D0*node(i)%coef(5)*cosseno*seno + 2.0D0*node(i)%coef(6)*(seno**2)
  
            phi_i = node(i)%coef(1)
 
@@ -3430,11 +3526,6 @@ read(*,*)
            zz = mesh%v(i)%p(3)
            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
 
-           !cosseno=(xp/dsqrt(xp**2+yp**2))
-           !seno=(yp/dsqrt(xp**2+yp**2))
-           !derivada_j = 2.0D0*node(w)%coef(4)*(cosseno**2) + &
-           !2.0D0*node(w)%coef(5)*cosseno*seno + 2.0D0*node(w)%coef(6)*(seno**2)
-
            phi_j = node(w)%coef(1)
 
            ! Compute second derivate in the normal direction to the edge
@@ -3449,59 +3540,19 @@ read(*,*)
            !Distancia entre o node i e seu respectivo vizinho   
            dist=arclen(mesh%v(i)%p,mesh%v(w)%p)           
 
-!           p1 = mesh%v(i)%p
-!           call cart2sph (p1(1), p1(2), p1(3),lon,lat)
-!           print*, lon,lat ,'node i'
-!           call aplyr(p1(1), p1(2), p1(3),cx,sx,cy,sy,xp,yp,zp) 
-!           p2 = mesh%v(w)%p
-!           call cart2sph (p2(1), p2(2), p2(3),lon,lat)
-!          print*, lon,lat , 'node w'
-!          print*, i, derivada_i,'derivada_i'
-!          print*, w, derivada_j,'derivada_j'
-!          print*,(derivada_i + derivada_j)/2.0D0, 'media das derivadas'
-!          print*, dabs(-sol_exata - (derivada_i + derivada_j)/2.0D0) , 'ERRO'
-
-!          read(*,*)           
-
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
            aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
            !print*,aux2
            
-!          sol_numerica = aux1 - aux2 + aux3
-!          sol_numerica = sol_numerica*node(i)%G(1)%lwg(n)*dot
            node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
-          
-!           erro = dabs(sol_numerica -  sol_exata)  
-!           aaxx = erro * erro
-!           if ( erro_Linf < abs (erro))  erro_Linf =  abs ( erro )
-!           temp = temp +  aaxx
-!          phi%f(contador) = erro
-!          write(atime,'(i8)') nint(time)
-!          phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))    
-       end do
+
+           ! Store flux at edge
+           node(i)%edge_flux(n) = node(i)%edge_flux(n) +  (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
+
+      end do
     end do
-
-!    print*, erro_Linf!, 'erro_Linf'
-!    print*, dsqrt (temp/contador)! , 'erro_L2'
-!    print*, contador 
-!    print*,erro_Linf
-!    print*,dsqrt (temp/contador)
-!    call plot_scalarfield(phi,mesh) 
-!    read(*,*)  
-
-!    temp = 0.0D0
-!    do i = 1,nodes
-!       div_est = node(i)%S(z)%flux/mesh%hx(i)%areag
-!       erro = dabs(div_est)
-!       aaxx = erro * erro
-!       if (erro_Linf < abs (erro))  erro_Linf =  abs ( erro )
-!       temp = temp +  aaxx
-!    end do
-!    print*, erro_Linf, 'norma 1'
-!    print*, dsqrt (temp/nodes) , 'norma 2'
-!    read(*,*)
-   deallocate(p1,p2,p3,vn)   
+  deallocate(p1,p2,p3,vn)   
    return  
    end subroutine flux_gas   
 
@@ -4041,14 +4092,13 @@ read(*,*)
 
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
-    
+
     if (method=='G') then
       nquad = 1
     end if
 
     ! Maximum of neighbors in a Voronoi cell
     maxnnb = maxval(mesh%v(:)%nnb)
-
     ! Allocation
     allocate(sh_edges_indexes(1:mesh%ne, 1:4))
     allocate(edges_indexes(1:mesh%nv, 1:maxnnb, 1:nquad))
@@ -4106,7 +4156,7 @@ read(*,*)
       !$omp parallel do &
       !$omp default(none) &
       !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad) &
-      !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q) &
+      !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q,lon,lat,utmp,vtmp,u0,uexact) &
       !$omp private(urecon) &
       !$omp schedule(static)
       do e = 1, mesh%ne ! Edges loop
@@ -4129,9 +4179,16 @@ read(*,*)
           ! Quadrature points
           p1 = node(i1)%G(q1)%lpg(j1,1:3)
           p2 = node(i2)%G(q2)%lpg(j2,1:3)
-          
+         
+          !print*,p1
           ! Reconstruct the velocity field at quadrature points
-          urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+          !urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+          call cart2sph(p1(1), p1(2), p1(3), lon, lat)
+          u0 = 2._r8*pi*erad/(12._r8*day2sec)
+          utmp = u0*cos(lat)
+          vtmp = 0._r8
+          call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
+          urecon=uexact 
 
           ! Store the velocity
           node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon
@@ -4184,8 +4241,6 @@ read(*,*)
       real (r8), intent (in)   :: Pol
       real (r8), intent (out)  :: min_output, max_output
       real (r8), allocatable   :: limitador (:)
-      
-      
       integer   :: i,l,j,jend
       real(r8)  :: maximo,minimo
      
@@ -4212,5 +4267,211 @@ read(*,*)
       return
   end subroutine monotonic_limiter
     
- 
+  !-----------------------------------------------------------------------------------
+  ! Implementation of the flux correction method from the paper Wang et al 2009 -
+  ! "Evaluation of Scalar Advection Schemes in the Advanced Research WRF
+  ! Model Using Large-Eddy Simulations of Aerosol–Cloud Interactions"
+  ! This routine is applied in the last stage of the RK3 scheme
+  !-----------------------------------------------------------------------------------
+  subroutine monotonicfilter_rk3(mesh, phi_step0, phi_step2, u_step0, u_step2, dt, radius, hSphi)
+      type(grid_structure), intent(inout) :: mesh
+      type(scalar_field), intent(inout):: phi_step0 ! scalar field at time t
+      type(scalar_field), intent(inout):: phi_step2 ! Scalar field from second step in RK3 (time t+dt/2)
+      type(scalar_field), intent(inout):: u_step0 ! velocity at time t
+      type(scalar_field), intent(inout):: u_step2 ! velocity at time t+dt/
+      type(scalar_field), intent(inout), optional:: hSphi ! Source - optional
+      real(r8), intent(in) :: dt, radius ! time-step and sphere radius 
+      integer(i4) :: i, j, k
+
+      !-----------------------------------------------------------------------------------
+
+      ! Flux for phi_star using 1st order upwind scheme at time t
+      if (present(hSphi))then ! check if source was given
+        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
+        !$OMP SHARED(phi_star, phi_step0, dt, hSphi)
+        phi_star%f = phi_step0%f + dt*hSphi%f ! equation 3b from Wang et al 2009
+        !$OMP END PARALLEL WORKSHARE
+      else
+        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
+        !$OMP SHARED(phi_star, phi_step0)
+        phi_star%f = phi_step0%f ! equation 3b from Wang et al 2009
+        !$OMP END PARALLEL WORKSHARE
+      end if
+
+      ! Compute upwind flux
+      call flux_hx_upw1(phi_star, u_step0, F_star, mesh)
+      !-----------------------------------------------------------------------------------
+
+      !-----------------------------------------------------------------------------------
+      ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
+      if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
+        !Calculate divergence and edges flux
+        call divhx(u_step2, phi_step2, div_uphi, mesh, erad)
+
+        ! Store the flux
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, node, F_step2) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
+          F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
+        end do
+        !$omp end parallel do
+
+      else if (advmtd=='upw1')then
+        call flux_hx_upw1(phi_step2, u_step2, F_step2, mesh)
+      else
+        print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
+        stop
+      end if
+      !-----------------------------------------------------------------------------------
+
+      !-----------------------------------------------------------------------------------
+      ! Flux for phi corrected (equation 4 from wang et al 2009)
+      !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
+      !$OMP SHARED(F_cor, F_step2, F_star)      
+      F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
+      !$OMP END PARALLEL WORKSHARE
+      !-----------------------------------------------------------------------------------
+
+      ! Equation 5 from Wang et al 2009 - 1st order upwind solution
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, phi_tilda, phi_star, F_star, dt, radius) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        phi_tilda%f(i) = phi_star%f(i) - dt*sum(F_star(i,:))/mesh%hx(i)%areag/radius
+      end do
+      !$omp end parallel do
+
+      ! Compute negative and positive flux updates
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, phi_tilda, phi_tilda_min, phi_tilda_max, F_cor, dt, radius) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        phi_tilda_min%f(i) = phi_tilda%f(i)
+        phi_tilda_max%f(i) = phi_tilda%f(i)
+        do j = 1, mesh%v(i)%nnb
+          if(F_cor(i,j)>0._r8)then
+            ! Equation 6a from Wang et al 2009
+            phi_tilda_min%f(i) = phi_tilda_min%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
+
+          else
+            ! Equation 6b from Wang et al 2009
+            phi_tilda_max%f(i) = phi_tilda_max%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
+          end if
+        end do
+      end do
+      !$omp end parallel do
+
+      ! Min/max in neighborhood at time t
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, phi_step0, phi_min, phi_max) &
+      !$omp private(j, k) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        phi_min%f(i) = phi_step0%f(i)
+        phi_max%f(i) = phi_step0%f(i)
+        do j = 1, mesh%v(i)%nnb
+          k = mesh%v(i)%nb(j)
+          if(phi_step0%f(k) < phi_min%f(i))then
+            phi_min%f(i) = phi_step0%f(k)
+          else if(phi_step0%f(k) > phi_max%f(i))then
+            phi_max%f(i) = phi_step0%f(k)
+          end if
+       end do
+      end do
+      !$omp end parallel do
+
+      ! Flux correction
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, F_cor, phi_tilda, phi_tilda_min, phi_tilda_max, phi_min, phi_max) &
+      !$omp private(j, k) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        do j = 1, mesh%v(i)%nnb
+          k = mesh%v(i)%nb(j)
+          if(F_cor(i,j)>0._r8) then
+            if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
+            F_cor(i,j) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
+                            (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,j)
+            end if
+          else
+            if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
+              F_cor(i,j) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
+                            (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,j)
+            end if
+          end if
+        end do
+      end do
+      !$omp end parallel do
+
+      ! Final solution
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, phi_step2, phi_tilda, F_cor, radius, dt) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/mesh%hx(i)%areag/radius
+      end do
+      !$omp end parallel do
+  end subroutine monotonicfilter_rk3
+
+  subroutine divhx(u, q, div, mesh, radius)
+    !---------------------------------------------------------------
+    !Calculate divergence at voronoi cells (hexagons)
+    !   based on edge normal velocities
+    !---------------------------------------------------------------
+    type(grid_structure), intent(inout) :: mesh
+    type(scalar_field), intent(inout):: u ! velocity at cell edges
+    type(scalar_field), intent(in):: q ! scalar at cell center
+    type(scalar_field), intent(inout):: div !divergence - must be already allocated
+    real(r8), intent(in) :: radius
+    real(r8) :: area
+    ! High order variables
+    integer(i4) :: i
+    
+    if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3'.or. advmtd=='og4') then
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, q, node) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        node(i)%phi_new2 = q%f(i)
+        node(i)%phi_new  = q%f(i)
+      end do
+      !$omp end parallel do
+
+      if (advmtd == 'og2' .or. advmtd=='og3'.or. advmtd=='og4')then ! Ollivier-Gooch method
+        call vector_olg2(mesh%nv)
+        call reconstruction_olg(mesh%nv, mesh) 
+        call flux_olg(mesh%nv, mesh, 0, 0.d0, u)
+      else ! Gassman method
+        call vector_gas(mesh%nv, mesh)
+        call reconstruction_gas(mesh%nv, mesh) 
+        call flux_gas(mesh%nv, mesh, 0, 0.d0, u)
+      end if
+
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, div, node, radius) &
+      !$omp private(area) &
+      !$omp schedule(static)
+      do i = 1, mesh%nv
+        area = mesh%hx(i)%areag 
+        div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
+        div%f(i) = div%f(i)/radius
+      end do
+      !$omp end parallel do
+
+    else if(advmtd=='upw1') then
+        call div_hx_upw1(div, q, u, mesh)
+    end if
+
+    return
+  end subroutine divhx
 end module highorder
