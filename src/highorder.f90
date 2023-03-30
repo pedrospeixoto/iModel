@@ -29,8 +29,10 @@ module highorder
   use smeshpack
   use interpack
 
-  ! 1st order upwind
-  use swm_operators, only: div_hx_upw1, flux_hx_upw1
+  !Routines from shallow water operators
+  use swm_operators, only: &
+    zero_vector
+
   implicit none
 
   !Global variables
@@ -80,8 +82,6 @@ module highorder
   character (len=8)::  charradius 
   character (len=8)::  method
   character (len=8)::  controlvolume
-  character (len=8)::  time_integrator
-
 
   !Kind of interpolation for scalar and vector fields
   character (len=64):: ksinterpol
@@ -93,22 +93,27 @@ module highorder
 
   ! Condition initial 
   type (scalar_field):: phi
+  type (scalar_field):: phi_new
 
 
   !--------------------------------------------------------------------------------------
   ! Aux variables for RK3 when monotonic filter is employed (following Wang et al 2009 notation)
   type(scalar_field):: phi_star
+  type(scalar_field):: phi_RKS0
+  type(scalar_field):: phi_RKS2
   type(scalar_field):: phi_tilda
   type(scalar_field):: phi_tilda_min
   type(scalar_field):: phi_tilda_max
   type(scalar_field):: phi_min
+  type(scalar_field):: phieq
   type(scalar_field):: phi_max 
   type(scalar_field):: div_uphi
 
-  ! RK variables
+  ! RK3 variables
   real(r8), dimension(:), allocatable:: phif0
   real(r8), dimension(:), allocatable:: phif1
   real(r8), dimension(:), allocatable:: phif2
+  real(r8), dimension(:), allocatable:: phif3
 
   ! Fluxes
   real(r8), dimension(:,:), allocatable:: F_star
@@ -305,8 +310,6 @@ contains
     read(fileunit,*)  advmtd
     read(fileunit,*)  buffer
     read(fileunit,*)  time_integrator
-    read(fileunit,*)  buffer     
-    read(fileunit,*)  time_integrator
     read(fileunit,*)  buffer  
     read(fileunit,*)  mono     
     read(fileunit,*)  buffer     
@@ -346,6 +349,8 @@ contains
     phi%pos=0
     phi%n=mesh%nv
     allocate(phi%f(1:phi%n)) 
+    allocate(phi_new%f(1:phi%n)) 
+    phi_new=phi
 
     !Set a standart name for files
     write(atmp,'(i8)') int(order)
@@ -357,6 +362,10 @@ contains
 
     ! Advection scheme order
     select case(advmtd)
+    case('upw1')
+        order=2 ! just to avoid allocation problems
+        method='O'
+
     case('og2')
         order=2
         method='O'
@@ -531,27 +540,36 @@ contains
           !Atualizando a solucao
           do i=1,nodes
              node(i)%phi_old=node(i)%phi_new2
+             phi%f(i) = node(i)%phi_new2
           enddo
           
       
           !Plotando Inicial e Final
           if(j==0.or.j==node(0)%ntime/2 .or.j==node(0)%ntime)then  
-             do i=1,nodes
-                phi%f(i) = node(i)%phi_new2
-             end do
              write(atime,'(i8)') nint(time)
              phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))
              call plot_scalarfield(phi,mesh)
           end if
-          do k=1,4
-             call vector_gas(nodes,mesh)
-             call reconstruction_gas(nodes,mesh)
-             if ((j==node(0)%ntime).and.(k==1))then
-                call erro(nodes,mesh,10.0D0)
-             endif
-             call flux_gas(nodes,mesh,k-1,time)
-             call rungekutta4(nodes,mesh,k) 
-          enddo
+
+          ! RK4
+          if (time_integrator=='rk4') then
+            do k=1,4
+               call vector_gas(nodes,mesh)
+               call reconstruction_gas(nodes,mesh)
+
+               call flux_gas(nodes,mesh,k-1,time)
+               call rungekutta4(nodes,mesh,k) 
+            enddo
+
+          elseif (time_integrator=='rk3') then
+            call ode_rk3_adv(nodes, mesh, time)
+            !call ode_rk3_advection (mesh, phi_new, phi, time, node(0)%dt, radius)
+            !node(1:nodes)%phi_new2=phi_new%f
+          endif
+
+          if ((j==node(0)%ntime))then
+            call erro(nodes,mesh,10.0D0)
+          endif
 
           ! Mass update
           mass = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
@@ -559,7 +577,8 @@ contains
           mass_var = abs((mass0-mass)/mass0)
           time=time+node(0)%dt
           print*, "Time:",  time
-          print '(a33, 3e16.8)','min, max, mass variation = ',minval(node(:)%phi_new2), maxval(node(:)%phi_new2), mass_var
+          print '(a33, 3e16.8)','min, max, mass variation = ',&
+          minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2), mass_var
           print*,''
        enddo
 
@@ -592,7 +611,6 @@ contains
          mass0 = sum(node(1:nodes)%phi_new2*node(1:nodes)%area)
        end if
 
-
        !Avanço temporal 
        time=0.0D0
 
@@ -600,41 +618,33 @@ contains
           !Atualizando a solucao
           do i=1,nodes
              node(i)%phi_old=node(i)%phi_new2
+             phi%f(i) = node(i)%phi_new2
           enddo
  
           !Plotando Inicial e Final
-!          if(j==0.or.j==node(0)%ntime)then   
-!             do i=1,nodes
-!                phi%f(i) = node(i)%phi_new2
-!             end do
-!             write(atime,'(i8)') nint(time)
-!             phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))
-!             call plot_scalarfield(phi,mesh) 
-!          end if
+          if(j==0.or.j==node(0)%ntime/2 .or.j==node(0)%ntime)then  
+             write(atime,'(i8)') nint(time)
+             phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))
+             call plot_scalarfield(phi,mesh)
+          end if
 
-      if (time_integrator=='rk4') then
-          do k=1,4
-             call vector_olg2(nodes)
-             call reconstruction_olg(nodes,mesh) 
-               if ((j==node(0)%ntime).and.(k==1))then
-                call erro(nodes,mesh,10.0D0)
-             endif
-             call flux_olg(nodes,mesh,k-1,time)
-             call rungekutta4(nodes,mesh,k) 
-          enddo
-         elseif (time_integrator=='rk3') then
+          if (time_integrator=='rk4') then
+            do k=1,4
+               call vector_olg2(nodes)
+               call reconstruction_olg(nodes,mesh) 
+               call flux_olg(nodes,mesh,k-1,time)
+               call rungekutta4(nodes,mesh,k) 
+            enddo
+          elseif (time_integrator=='rk3') then
+            call ode_rk3_adv(nodes, mesh, time)
+            !call ode_rk3_advection (mesh, phi_new, phi, time, node(0)%dt, radius)
+            !node(1:nodes)%phi_new2=phi_new%f
+          endif
 
-         do k=1,3
-         call vector_olg2(nodes)
-         call reconstruction_olg(nodes,mesh) 
-           if ((j==node(0)%ntime).and.(k==1))then
-         call erro(nodes,mesh,10.0D0)
-      endif
-         call flux_olg(nodes,mesh,k-1,time) 
-         call rungekutta3(nodes,mesh,k) 
-      enddo
-endif
- 
+          if (j==node(0)%ntime)then
+             call erro(nodes,mesh,10.0D0)
+          endif
+
           time=time+node(0)%dt
 
           ! Mass update
@@ -647,10 +657,10 @@ endif
           mass_var = abs((mass0-mass)/mass0)
 
           print*, "Time:",  time
-          print '(a33, 3e16.8)','min, max, mass variation = ',minval(node(:)%phi_new2), maxval(node(:)%phi_new2), mass_var
+          print '(a33, 3e16.8)','min, max, mass variation = ',&
+          minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2), mass_var
           print*,''
-       enddo
-
+          enddo
     end if
 
     deallocate(node)
@@ -1196,30 +1206,46 @@ endif
      end do
 
      if(time_integrator=='rk3') then
-        !Tracer
-        allocate(tracerf0(1:tracer%n))
-        allocate(tracerf1(1:tracer%n))
-        allocate(tracerf2(1:tracer%n))
-        if(monotonicfilter) then
+        allocate(phif0(1:mesh%nv), stat=ist)
+        allocate(phif1(1:mesh%nv), stat=ist)
+        allocate(phif2(1:mesh%nv), stat=ist)
+        allocate(phif3(1:mesh%nv), stat=ist)
+        div_uphi%n = mesh%nv
+        allocate(div_uphi%f(1:div_uphi%n), stat=ist)
+        phieq%n=mesh%nv
+        phieq%pos=0
+        allocate(phieq%f(1:phieq%n), stat=ist)
+
+        if(monotonicfilter)then
           phi_star%n = mesh%nv
+          phi_RKS0%n = mesh%nv
+          phi_RKS2%n = mesh%nv
           phi_tilda%n = mesh%nv
           phi_tilda_min%n = mesh%nv
           phi_tilda_max%n = mesh%nv
           phi_min%n = mesh%nv
           phi_max%n = mesh%nv
-          div_uphi%n = mesh%nv
   
           allocate(phi_star%f(1:phi_star%n), stat=ist)
+          allocate(phi_RKS0%f(1:phi_RKS0%n), stat=ist)
+          allocate(phi_RKS2%f(1:phi_RKS2%n), stat=ist)
           allocate(phi_tilda%f(1:phi_tilda%n), stat=ist)
           allocate(phi_tilda_min%f(1:phi_tilda_min%n), stat=ist)
           allocate(phi_tilda_max%f(1:phi_tilda_max%n), stat=ist)
           allocate(phi_min%f(1:phi_min%n), stat=ist)
           allocate(phi_max%f(1:phi_max%n), stat=ist)
-          allocate(div_uphi%f(1:div_uphi%n), stat=ist)
 
-          allocate(F_star(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
-          allocate(F_step2(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
-          allocate(F_cor(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+          if(controlvolume=='V')then
+            allocate(F_star(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+            allocate(F_step2(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+            allocate(F_cor(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
+
+          else if(controlvolume=='D')then
+            allocate(F_star(1:mesh%nv, 1:2*maxval(mesh%v(:)%nnb)), stat=ist)
+            allocate(F_step2(1:mesh%nv, 1:2*maxval(mesh%v(:)%nnb)), stat=ist)
+            allocate(F_cor(1:mesh%nv, 1:2*maxval(mesh%v(:)%nnb)), stat=ist)
+
+          end if
         end if
       end if
  
@@ -2952,7 +2978,7 @@ endif
 print*, flux_numerico,'fluxo numerico'
 print*, flux_exato, 'fluxo exato' 
 print*, dabs(flux_numerico-flux_exato), 'ERRO'
-read(*,*)
+!read(*,*)
 
 
     deallocate(p1,p2,p3,vn,pm)
@@ -3325,7 +3351,7 @@ read(*,*)
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
                         
-                  !pol = pol_filtered
+                  pol = pol_filtered
                 end if
 
                 ! Flux update
@@ -3387,7 +3413,7 @@ read(*,*)
                   pol_filtered = max(pol,minval_i)
                   pol_filtered = min(pol_filtered,maxval_i)
  
-                  !pol = pol_filtered
+                  pol = pol_filtered
                 end if
 
                 ! Flux update
@@ -3568,39 +3594,211 @@ read(*,*)
       real(r8):: area
      
       select case (k)
+
       case  (1)
-         do i=1,nodes
-       if(method=='D') then
-       area=node(i)%area
-       else
-       area=mesh%hx(i)%areag 
-       endif
-            node(i)%phi_new2 = node(i)%phi_old - 1.0D0/3.0D0 * (node(0)%dt/area)*node(i)%S(0)%flux 
-         end do
+        do i=1,nodes
+          if(controlvolume=='D') then
+            area=node(i)%area
+          else
+            area=mesh%hx(i)%areag 
+          endif
+          node(i)%phi_new2 = node(i)%phi_old - 1.0D0/3.0D0 * (node(0)%dt/area)*node(i)%S(0)%flux 
+        end do
+
       case  (2) 
-         do i=1,nodes
-       if(method=='D') then
-       area=node(i)%area
-       else
-       area=mesh%hx(i)%areag
-       endif
-            node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(1)%flux
-         end do
+        do i=1,nodes
+          if(controlvolume=='D') then
+            area=node(i)%area
+          else
+            area=mesh%hx(i)%areag
+          endif
+          node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(1)%flux
+        end do
+
       case  (3) 
-         do i=1,nodes
-       if(method=='D') then
-       area=node(i)%area
-       else
-       area=mesh%hx(i)%areag
-       endif
-            node(i)%phi_new2 = node(i)%phi_old  - (node(0)%dt/area) * node(i)%S(2)%flux     
-         end do
+        do i=1,nodes
+          if(controlvolume=='D') then
+            area=node(i)%area
+          else
+            area=mesh%hx(i)%areag
+          endif
+          node(i)%phi_new2 = node(i)%phi_old  - (node(0)%dt/area) * node(i)%S(2)%flux     
+        end do
+
       end select
       return
     end subroutine rungekutta3   
 
+  subroutine ode_rk3_adv(nodes, mesh, time)
+    integer(i4) :: k
+    real(r8) :: time
+    integer,intent(in):: nodes
+    type(grid_structure),intent(inout):: mesh
+
+    if(advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
+      if(.not. monotonicfilter)then
+        do k=1, 3
+          call vector_olg2(nodes)
+          call reconstruction_olg(nodes,mesh) 
+          call flux_olg(nodes,mesh,k-1,time) 
+          call rungekutta3(nodes,mesh,k) 
+        enddo
+
+      else
+        do k=1, 2
+          call vector_olg2(nodes)
+          call reconstruction_olg(nodes,mesh) 
+          call flux_olg(nodes,mesh,k-1,time) 
+          call rungekutta3(nodes,mesh,k) 
+        enddo
+
+        ! Applies monotonic filter
+        phi_RKS0%f(:) = node(1:nodes)%phi_old ! phi at time t
+        phi_RKS2%f(:) = node(1:nodes)%phi_new2 ! phi at time t+dt/2 (second RK stage)
+        call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, time)
+        node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
+
+      end if
+
+    else! Gassman scheme
+      if(.not. monotonicfilter)then
+        do k=1, 3
+          call vector_gas(nodes,mesh)
+          call reconstruction_gas(nodes,mesh)
+          call flux_gas(nodes,mesh,k-1,time)
+          call rungekutta3(nodes,mesh,k) 
+        enddo
+
+      else
+        do k=1, 2
+          call vector_gas(nodes,mesh)
+          call reconstruction_gas(nodes,mesh)
+          call flux_gas(nodes,mesh,k-1,time)
+          call rungekutta3(nodes,mesh,k) 
+        enddo
+
+        ! Applies monotonic filter
+        phi_RKS0%f(:) = node(1:nodes)%phi_old ! phi at time t
+        phi_RKS2%f(:) = node(1:nodes)%phi_new2 ! phi at time t+dt/2 (second RK stage)
+        call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, time)
+        node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
+
+      end if
+
+   end if
+
+  end subroutine ode_rk3_adv
 
 
+    subroutine ode_rk3_advection (mesh, phi_new, phi, time, dt, radius, u, u_new)
+      !----------------------------------------------------------------------------------
+      !! ode_rk3 takes one Runge-Kutta step for a vector ODE.
+      !    t - time that will be calculated (t0+dt)
+      !    h - scalar_field for thickness at current time
+      !    u - scalar_field for velocities at current time
+      !    dt - time step
+      !    h_new and u_new - fields at t+dt
+      !----------------------------------------------------------------------------------
+
+      !Grid
+      type(grid_structure), intent(inout) :: mesh
+
+      !Scalar field (defined on voronoi centers)
+      type(scalar_field), intent(inout):: phi  !General
+
+      !Velocities (defined on edges - only normal component)
+      type(scalar_field), optional, intent(inout):: u, u_new  !General
+
+      !Time, time-step and sphere radius 
+      real(r8):: time, dt, radius
+
+      !Updated fields
+      ! Scalar field (defined on voronoi centers)
+      type(scalar_field), intent(inout):: phi_new  !General
+
+      call zero_vector(phif0)
+      call zero_vector(phif1)
+      call zero_vector(phif2)
+      call zero_vector(phif3)
+
+      if(present(u))then
+        call tendency_advection(phi, phif0, mesh, time, radius, u)
+      else
+        call tendency_advection(phi, phif0, mesh, time, radius)
+      end if
+
+      !First RK step
+      phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif0(1:phi%n) / 3.0_r8
+
+      if(present(u))then
+        call tendency_advection(phi_new, phif1, mesh, time, radius, u)
+      else
+        call tendency_advection(phi_new, phif1, mesh, time, radius)
+      end if
+
+      !Second RK step
+      phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif1(1:phi%n) / 2.0_r8
+
+      if(present(u))then
+        call tendency_advection(phi_new, phif2, mesh, time, radius, u)
+      else
+        call tendency_advection(phi_new, phif2, mesh, time, radius)
+      end if
+
+      ! Third  RK step
+      ! Last RK step applies a different approach if the monotonic limiter is active 
+      if(.not. monotonicfilter) then
+        phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif2(1:phi%n)
+
+      else if(monotonicfilter) then
+        if(present(u))then
+          call  monotonicfilter_rk3(mesh, phi, phi_new, dt, radius, time, u, u_new)
+        else
+          call  monotonicfilter_rk3(mesh, phi, phi_new, dt, radius, time)
+        end if
+      end if
+
+      return
+    end subroutine ode_rk3_advection
+
+  subroutine tendency_advection(phi, phif, mesh, time, radius, u)
+    !--------------------------------------
+    !Calculates the Right Hand Side (spatial discret./tendency)
+    !   of advection equation
+    !-------------------------------------------------------------
+
+    !Grid
+    type(grid_structure), intent(inout) :: mesh
+
+    !Tracer (defined on voronoi centers)
+    type(scalar_field), intent(in):: phi  !General
+
+    !Velocities (defined on edges - only normal component)
+    type(scalar_field), optional, intent(inout):: u  !General
+
+    !Time
+    real(r8), intent(in):: time, radius
+
+    !Right hand side of advction equation
+    real(r8), allocatable, intent(inout)::phif(:)
+
+    !Initialize RHS
+    call zero_vector(phif)
+
+    !===============================================================
+    !Calculate tracer phi tendency
+    !===============================================================
+    !Calculate divergence / tracer eq RHS
+    if(present(u)) then
+      call divhx(phi, div_uphi, mesh, radius, time, u)
+    else
+      call divhx(phi, div_uphi, mesh, radius, time)
+    end if
+    phif = -div_uphi%f
+    !print*, maxval(abs(div_uphi%f)), radius
+
+  return
+  end subroutine tendency_advection
 
   subroutine rungekutta4(nodes,mesh,k)  
     !----------------------------------------------------------------------------------------------
@@ -4273,14 +4471,14 @@ read(*,*)
   ! Model Using Large-Eddy Simulations of Aerosol–Cloud Interactions"
   ! This routine is applied in the last stage of the RK3 scheme
   !-----------------------------------------------------------------------------------
-  subroutine monotonicfilter_rk3(mesh, phi_step0, phi_step2, u_step0, u_step2, dt, radius, hSphi)
+  subroutine monotonicfilter_rk3(mesh, phi_step0, phi_step2,  dt, radius, time, u_step0, u_step2, hSphi)
       type(grid_structure), intent(inout) :: mesh
       type(scalar_field), intent(inout):: phi_step0 ! scalar field at time t
       type(scalar_field), intent(inout):: phi_step2 ! Scalar field from second step in RK3 (time t+dt/2)
-      type(scalar_field), intent(inout):: u_step0 ! velocity at time t
-      type(scalar_field), intent(inout):: u_step2 ! velocity at time t+dt/
-      type(scalar_field), intent(inout), optional:: hSphi ! Source - optional
-      real(r8), intent(in) :: dt, radius ! time-step and sphere radius 
+      type(scalar_field), optional, intent(inout):: u_step0 ! velocity at time t
+      type(scalar_field), optional, intent(inout):: u_step2 ! velocity at time t+dt/
+      type(scalar_field), optional, intent(inout):: hSphi ! Source - optional
+      real(r8), intent(in) :: dt, radius, time ! time-step and sphere radius 
       integer(i4) :: i, j, k
 
       !-----------------------------------------------------------------------------------
@@ -4299,14 +4497,22 @@ read(*,*)
       end if
 
       ! Compute upwind flux
-      call flux_hx_upw1(phi_star, u_step0, F_star, mesh)
-      !-----------------------------------------------------------------------------------
+      if(present(u_step0))then
+        call flux_hx_upw1(phi_star, F_star, mesh, time, u_step0)
+      else
+        call flux_hx_upw1(phi_star, F_star, mesh, time)
+      end if
 
+      !-----------------------------------------------------------------------------------
       !-----------------------------------------------------------------------------------
       ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
       if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
         !Calculate divergence and edges flux
-        call divhx(u_step2, phi_step2, div_uphi, mesh, erad)
+        if (present(u_step2))then
+          call divhx(phi_step2, div_uphi, mesh, radius, time, u_step2)
+        else
+          call divhx(phi_step2, div_uphi, mesh, radius, time)
+        end if
 
         ! Store the flux
         !$omp parallel do &
@@ -4320,12 +4526,18 @@ read(*,*)
         !$omp end parallel do
 
       else if (advmtd=='upw1')then
-        call flux_hx_upw1(phi_step2, u_step2, F_step2, mesh)
+        if (present(u_step2))then
+          call flux_hx_upw1(phi_step2,F_step2, mesh, time, u_step2)
+        else
+          stop
+        end if
+        stop
       else
         print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
         stop
       end if
       !-----------------------------------------------------------------------------------
+
 
       !-----------------------------------------------------------------------------------
       ! Flux for phi corrected (equation 4 from wang et al 2009)
@@ -4398,12 +4610,12 @@ read(*,*)
           if(F_cor(i,j)>0._r8) then
             if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
             F_cor(i,j) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
-                            (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,j)
+                                     (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,j)
             end if
           else
             if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
               F_cor(i,j) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
-                            (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,j)
+                                        (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,j)
             end if
           end if
         end do
@@ -4421,16 +4633,16 @@ read(*,*)
       !$omp end parallel do
   end subroutine monotonicfilter_rk3
 
-  subroutine divhx(u, q, div, mesh, radius)
+  subroutine divhx(q, div, mesh, radius, time, u)
     !---------------------------------------------------------------
     !Calculate divergence at voronoi cells (hexagons)
     !   based on edge normal velocities
     !---------------------------------------------------------------
     type(grid_structure), intent(inout) :: mesh
-    type(scalar_field), intent(inout):: u ! velocity at cell edges
+    type(scalar_field), optional, intent(inout):: u ! velocity at cell edges
     type(scalar_field), intent(in):: q ! scalar at cell center
     type(scalar_field), intent(inout):: div !divergence - must be already allocated
-    real(r8), intent(in) :: radius
+    real(r8), intent(in) :: radius, time
     real(r8) :: area
     ! High order variables
     integer(i4) :: i
@@ -4449,29 +4661,173 @@ read(*,*)
       if (advmtd == 'og2' .or. advmtd=='og3'.or. advmtd=='og4')then ! Ollivier-Gooch method
         call vector_olg2(mesh%nv)
         call reconstruction_olg(mesh%nv, mesh) 
-        call flux_olg(mesh%nv, mesh, 0, 0.d0, u)
+        if (present(u))then
+          call flux_olg(mesh%nv, mesh, 0, time, u)
+        else
+          call flux_olg(mesh%nv, mesh, 0, time)
+        end if
+
       else ! Gassman method
         call vector_gas(mesh%nv, mesh)
         call reconstruction_gas(mesh%nv, mesh) 
-        call flux_gas(mesh%nv, mesh, 0, 0.d0, u)
+        if (present(u))then
+          call flux_gas(mesh%nv, mesh, 0, time, u)
+        else
+          call flux_gas(mesh%nv, mesh, 0, time)
+        end if
       end if
 
       !$omp parallel do &
       !$omp default(none) &
-      !$omp shared(mesh, div, node, radius) &
+      !$omp shared(mesh, div, controlvolume, node, radius) &
       !$omp private(area) &
       !$omp schedule(static)
       do i = 1, mesh%nv
-        area = mesh%hx(i)%areag 
-        div%f(i) = node(i)%S(0)%flux/mesh%hx(i)%areag
+        if (controlvolume=='V')then
+          area = mesh%hx(i)%areag 
+        else
+          area = node(i)%area
+        end if
+
+        div%f(i) = node(i)%S(0)%flux/area
         div%f(i) = div%f(i)/radius
       end do
       !$omp end parallel do
 
     else if(advmtd=='upw1') then
-        call div_hx_upw1(div, q, u, mesh)
+        call div_hx_upw1(div, q, u, mesh, radius)
     end if
 
     return
   end subroutine divhx
+
+
+  subroutine flux_hx_upw1(q, flux, mesh, time, u)
+    !---------------------------------------------------------------
+    !Calculate 1st order upwind flux  at voronoi edges of hexagons
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), optional, intent(in):: u ! velocity at cell edges
+    type(scalar_field), intent(in):: q ! scalar field at cell centers
+    real(r8), intent(in) :: time
+    real(r8), allocatable, intent(inout) :: flux(:,:)
+    integer(i4):: i, j, k, l, ed, cc
+    real(r8):: signcor, u_edge
+
+    if(present(u))then
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, u, q, flux) &
+      !$omp private(j, l, k, signcor) &
+      !$omp schedule(static)
+      do i=1,mesh%nv
+        !Divergence of uh on unit sphere using div_cell_Cgrig
+        !For all edges forming the hexagon
+        flux(i,:)=0._r8
+        do j=1, mesh%v(i)%nnb
+          !Get edge index
+          l=mesh%v(i)%ed(j)
+
+          !Get neighbor cell index
+          k=mesh%v(i)%nb(j)
+
+          !Get edge outer normal related to the hexagon
+          signcor=real(mesh%hx(i)%ttgout(j), r8)
+
+          if(signcor*u%f(l)>0._r8)then
+            flux(i,j) = signcor*u%f(l)*mesh%edhx(l)%leng*q%f(i)
+          else
+            flux(i,j) = signcor*u%f(l)*mesh%edhx(l)%leng*q%f(k)
+          end if
+        end do
+      end do
+
+    else
+      if(controlvolume=="D")then
+        cc=2
+        print*, 'flux_hx_upw1'
+        stop
+      else
+        cc=1
+      endif
+
+      !$omp parallel do &
+      !$omp default(none) &
+      !$omp shared(mesh, q, time, flux) &
+      !$omp private(j, l, k, u_edge, signcor) &
+      !$omp schedule(static)
+      do i=1,mesh%nv
+        flux(i,:)=0._r8
+        do j=1, mesh%v(i)%nnb
+          !Get edge index
+          l=mesh%v(i)%ed(j)
+
+          !Get neighbor cell index
+          k=mesh%v(i)%nb(j)
+
+          !Get edge outer normal related to the hexagon
+          signcor=real(mesh%hx(i)%ttgout(j), r8)
+
+          u_edge = dot_product(velocity(mesh%ed(l)%c%p, time), mesh%ed(l)%tg)
+          if(signcor*u_edge>0._r8)then
+            flux(i,j) = signcor*u_edge*mesh%edhx(l)%leng*q%f(i)
+          else
+            flux(i,j) = signcor*u_edge*mesh%edhx(l)%leng*q%f(k)
+          end if
+        end do
+      end do
+      !$omp end parallel do
+   end if
+
+   return
+
+  end subroutine flux_hx_upw1
+
+  subroutine div_hx_upw1(div, q, u, mesh, radius)
+    !---------------------------------------------------------------
+    !Calculate divergence at voronoi cells (hexagons)
+    !   based on edge normal velocities
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in):: u ! velocity at cell edges
+    type(scalar_field), intent(in):: q ! scalar field at cell centers
+    type(scalar_field), intent(inout):: div !divergence - must be already allocated
+    real(r8), intent(in) :: radius
+    integer(i4):: i, j, k, l, ed
+    real(r8):: signcor
+
+    !$omp parallel do &
+    !$omp default(none) &
+    !$omp shared(mesh, q, u, div, radius) &
+    !$omp private(j, l, k, signcor) &
+    !$omp schedule(static)
+    do i=1,mesh%nv
+      !Divergence of uh on unit sphere using div_cell_Cgrig
+      !For all edges forming the hexagon
+      div%f(i)=0._r8
+      do j=1, mesh%v(i)%nnb
+        !Get edge index
+        l=mesh%v(i)%ed(j)
+
+        !Get neighbor cell index
+        k=mesh%v(i)%nb(j)
+
+        !Get edge outer normal related to the hexagon
+        signcor=real(mesh%hx(i)%ttgout(j), r8)
+
+        !Calculate numerical integration
+        if(signcor*u%f(l)>0._r8)then
+          div%f(i)=div%f(i)+signcor*u%f(l)*mesh%edhx(l)%leng*q%f(i)
+        else
+          div%f(i)=div%f(i)+signcor*u%f(l)*mesh%edhx(l)%leng*q%f(k)
+        end if
+      end do
+      div%f(i)=div%f(i)/mesh%hx(i)%areag/radius
+    end do
+    !$omp end parallel do
+
+    return
+
+  end subroutine div_hx_upw1
+
 end module highorder

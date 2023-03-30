@@ -1092,7 +1092,8 @@ subroutine initialize_global_moist_swm_vars()
   end subroutine initialize_moist_swm_fields
 
 
-  subroutine tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, masseq, momeq, tempeq, vapoureq, cloudeq, raineq, tracereq)
+  subroutine tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer,&
+      masseq, momeq, tempeq, vapoureq, cloudeq, raineq, tracereq, time)
     !--------------------------------------
     !Calculates the Right Hand Side (spatial discret./tendency)
     !   of mass, velocity and moist variables equations
@@ -1120,7 +1121,7 @@ subroutine initialize_global_moist_swm_vars()
     type(scalar_field), intent(in):: htracer  !General
 
     !Time
-    !real(r8), intent(in):: dtime
+    real(r8), intent(in):: time
 
     !Right hand side of mass equation (number of cell equations)
     real(r8), intent(inout)::masseq(:)
@@ -1165,7 +1166,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / temp eq RHS
-    !call divhx(u, htheta, div_uhtheta, mesh, erad)    
+    !call divhx(htheta, div_uhtheta, mesh, erad, time, u)    
 
     !Temp. eq. RHS
     tempeq = -div_uhtheta%f
@@ -1175,7 +1176,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / vapour eq RHS
-    !call divhx(u, hqv, div_uhqv, mesh, erad)
+    !call divhx(hqv, div_uhqv, mesh, erad, time, u)
 
     !Vapour eq. RHS
     vapoureq = -div_uhqv%f
@@ -1185,7 +1186,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / cloud eq RHS
-    !call divhx(u, hqc, div_uhqc, mesh, erad)
+    !call divhx(hqc, div_uhqc, mesh, erad, time, u)
 
     !Cloud eq. RHS
     cloudeq = -div_uhqc%f
@@ -1195,7 +1196,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / rain eq RHS
-    !call divhx(u, hqr, div_uhqr, mesh, erad)
+    !call divhx(hqr, div_uhqr, mesh, erad, time, u)
 
     !Rain eq. RHS
     raineq = -div_uhqr%f
@@ -1205,7 +1206,7 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
 
     !Calculate divergence / tracer eq RHS
-    call divhx(u, htracer, div_uhtracer, mesh, erad)
+    call divhx(htracer, div_uhtracer, mesh, erad, time, u)
     tracereq = -div_uhtracer%f
 
     !===============================================================
@@ -1451,7 +1452,7 @@ subroutine initialize_global_moist_swm_vars()
 
     !Calculate derived initial fields
     call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, masseq%f, momeq%f, tempeq%f, vapoureq%f, &
-    cloudeq%f, raineq%f, tracereq%f)
+    cloudeq%f, raineq%f, tracereq%f, 0._r8)
 
     !Plot initial fields
     call plotfields_mswm(0, 0._r8)
@@ -1845,7 +1846,7 @@ subroutine initialize_global_moist_swm_vars()
 
       !Initial f (f0)
       t0=t-dt
-      call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, massf0, momf0, tempf0, vapourf0, cloudf0, rainf0, tracerf0)
+      call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, massf0, momf0, tempf0, vapourf0, cloudf0, rainf0, tracerf0, t0)
 
       !First RK step
       t1 = t0 + dt/2._r8
@@ -1859,7 +1860,7 @@ subroutine initialize_global_moist_swm_vars()
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf0(1:qr%n) / 2.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
-      massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1)
+      massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1, t1)
 
       !Second RK step
       t2 = t0 + dt/2._r8
@@ -1873,7 +1874,7 @@ subroutine initialize_global_moist_swm_vars()
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf1(1:qr%n) / 2.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
-      massf2, momf2, tempf2, vapourf2, cloudf2, rainf2, tracerf2)
+      massf2, momf2, tempf2, vapourf2, cloudf2, rainf2, tracerf2, t2)
 
 
       !Third  RK step
@@ -1887,7 +1888,7 @@ subroutine initialize_global_moist_swm_vars()
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf2(1:qr%n)
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
-      massf3, momf3, tempf3, vapourf3, cloudf3, rainf3, tracerf3)
+      massf3, momf3, tempf3, vapourf3, cloudf3, rainf3, tracerf3, t3)
 
       !
       ! Combine them to estimate the solution at time t+dt
@@ -2001,7 +2002,7 @@ subroutine initialize_global_moist_swm_vars()
       ! Compute source
       !call source(h, u, htheta, hqv, hqc, hqr, dt)
  
-      call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, massf0, momf0, tempf0, vapourf0, cloudf0, rainf0, tracerf0)
+      call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, massf0, momf0, tempf0, vapourf0, cloudf0, rainf0, tracerf0, t)
 
       !First RK step
       !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf0(1:u%n) + Su%f(1:u%n)) / 3.0_r8
@@ -2013,7 +2014,7 @@ subroutine initialize_global_moist_swm_vars()
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf0(1:qr%n) / 3.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
-      massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1)
+      massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1, t+dt/3._r8)
 
       !Second RK step
       !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf1(1:u%n) + Su%f(1:u%n)) / 2.0_r8
@@ -2025,7 +2026,7 @@ subroutine initialize_global_moist_swm_vars()
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf1(1:qr%n) / 2.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
-      massf2, momf2, tempf2, vapourf2, cloudf2, rainf2, tracerf2)
+      massf2, momf2, tempf2, vapourf2, cloudf2, rainf2, tracerf2, t+dt/2._r8)
 
       ! Third  RK step
       ! Last RK step applies a different approach if the monotonic limiter is active 
@@ -2044,7 +2045,7 @@ subroutine initialize_global_moist_swm_vars()
         !call  monotonicfilter_rk3(mesh, hqv    , hqv_new    , u, u_new, dt, erad,  hSqv)
         !call  monotonicfilter_rk3(mesh, hqr    , hqr_new    , u, u_new, dt, erad,  hSqr)
         !call  monotonicfilter_rk3(mesh, hqc    , hqc_new    , u, u_new, dt, erad,  hSqc)
-        call  monotonicfilter_rk3(mesh, htracer, htracer_new, u, u_new, dt, erad)
+        call  monotonicfilter_rk3(mesh, htracer, htracer_new,  dt, erad, time+dt/2._r8, u, u_new)
  
         !Update momentum and mass conservation equations
         !u_new%f(1:u%n)          = u%f(1:u%n)           !+ dt * (momf2(1:u%n) + Su%f(1:u%n))
