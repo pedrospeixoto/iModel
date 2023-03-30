@@ -76,6 +76,5 @@ def plot(filename, colormap, map_projection, qmin=None, qmax=None, title=None):
     plt.close()
     print('Figure has been saved in '+graphdir+filename+'.'+fig_format)
 
-filename = 'order2_v5_in6_mono0_phi_t_10_icos_pol_scvt_h1_4.dat'
-
-plot(filename, 'jet', 'mercator')
+#filename = 'order2_v5_in6_mono0_phi_t_10_icos_pol_scvt_h1_4.dat'
+#plot(filename, 'jet', 'mercator')
