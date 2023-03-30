@@ -18,11 +18,11 @@ run = True # Run the simulation?
 dt = ('12800','6400','3200','1600','800','400','200','100')
 
 # Grid levels
-glevels = (1,2,3,4,5,6)
+glevels = (5,)
 
 # FV Schemes
-mono_values = (0,1) # mononotic options
-fvs = ('og2','og3', 'og4', 'sg3', 'upw1')
+mono_values = (1,) # mononotic options
+fvs = ('og2','og3', 'og4', 'sg3')
 rk = 'rk3'
 
 # Grid name
@@ -126,8 +126,8 @@ for g in range(0, len(glevels)):
             # Plot the fields
             q_min, q_max = np.amin(val), np.amax(val)
             q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
-            title = 'Min = '+str(q_min)+', Max = '+str(q_max)+', '+fvs[fv]+', mono='+str(mono)
-            plot(filename_field, 'seismic', map_projection, -1.0, 1.0, title)
+            title = 'Min = '+str(q_min)+', Max = '+str(q_max)+', '+fvs[fv]+', mono='+str(mono_values[mono])
+            plot(filename_field, 'seismic', map_projection, -1.2, 1.2, title)
             eabs = max(abs(np.amin(error_val)), abs(np.amax(error_val)))
             emin, emax = -eabs, eabs
             #plot(filename_error, 'seismic', map_projection, emin, emax)
