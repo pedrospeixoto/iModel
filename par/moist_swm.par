@@ -2,9 +2,9 @@
 !Test case / Test local truncation 0/1 (only possible in some test cases)
 2 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-4 4
+12 12
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-1600 0 0 
+800 0 0 
 !Scalar/vector location (HC or HTC)
 HTC
 !Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
@@ -17,12 +17,12 @@ gass
 trsk
 !Gradient discrete method
 trsk
-!Advection method (trsk, gass, og2, og3, og4, upw1)
-og2
+!Advection method (sg3, og2, og3, og4)
+sg3
 !Time integration (rk3 or rk4)
 rk3
 !Monotonic limiter (0-no, 1-yes)
-0
+1
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
@@ -81,12 +81,10 @@ bary : uses 3 values and bary coordinates ( not in use anymore - avoid)
 trsk : simple difference 
 
 !Advection method
-trsk - div discretization from TRSK
 og2  - 2nd order Ollivier-Gooch scheme
 og3  - 3rd order Ollivier-Gooch scheme
 og3  - 4th order Ollivier-Gooch scheme
-gass - 3rd order scheme from Skamarock and Gassmann (2011)
-upw1 - 1st order upwind scheme
+sg3 - 3rd order scheme from Skamarock and Gassmann (2011)
 
 !Time integration
 rk3 - third order runge-kutta from Wicker and Skamarock (2002)
