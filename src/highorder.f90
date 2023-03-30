@@ -64,13 +64,15 @@ module highorder
 
   !Method order 
   integer (i4):: order
-
+  
   !Name for files and kind of staggering
   character (len=128)::  transpname
   character (len=8)::  stag
   character (len=8)::  charradius 
   character (len=8)::  method
   character (len=8)::  controlvolume
+  character (len=8)::  time_integrator
+
 
   !Kind of interpolation for scalar and vector fields
   character (len=64):: ksinterpol
@@ -270,6 +272,8 @@ contains
     read(fileunit,*)  buffer
     read(fileunit,*)  order
     read(fileunit,*)  buffer     
+    read(fileunit,*)  time_integrator
+    read(fileunit,*)  buffer  
     read(fileunit,*)  mono     
     read(fileunit,*)  buffer     
     read(fileunit,*)  charradius  
@@ -482,7 +486,7 @@ contains
                 call erro(nodes,mesh,10.0D0)
              endif
              call flux_gas(nodes,mesh,k-1,time)
-             call rungekutta(nodes,mesh,k) 
+             call rungekutta4(nodes,mesh,k) 
           enddo
 
           ! Mass update
@@ -543,16 +547,29 @@ contains
 !             phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))
 !             call plot_scalarfield(phi,mesh) 
 !          end if
+
+      if (time_integrator=='rk4') then
           do k=1,4
              call vector_olg2(nodes)
              call reconstruction_olg(nodes,mesh) 
-             if ((j==node(0)%ntime).and.(k==1))then
+               if ((j==node(0)%ntime).and.(k==1))then
                 call erro(nodes,mesh,10.0D0)
              endif
              call flux_olg(nodes,mesh,k-1,time)
-             call rungekutta(nodes,mesh,k) 
+             call rungekutta4(nodes,mesh,k) 
           enddo
+         elseif (time_integrator=='rk3') then
 
+         do k=1,3
+         call vector_olg2(nodes)
+         call reconstruction_olg(nodes,mesh) 
+           if ((j==node(0)%ntime).and.(k==1))then
+         call erro(nodes,mesh,10.0D0)
+      endif
+         call flux_olg(nodes,mesh,k-1,time) 
+         call rungekutta3(nodes,mesh,k) 
+      enddo
+endif
  
           time=time+node(0)%dt
 
@@ -3171,7 +3188,7 @@ read(*,*)
                 if(order==2)then
                    ! Polynomial evaluated at quadrature point
                    pol = node(i)%coef(1) + node(i)%coef(2)*xp + & 
-                        node(i)%coef(3)*yp
+                         node(i)%coef(3)*yp
 
                 else if(order==3)then
                    ! Polynomial evaluated at quadrature point
@@ -3230,7 +3247,7 @@ read(*,*)
                 if(order==2)then
                    ! Polynomial evaluated at quadrature point
                    pol = node(w)%coef(1) + node(w)%coef(2)*xp + & 
-                        node(w)%coef(3)*yp
+                         node(w)%coef(3)*yp
 
                 else if(order==3)then
                    ! Polynomial evaluated at quadrature point
@@ -3487,8 +3504,54 @@ read(*,*)
    deallocate(p1,p2,p3,vn)   
    return  
    end subroutine flux_gas   
-    
-  subroutine rungekutta(nodes,mesh,k)  
+
+   subroutine rungekutta3(nodes,mesh,k)  
+      !----------------------------------------------------------------------------------------------
+      !    AVançando no tempo
+      !----------------------------------------------------------------------------------------------
+      implicit none
+      integer,intent(in):: nodes
+      type(grid_structure),intent(in):: mesh
+      integer,intent(in),optional:: k
+      integer(i4):: i
+      real(r8):: area
+     
+      select case (k)
+      case  (1)
+         do i=1,nodes
+       if(method=='D') then
+       area=node(i)%area
+       else
+       area=mesh%hx(i)%areag 
+       endif
+            node(i)%phi_new2 = node(i)%phi_old - 1.0D0/3.0D0 * (node(0)%dt/area)*node(i)%S(0)%flux 
+         end do
+      case  (2) 
+         do i=1,nodes
+       if(method=='D') then
+       area=node(i)%area
+       else
+       area=mesh%hx(i)%areag
+       endif
+            node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(1)%flux
+         end do
+      case  (3) 
+         do i=1,nodes
+       if(method=='D') then
+       area=node(i)%area
+       else
+       area=mesh%hx(i)%areag
+       endif
+            node(i)%phi_new2 = node(i)%phi_old  - (node(0)%dt/area) * node(i)%S(2)%flux     
+         end do
+      end select
+      return
+    end subroutine rungekutta3   
+
+
+
+
+  subroutine rungekutta4(nodes,mesh,k)  
     !----------------------------------------------------------------------------------------------
     !    AVançando no tempo
     !----------------------------------------------------------------------------------------------
@@ -3539,7 +3602,7 @@ read(*,*)
        end do
     end select
     return
-  end subroutine rungekutta
+  end subroutine rungekutta4
 
   subroutine erro(nodes,mesh,time)  
     !----------------------------------------------------------------------------------------------
@@ -3586,7 +3649,7 @@ read(*,*)
     erro_L2 =  erro_L2/razao_L2
     erro_Linf = erro_Linf/razao_Linf
     call plot_scalarfield(phi,mesh)
-    print*,erro_Linf,erro_L2
+    print*,'Erro_Linf',erro_Linf,'Erro L2',erro_L2
     return
   end subroutine erro
 

@@ -39,6 +39,11 @@ def plot(filename, colormap, map_projection):
     elif map_projection == "sphere":
         plateCr = ccrs.Orthographic(central_longitude=-60.0, central_latitude=0.0)
         plt.figure(figsize=(800/dpi, 800/dpi), dpi=dpi)
+    elif map_projection == "north_pole":
+        #plateCr = ccrs.Orthographic(central_longitude=-60.0, central_latitude=0.0)
+        plateCr = ccrs.NorthPolarStereo(central_longitude=0.0, globe=None)
+        plt.figure(figsize=(800/dpi, 800/dpi), dpi=dpi)
+
 
     plateCr._threshold = plateCr._threshold/10.
     ax = plt.axes(projection=plateCr)
@@ -58,9 +63,21 @@ def plot(filename, colormap, map_projection):
         plt.colorbar(orientation='horizontal',fraction=0.046, pad=0.04)
     elif map_projection == 'sphere':
         plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04)
+    elif map_projection == 'north_pole':
+        plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04)
+
 
     # Save the figure
     plt.savefig(graphdir+filename+'_'+map_projection+'.'+fig_format, format=fig_format)
 
     plt.close()
     print('Figure has been saved in '+graphdir+filename+'.'+fig_format)
+
+#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder4_rk3_mono1_tracer_t1036800_icos_pol_scvt_h1_3.dat'
+#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder4_rk3_mono1_h_t1036800_icos_pol_scvt_h1_3.dat'
+#filename = 'moist_swm_tc2_dt1600_HTC_trsk10_areageo_advmethodO_advorder1_rk3_mono1_tracer_t1036800_icos_pol_scvt_h1_3.dat'
+#filename = 'moist_swm_tc3_dt800_HTC_trsk10_areageo_advmethodO_advorder1_rk3_mono1_qv_t2592000_icos_pol_scvt_h1_4.dat'
+filename = 'order2_v5_in6_mono0_phi_t_10_icos_pol_scvt_h1_4.dat'
+
+plot(filename, 'jet', 'mercator')
+
