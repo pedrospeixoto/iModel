@@ -94,7 +94,8 @@ module moist_swm
     divhx, &
     phi_star, phi_min, phi_max, &
     phi_tilda, phi_tilda_min, phi_tilda_max, div_uphi, & 
-    F_star, F_cor, F_step2
+    F_star, F_cor, F_step2,&
+    tendency_advection
 
     !use refinter, only: &
     !andean_mountain_data, &
@@ -158,13 +159,6 @@ module moist_swm
 
     !Scalar fields from hx to ed (defined on edges)
     type(scalar_field):: theta_ed    !temperature
-
-    !Divergences (defined on voronoi centers)
-    type(scalar_field):: div_uhtheta !div of velocity*h*temperature
-    type(scalar_field):: div_uhqv    !div of velocity*h*vapour
-    type(scalar_field):: div_uhqc    !div of velocity*h*cloud
-    type(scalar_field):: div_uhqr    !div of velocity*h*rain
-    type(scalar_field):: div_uhtracer!div of velocity*h*tracer
 
     !Gradients (defined on edges)
     type(scalar_field):: gradPI         !gradient of h^2*temperature
@@ -317,16 +311,6 @@ subroutine allocate_global_moistswm_vars()
     allocate(htracer_old%f(1:tracer%n), stat=ist)
     allocate(tracer_exact%f(1:tracer%n), stat=ist)
     allocate(tracer_error%f(1:tracer%n), stat=ist)
-
-    !Divergence terms
-    div_uhqv%n=mesh%nv
-    div_uhqv%pos=0
-    div_uhqv%name="divuqv"
-    allocate(div_uhqv%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhqc%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhqr%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhtheta%f(1:div_uhqv%n), stat=ist)
-    allocate(div_uhtracer%f(1:div_uhqv%n), stat=ist)
 
     !Scalar fields on edges
     theta_ed%n=mesh%ne
@@ -500,8 +484,6 @@ subroutine initialize_global_moist_swm_vars()
     !$OMP SHARED(tracer, tracer_exact, tracer_error, htracer, htracer_old) &
     !$OMP SHARED(hStheta, hSqv, hSqr, hSqc) &
     !$OMP SHARED(delta_qv, delta_qr, delta_qc) &
-    !$OMP SHARED(div_uhqv,div_uhqc,div_uhqr,div_uhtheta) &
-    !$OMP SHARED(div_uhtracer) &
     !$OMP SHARED(gradPI,gradPI_oh,grad_b,theta_grad_b) &
     !$OMP SHARED(uhtracer, theta_ed) &
     !$OMP SHARED(tempeq, tempf0, tempf1, tempf2, tempf3) &
@@ -593,13 +575,6 @@ subroutine initialize_global_moist_swm_vars()
     tracerf1(1:qr%n)=0._r8
     tracerf2(1:qr%n)=0._r8
     tracerf3(1:qr%n)=0._r8
-
-    !Divergences
-    div_uhqv%f=0._r8
-    div_uhqc=div_uhqv
-    div_uhqr=div_uhqv
-    div_uhtheta=div_uhqv
-    div_uhtracer=div_uhqv
 
     !Fields at edges
     theta_ed%f=0._r8
@@ -1164,50 +1139,32 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
     !Calculate temperature tendency
     !===============================================================
-
     !Calculate divergence / temp eq RHS
-    !call divhx(htheta, div_uhtheta, mesh, erad, time, u)    
+    call tendency_advection(htheta, tempeq, mesh, time, erad, u)
 
-    !Temp. eq. RHS
-    tempeq = -div_uhtheta%f
-    
     !===============================================================
     !Calculate vapour tendency
     !===============================================================
-
     !Calculate divergence / vapour eq RHS
-    !call divhx(hqv, div_uhqv, mesh, erad, time, u)
-
-    !Vapour eq. RHS
-    vapoureq = -div_uhqv%f
+    call tendency_advection(hqv, vapoureq, mesh, time, erad, u)
 
     !===============================================================
     !Calculate cloud tendency
     !===============================================================
-
     !Calculate divergence / cloud eq RHS
-    !call divhx(hqc, div_uhqc, mesh, erad, time, u)
-
-    !Cloud eq. RHS
-    cloudeq = -div_uhqc%f
+    call tendency_advection(hqc, cloudeq, mesh, time, erad, u)
 
     !===============================================================
     !Calculate rain tendency
     !===============================================================
-
     !Calculate divergence / rain eq RHS
-    !call divhx(hqr, div_uhqr, mesh, erad, time, u)
-
-    !Rain eq. RHS
-    raineq = -div_uhqr%f
+    call tendency_advection(hqr, raineq, mesh, time, erad, u)
 
     !===============================================================
     !Calculate tracer tendency
     !===============================================================
-
     !Calculate divergence / tracer eq RHS
-    call divhx(htracer, div_uhtracer, mesh, erad, time, u)
-    tracereq = -div_uhtracer%f
+    call tendency_advection(htracer, tracereq, mesh, time, erad, u)
 
     !===============================================================
     !Compute and add the source
@@ -1696,9 +1653,6 @@ subroutine initialize_global_moist_swm_vars()
           h%name=trim(swmname)//"_h_t"//trim(adjustl(trim(atime)))
           call plot_scalarfield(h, mesh)
 
-          div_uhtracer%name=trim(swmname)//"_div_uhtracer_t"//trim(adjustl(trim(atime)))
-          !call plot_scalarfield(div_uhtracer, mesh)
-
           theta%name=trim(swmname)//"_theta_t"//trim(adjustl(trim(atime)))
           call plot_scalarfield(theta, mesh)
 
@@ -2045,12 +1999,11 @@ subroutine initialize_global_moist_swm_vars()
         !call  monotonicfilter_rk3(mesh, hqv    , hqv_new    , u, u_new, dt, erad,  hSqv)
         !call  monotonicfilter_rk3(mesh, hqr    , hqr_new    , u, u_new, dt, erad,  hSqr)
         !call  monotonicfilter_rk3(mesh, hqc    , hqc_new    , u, u_new, dt, erad,  hSqc)
-        call  monotonicfilter_rk3(mesh, htracer, htracer_new,  dt, erad, time+dt/2._r8, u, u_new)
+        call  monotonicfilter_rk3(mesh, htracer, htracer_new, dt=dt,radius=erad,time=time+dt/2._r8,u_step0=u, u_step2=u_new)
  
         !Update momentum and mass conservation equations
         !u_new%f(1:u%n)          = u%f(1:u%n)           !+ dt * (momf2(1:u%n) + Su%f(1:u%n))
         !h_new%f(1:h%n)          = h%f(1:h%n)           !+ dt * massf2(1:h%n)
-
       end if
       return
     end subroutine ode_rk3_moist_swm
