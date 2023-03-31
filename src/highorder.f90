@@ -3794,8 +3794,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       call divhx(phi, div_uphi, mesh, radius, time)
     end if
     phif = -div_uphi%f
-    !print*, maxval(abs(div_uphi%f)), radius
-
   return
   end subroutine tendency_advection
 
@@ -4483,7 +4481,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       type(scalar_field), optional, intent(inout):: u_step2 ! velocity at time t+dt/
       type(scalar_field), optional, intent(inout):: hSphi ! Source - optional
       real(r8), intent(in) :: dt, radius, time ! time-step and sphere radius 
-      integer(i4) :: i, j, k
+      integer(i4) :: i, j, k, jj
 
       !-----------------------------------------------------------------------------------
 
@@ -4507,14 +4505,138 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         call flux_hx_upw1(phi_star, F_star, mesh, time)
       end if
 
-      !-----------------------------------------------------------------------------------
-      !-----------------------------------------------------------------------------------
-      ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
-      if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
-        !Calculate divergence and edges flux
-        if (present(u_step2))then
-          call divhx(phi_step2, div_uphi, mesh, radius, time, u_step2)
+      if(controlvolume=='V')then
+        !-----------------------------------------------------------------------------------
+        ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
+        if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
+          !Calculate divergence and edges flux
+          if (present(u_step2))then
+            call divhx(phi_step2, div_uphi, mesh, radius, time, u_step2)
+          else
+            call divhx(phi_step2, div_uphi, mesh, radius, time)
+          end if
+
+          ! Store the flux
+          !$omp parallel do &
+          !$omp default(none) &
+          !$omp shared(mesh, node, F_step2) &
+          !$omp schedule(static)
+          do i = 1, mesh%nv
+            F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
+            F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
+          end do
+          !$omp end parallel do
+
+        else if (advmtd=='upw1')then
+          if (present(u_step2))then
+            call flux_hx_upw1(phi_step2,F_step2, mesh, time, u_step2)
+          else
+            stop
+          end if
+          stop
         else
+          print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
+          stop
+        end if
+        !-----------------------------------------------------------------------------------
+
+
+        !-----------------------------------------------------------------------------------
+        ! Flux for phi corrected (equation 4 from wang et al 2009)
+        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
+        !$OMP SHARED(F_cor, F_step2, F_star)      
+        F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
+        !$OMP END PARALLEL WORKSHARE
+        !-----------------------------------------------------------------------------------
+
+        ! Equation 5 from Wang et al 2009 - 1st order upwind solution
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, phi_tilda, phi_star, F_star, dt, radius) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_tilda%f(i) = phi_star%f(i) - dt*sum(F_star(i,:))/mesh%hx(i)%areag/radius
+        end do
+        !$omp end parallel do
+
+        ! Compute negative and positive flux updates
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, phi_tilda, phi_tilda_min, phi_tilda_max, F_cor, dt, radius) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_tilda_min%f(i) = phi_tilda%f(i)
+          phi_tilda_max%f(i) = phi_tilda%f(i)
+          do j = 1, mesh%v(i)%nnb
+            if(F_cor(i,j)>0._r8)then
+              ! Equation 6a from Wang et al 2009
+              phi_tilda_min%f(i) = phi_tilda_min%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
+
+            else
+              ! Equation 6b from Wang et al 2009
+              phi_tilda_max%f(i) = phi_tilda_max%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
+            end if
+          end do
+        end do
+        !$omp end parallel do
+
+        ! Min/max in neighborhood at time t
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, phi_step0, phi_min, phi_max) &
+        !$omp private(j, k) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_min%f(i) = phi_step0%f(i)
+          phi_max%f(i) = phi_step0%f(i)
+          do j = 1, mesh%v(i)%nnb
+            k = mesh%v(i)%nb(j)
+            if(phi_step0%f(k) < phi_min%f(i))then
+              phi_min%f(i) = phi_step0%f(k)
+            else if(phi_step0%f(k) > phi_max%f(i))then
+              phi_max%f(i) = phi_step0%f(k)
+            end if
+         end do
+        end do
+        !$omp end parallel do
+
+        ! Flux correction
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, F_cor, phi_tilda, phi_tilda_min, phi_tilda_max, phi_min, phi_max) &
+        !$omp private(j, k) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          do j = 1, mesh%v(i)%nnb
+            k = mesh%v(i)%nb(j)
+            if(F_cor(i,j)>0._r8) then
+              if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
+              F_cor(i,j) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
+                                       (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,j)
+              end if
+            else
+              if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
+                F_cor(i,j) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
+                                          (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,j)
+              end if
+            end if
+          end do
+        end do
+        !$omp end parallel do
+
+        ! Final solution
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, phi_step2, phi_tilda, F_cor, radius, dt) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/mesh%hx(i)%areag/radius
+        end do
+        !$omp end parallel do
+
+      !======================================================================================
+      else ! Donald Diagram
+        if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
           call divhx(phi_step2, div_uphi, mesh, radius, time)
         end if
 
@@ -4524,117 +4646,112 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         !$omp shared(mesh, node, F_step2) &
         !$omp schedule(static)
         do i = 1, mesh%nv
-          F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
-          F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
+          F_step2(i,1:2) = node(i)%edge_flux(2*mesh%v(i)%nnb-1:2*mesh%v(i)%nnb)
+          F_step2(i,3:2*mesh%v(i)%nnb) = node(i)%edge_flux(1:2*mesh%v(i)%nnb-2)
         end do
         !$omp end parallel do
 
-      else if (advmtd=='upw1')then
-        if (present(u_step2))then
-          call flux_hx_upw1(phi_step2,F_step2, mesh, time, u_step2)
-        else
-          stop
-        end if
-        stop
-      else
-        print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
-        stop
+        !-----------------------------------------------------------------------------------
+        ! Flux for phi corrected (equation 4 from wang et al 2009)
+        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
+        !$OMP SHARED(F_cor, F_step2, F_star)      
+        F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
+        !$OMP END PARALLEL WORKSHARE
+        !-----------------------------------------------------------------------------------
+
+        ! Equation 5 from Wang et al 2009 - 1st order upwind solution
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, node, phi_tilda, phi_star, F_star, dt, radius) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_tilda%f(i) = phi_star%f(i) - dt*sum(F_star(i,:))/node(i)%area/radius
+        end do
+        !$omp end parallel do
+
+        ! Compute negative and positive flux updates
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, node, phi_tilda, phi_tilda_min, phi_tilda_max, F_cor, dt, radius) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_tilda_min%f(i) = phi_tilda%f(i)
+          phi_tilda_max%f(i) = phi_tilda%f(i)
+          do j = 1, 2*mesh%v(i)%nnb
+            if(F_cor(i,j)>0._r8)then
+              ! Equation 6a from Wang et al 2009
+              phi_tilda_min%f(i) = phi_tilda_min%f(i) - dt*F_cor(i,j)/node(i)%area/radius
+
+            else
+              ! Equation 6b from Wang et al 2009
+              phi_tilda_max%f(i) = phi_tilda_max%f(i) - dt*F_cor(i,j)/node(i)%area/radius
+            end if
+          end do
+        end do
+        !$omp end parallel do
+
+        ! Min/max in neighborhood at time t
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, phi_step0, phi_min, phi_max) &
+        !$omp private(j, k) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_min%f(i) = phi_step0%f(i)
+          phi_max%f(i) = phi_step0%f(i)
+          do j = 1, mesh%v(i)%nnb
+            k = mesh%v(i)%nb(j)
+            if(phi_step0%f(k) < phi_min%f(i))then
+              phi_min%f(i) = phi_step0%f(k)
+            else if(phi_step0%f(k) > phi_max%f(i))then
+              phi_max%f(i) = phi_step0%f(k)
+            end if
+         end do
+        end do
+        !$omp end parallel do
+
+        ! Flux correction
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, F_cor, phi_tilda, phi_tilda_min, phi_tilda_max, phi_min, phi_max) &
+        !$omp private(j, jj, k) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          jj = 1
+          do j = 1, mesh%v(i)%nnb
+            k = mesh%v(i)%nb(j)
+            if(F_cor(i,j)>0._r8) then
+              if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
+                F_cor(i,jj) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
+                                       (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,jj)
+                F_cor(i,jj+1) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
+                                       (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,jj+1)
+ 
+              end if
+            else
+              if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
+                F_cor(i,jj) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
+                                          (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,jj)
+                F_cor(i,jj+1) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
+                                          (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,jj+1)
+              end if
+            end if
+            jj = jj+2
+          end do
+        end do
+        !$omp end parallel do
+
+        ! Final solution
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, node, phi_step2, phi_tilda, F_cor,F_star, radius, dt) &
+        !$omp schedule(static)
+        do i = 1, mesh%nv
+          phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_star(i,:)))/node(i)%area/radius
+          !phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_star(i,:)))/mesh%hx(i)%areag/radius
+        end do
+        !$omp end parallel do
       end if
-      !-----------------------------------------------------------------------------------
-
-
-      !-----------------------------------------------------------------------------------
-      ! Flux for phi corrected (equation 4 from wang et al 2009)
-      !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-      !$OMP SHARED(F_cor, F_step2, F_star)      
-      F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
-      !$OMP END PARALLEL WORKSHARE
-      !-----------------------------------------------------------------------------------
-
-      ! Equation 5 from Wang et al 2009 - 1st order upwind solution
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, phi_tilda, phi_star, F_star, dt, radius) &
-      !$omp schedule(static)
-      do i = 1, mesh%nv
-        phi_tilda%f(i) = phi_star%f(i) - dt*sum(F_star(i,:))/mesh%hx(i)%areag/radius
-      end do
-      !$omp end parallel do
-
-      ! Compute negative and positive flux updates
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, phi_tilda, phi_tilda_min, phi_tilda_max, F_cor, dt, radius) &
-      !$omp schedule(static)
-      do i = 1, mesh%nv
-        phi_tilda_min%f(i) = phi_tilda%f(i)
-        phi_tilda_max%f(i) = phi_tilda%f(i)
-        do j = 1, mesh%v(i)%nnb
-          if(F_cor(i,j)>0._r8)then
-            ! Equation 6a from Wang et al 2009
-            phi_tilda_min%f(i) = phi_tilda_min%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
-
-          else
-            ! Equation 6b from Wang et al 2009
-            phi_tilda_max%f(i) = phi_tilda_max%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
-          end if
-        end do
-      end do
-      !$omp end parallel do
-
-      ! Min/max in neighborhood at time t
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, phi_step0, phi_min, phi_max) &
-      !$omp private(j, k) &
-      !$omp schedule(static)
-      do i = 1, mesh%nv
-        phi_min%f(i) = phi_step0%f(i)
-        phi_max%f(i) = phi_step0%f(i)
-        do j = 1, mesh%v(i)%nnb
-          k = mesh%v(i)%nb(j)
-          if(phi_step0%f(k) < phi_min%f(i))then
-            phi_min%f(i) = phi_step0%f(k)
-          else if(phi_step0%f(k) > phi_max%f(i))then
-            phi_max%f(i) = phi_step0%f(k)
-          end if
-       end do
-      end do
-      !$omp end parallel do
-
-      ! Flux correction
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, F_cor, phi_tilda, phi_tilda_min, phi_tilda_max, phi_min, phi_max) &
-      !$omp private(j, k) &
-      !$omp schedule(static)
-      do i = 1, mesh%nv
-        do j = 1, mesh%v(i)%nnb
-          k = mesh%v(i)%nb(j)
-          if(F_cor(i,j)>0._r8) then
-            if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
-            F_cor(i,j) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
-                                     (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,j)
-            end if
-          else
-            if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
-              F_cor(i,j) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
-                                        (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,j)
-            end if
-          end if
-        end do
-      end do
-      !$omp end parallel do
-
-      ! Final solution
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, phi_step2, phi_tilda, F_cor, radius, dt) &
-      !$omp schedule(static)
-      do i = 1, mesh%nv
-        phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/mesh%hx(i)%areag/radius
-      end do
-      !$omp end parallel do
   end subroutine monotonicfilter_rk3
 
   subroutine divhx(q, div, mesh, radius, time, u)
@@ -4715,7 +4832,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     type(scalar_field), intent(in):: q ! scalar field at cell centers
     real(r8), intent(in) :: time
     real(r8), allocatable, intent(inout) :: flux(:,:)
-    integer(i4):: i, j, k, l, ed, cc
+    integer(i4):: i, j, k, l, ed, cc, jj
     real(r8):: signcor, u_edge
 
     if(present(u))then
@@ -4747,41 +4864,68 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       end do
 
     else
-      if(controlvolume=="D")then
-        cc=2
-        print*, 'flux_hx_upw1'
-        stop
-      else
-        cc=1
-      endif
+      if(controlvolume=="V")then
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, q, time, flux) &
+        !$omp private(j, l, k, u_edge, signcor) &
+        !$omp schedule(static)
+        do i=1,mesh%nv
+          flux(i,:)=0._r8
+          do j=1, mesh%v(i)%nnb
+            !Get edge index
+            l=mesh%v(i)%ed(j)
 
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, q, time, flux) &
-      !$omp private(j, l, k, u_edge, signcor) &
-      !$omp schedule(static)
-      do i=1,mesh%nv
-        flux(i,:)=0._r8
-        do j=1, mesh%v(i)%nnb
-          !Get edge index
-          l=mesh%v(i)%ed(j)
+            !Get neighbor cell index
+            k=mesh%v(i)%nb(j)
 
-          !Get neighbor cell index
-          k=mesh%v(i)%nb(j)
+            !Get edge outer normal related to the hexagon
+            signcor=real(mesh%hx(i)%ttgout(j), r8)
 
-          !Get edge outer normal related to the hexagon
-          signcor=real(mesh%hx(i)%ttgout(j), r8)
+            u_edge = dot_product(velocity(mesh%ed(l)%c%p, time), mesh%ed(l)%tg)
 
-          u_edge = dot_product(velocity(mesh%ed(l)%c%p, time), mesh%ed(l)%tg)
-          if(signcor*u_edge>0._r8)then
-            flux(i,j) = signcor*u_edge*mesh%edhx(l)%leng*q%f(i)
-          else
-            flux(i,j) = signcor*u_edge*mesh%edhx(l)%leng*q%f(k)
-          end if
+            if(signcor*u_edge>0._r8)then
+              flux(i,j) = signcor*u_edge*mesh%edhx(l)%leng*q%f(i)
+            else
+              flux(i,j) = signcor*u_edge*mesh%edhx(l)%leng*q%f(k)
+            end if
+          end do
         end do
-      end do
-      !$omp end parallel do
+        !$omp end parallel do
+
+      else 
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, q, time, flux) &
+        !$omp private(j, l, k, jj, u_edge, signcor) &
+        !$omp schedule(static)
+        do i=1,mesh%nv
+          flux(i,:)=0._r8
+          jj=1
+          do j=1, mesh%v(i)%nnb
+            !Get edge index
+            l=mesh%v(i)%ed(j)
+
+            !Get neighbor cell index
+            k=mesh%v(i)%nb(j)
+
+            !Get edge outer normal related to the hexagon
+            signcor=real(mesh%hx(i)%ttgout(j), r8)
+            u_edge = dot_product(velocity(mesh%ed(l)%c%p, time), mesh%ed(l)%tg)
+
+            if(signcor*u_edge>0._r8)then
+              flux(i,jj) = signcor*u_edge*mesh%edhx(l)%leng*q%f(i)*0.5_r8
+            else
+              flux(i,jj) = signcor*u_edge*mesh%edhx(l)%leng*q%f(k)*0.5_r8
+            end if
+            flux(i,jj+1) = flux(i,jj)
+            jj = jj+2
+          end do
+        end do
+        !$omp end parallel do
+      end if
    end if
+
 
    return
 
