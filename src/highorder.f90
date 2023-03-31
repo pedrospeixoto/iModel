@@ -4744,11 +4744,10 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         ! Final solution
         !$omp parallel do &
         !$omp default(none) &
-        !$omp shared(mesh, node, phi_step2, phi_tilda, F_cor,F_star, radius, dt) &
+        !$omp shared(mesh, node, phi_step2, phi_tilda, F_cor, F_star,F_step2, radius, dt) &
         !$omp schedule(static)
         do i = 1, mesh%nv
-          phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_star(i,:)))/node(i)%area/radius
-          !phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_star(i,:)))/mesh%hx(i)%areag/radius
+          phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/node(i)%area/radius
         end do
         !$omp end parallel do
       end if
