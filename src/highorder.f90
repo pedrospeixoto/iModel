@@ -551,12 +551,11 @@ contains
              call plot_scalarfield(phi,mesh)
           end if
 
-          ! RK4
+          ! Time integration
           if (time_integrator=='rk4') then
             do k=1,4
                call vector_gas(nodes,mesh)
                call reconstruction_gas(nodes,mesh)
-
                call flux_gas(nodes,mesh,k-1,time)
                call rungekutta4(nodes,mesh,k) 
             enddo
@@ -3780,7 +3779,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8), intent(in):: time, radius
 
     !Right hand side of advction equation
-    real(r8), allocatable, intent(inout)::phif(:)
+    real(r8), intent(inout)::phif(:)
 
     !Initialize RHS
     call zero_vector(phif)
@@ -3813,43 +3812,48 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
    
     select case (k)
     case  (1)
-       do i=1,nodes
-     if(method=='D') then
-     area=node(i)%area
-     else
-     area=mesh%hx(i)%areag 
-     endif
-          node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(0)%flux 
-       end do
+    do i=1,nodes
+      if(controlvolume=='D') then
+        area=node(i)%area
+      else
+        area=mesh%hx(i)%areag 
+      endif
+        node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(0)%flux 
+    end do
+
     case  (2) 
-       do i=1,nodes
-     if(method=='D') then
-     area=node(i)%area
-     else
-     area=mesh%hx(i)%areag
-     endif
-          node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(1)%flux
-       end do
+    do i=1,nodes
+      if(controlvolume=='D') then
+        area=node(i)%area
+      else
+        area=mesh%hx(i)%areag
+      endif
+        node(i)%phi_new2 = node(i)%phi_old - 0.5D0 * (node(0)%dt/area)*node(i)%S(1)%flux
+    end do
+
     case  (3) 
-       do i=1,nodes
-     if(method=='D') then
-     area=node(i)%area
-     else
-     area=mesh%hx(i)%areag
-     endif
-          node(i)%phi_new2 = node(i)%phi_old  - (node(0)%dt/area) * node(i)%S(2)%flux     
-       end do
+    do i=1,nodes
+      if(controlvolume=='D') then
+        area=node(i)%area
+      else
+        area=mesh%hx(i)%areag
+      endif
+        node(i)%phi_new2 = node(i)%phi_old  - (node(0)%dt/area) * node(i)%S(2)%flux     
+    end do
+
     case  (4) 
-       do i=1,nodes
-     if(method=='D') then
-     area=node(i)%area
-     else
-     area=mesh%hx(i)%areag
-     endif
-          node(i)%phi_new2 = node(i)%phi_old  - (1.0D0/6.0D0)* (node(0)%dt/area) * (node(i)%S(0)%flux + &
+    do i=1,nodes
+      if(controlvolume=='D') then
+        area=node(i)%area
+      else
+        area=mesh%hx(i)%areag
+      endif
+        node(i)%phi_new2 = node(i)%phi_old  - (1.0D0/6.0D0)* (node(0)%dt/area) * (node(i)%S(0)%flux + &
                              2.0D0 * node(i)%S(1)%flux + 2.0D0 * node(i)%S(2)%flux + node(i)%S(3)%flux)  
-       end do
+    end do
+
     end select
+
     return
   end subroutine rungekutta4
 
