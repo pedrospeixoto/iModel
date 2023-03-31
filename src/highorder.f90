@@ -31,8 +31,10 @@ module highorder
 
   !Routines from shallow water operators
   use swm_operators, only: &
+    scalar_hx2ed, &
+    scalar_elem_product, &
+    div_hx, &
     zero_vector
-
   implicit none
 
   !Global variables
@@ -108,6 +110,8 @@ module highorder
   type(scalar_field):: phieq
   type(scalar_field):: phi_max 
   type(scalar_field):: div_uphi
+  type(scalar_field):: phi_ed
+  type(scalar_field):: uphi
 
   ! RK3 variables
   real(r8), dimension(:), allocatable:: phif0
@@ -1204,18 +1208,22 @@ contains
        end if
      end do
 
-     if(time_integrator=='rk3') then
-        allocate(phif0(1:mesh%nv), stat=ist)
-        allocate(phif1(1:mesh%nv), stat=ist)
-        allocate(phif2(1:mesh%nv), stat=ist)
-        allocate(phif3(1:mesh%nv), stat=ist)
-        div_uphi%n = mesh%nv
-        allocate(div_uphi%f(1:div_uphi%n), stat=ist)
-        phieq%n=mesh%nv
-        phieq%pos=0
-        allocate(phieq%f(1:phieq%n), stat=ist)
+     ! RK vars
+     allocate(phif0(1:mesh%nv), stat=ist)
+     allocate(phif1(1:mesh%nv), stat=ist)
+     allocate(phif2(1:mesh%nv), stat=ist)
+     allocate(phif3(1:mesh%nv), stat=ist)
+     div_uphi%n = mesh%nv
+     uphi%n = mesh%ne
+     phi_ed%n = mesh%ne
+     allocate(div_uphi%f(1:div_uphi%n), stat=ist)
+     allocate(uphi%f(1:uphi%n), stat=ist)
+     allocate(phi_ed%f(1:phi_ed%n), stat=ist)
+     phieq%n=mesh%nv
+     phieq%pos=0
+     allocate(phieq%f(1:phieq%n), stat=ist)
 
-        if(monotonicfilter)then
+     if(time_integrator=='rk3' .and.monotonicfilter)then
           phi_star%n = mesh%nv
           phi_RKS0%n = mesh%nv
           phi_RKS2%n = mesh%nv
@@ -1245,7 +1253,6 @@ contains
             allocate(F_cor(1:mesh%nv, 1:2*maxval(mesh%v(:)%nnb)), stat=ist)
 
           end if
-        end if
       end if
  
     return
@@ -4531,9 +4538,22 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
           if (present(u_step2))then
             call flux_hx_upw1(phi_step2,F_step2, mesh, time, u_step2)
           else
+            print*,'monotonicfilter_rk3 error in 1st order upwind: need u_step2'
             stop
           end if
-          stop
+
+        else if (advmtd=='trsk')then
+          if (present(u_step2))then
+            !Interpolate vapour to edges and calculate flux at edges
+            call scalar_hx2ed(phi_step2, phi_ed, mesh)      !hQv: cell->edge
+            call scalar_elem_product(u_step2, phi_ed, uphi) !Flux uhQv at edges
+
+            !Calculate divergence
+            call flux_hx(uphi, F_step2, mesh)
+          else
+            print*,'monotonicfilter_rk3 error in trsk: need u_step2'
+            stop
+          end if
         else
           print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
           stop
@@ -4816,6 +4836,14 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
     else if(advmtd=='upw1') then
         call div_hx_upw1(div, q, u, mesh, radius)
+
+    else if(advmtd=='trsk') then
+        !Interpolate vapour to edges and calculate flux at edges
+        call scalar_hx2ed(q, phi_ed, mesh)      !hQv: cell->edge
+        call scalar_elem_product(u, phi_ed, uphi) !Flux uhQv at edges
+
+        !Calculate divergence / vapour eq RHS
+        call div_hx(uphi, div_uphi, mesh)
     end if
 
     return
@@ -4977,4 +5005,37 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
   end subroutine div_hx_upw1
 
+  subroutine flux_hx(u, flux, mesh)
+    !---------------------------------------------------------------
+    !Calculate divergence at voronoi cells (hexagons)
+    !   based on edge normal velocities
+    !---------------------------------------------------------------
+    type(grid_structure), intent(in) :: mesh
+    type(scalar_field), intent(in):: u ! velocity at cell edges
+    real(r8), allocatable, intent(inout) :: flux(:,:)
+    integer(i4):: i, j, k, l, ed
+    real(r8):: signcor
+
+    !$omp parallel do &
+    !$omp default(none) &
+    !$omp shared(mesh, u, flux) &
+    !$omp private(j, l, signcor) &
+    !$omp schedule(static)
+    do i=1,mesh%nv
+      !Divergence of uh on unit sphere using div_cell_Cgrig
+      !For all edges forming the hexagon
+      flux(i,:)=0._r8
+      do j=1, mesh%v(i)%nnb
+        !Get edge index
+        l=mesh%v(i)%ed(j)
+        !Get edge outer normal related to the hexagon
+        signcor=real(mesh%hx(i)%ttgout(j), r8)
+        flux(i,j) = signcor*u%f(l)*mesh%edhx(l)%leng
+      end do
+    end do
+    !$omp end parallel do
+
+    return
+
+  end subroutine flux_hx
 end module highorder
