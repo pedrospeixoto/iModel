@@ -719,8 +719,7 @@ subroutine initialize_global_moist_swm_vars()
     !======================================================================================
     case(2)
       !Field at cell's center
-      !u0    = 20._r8
-      u0 = 2._r8*pi*erad/(12._r8*day2sec)
+      u0    = 20._r8
       phi0  = 3._r8*10**4 
       w     = omega*erad*u0 + u0*u0*0.5_r8
       sigma = w/10._r8
@@ -1406,6 +1405,13 @@ subroutine initialize_global_moist_swm_vars()
         else if(time_integrator=='rk3') then
           call ode_rk3_moist_swm(time, h_old, u_old, htheta_old, hqv_old, hqc_old, hqr_old, &
                            h, u, htheta, hqv, hqc, hqr, dt)
+        end if
+
+        !Apply the monotonic filter for tracers-only for RK4
+        if(time_integrator=='rk4' .and. monotonicfilter)then
+          call monotonic_filter(hQv)
+          call monotonic_filter(hQr)
+          call monotonic_filter(hQc)
         end if
 
         call scalar_elem_divide(hqv, h, qv)
