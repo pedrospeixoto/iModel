@@ -10,31 +10,6 @@ import os.path
 import numpy as np
 
 #----------------------------------------------------------------------------
-cmap_data = [(1.0, 1.0, 1.0),
-             (0.3137255012989044, 0.8156862854957581, 0.8156862854957581),
-             (0.0, 1.0, 1.0),
-             (0.0, 0.8784313797950745, 0.501960813999176),
-             (0.0, 0.7529411911964417, 0.0),
-             (0.501960813999176, 0.8784313797950745, 0.0),
-             (1.0, 1.0, 0.0),
-             (1.0, 0.6274510025978088, 0.0),
-             (1.0, 0.0, 0.0),
-             (1.0, 0.125490203499794, 0.501960813999176),
-             (0.9411764740943909, 0.250980406999588, 1.0),
-             (0.501960813999176, 0.125490203499794, 1.0),
-             (0.250980406999588, 0.250980406999588, 1.0),
-             (0.125490203499794, 0.125490203499794, 0.501960813999176),
-             (0.125490203499794, 0.125490203499794, 0.125490203499794),
-             (0.501960813999176, 0.501960813999176, 0.501960813999176),
-             (0.8784313797950745, 0.8784313797950745, 0.8784313797950745),
-             (0.9333333373069763, 0.8313725590705872, 0.7372549176216125),
-             (0.8549019694328308, 0.6509804129600525, 0.47058823704719543),
-             (0.6274510025978088, 0.42352941632270813, 0.23529411852359772),
-             (0.4000000059604645, 0.20000000298023224, 0.0)]
-colormap = mcolors.ListedColormap(cmap_data, 'precipitation')
-#----------------------------------------------------------------------------
-
-#----------------------------------------------------------------------------
 def replace_line(filename, content, line_number):
     import re
     if os.path.exists(filename): # The file exists
@@ -61,15 +36,14 @@ def replace_line(filename, content, line_number):
 # Parameters
 # Program to be run
 program = "./imodel"
-run = True # Run the simulation?
+run = True# Run the simulations?
 
 # Grid levels
-glevels = (1,2)
+glevels = (4,)
 
 # FV Schemes
 mono_values = (1,) # mononotic options
-fvs = ('og2','og3', 'og4', 'gass')
-fvs = ('og2','og3')
+fvs = ('og2','og3', 'og4', 'sg3')
 rk = 'rk3'
 
 # Grid name
@@ -81,20 +55,22 @@ gridname = 'icos_pol_scvt_h1_'
 map_projection = 'mercator'
 
 # Test case - (2, 3 or 4)
-TC = 2
+TC = 3
 tc = str(TC)+' 0'
 
 # final day
 if TC==2:
     fd = '12 12'
     tf = '1036800'
-    dt = ('6400','3200','1600','800','400','200','100')
-
+    dt = ('6400','3200','1000','800','400','200')
 elif TC==3:
     fd = '30 30'
     tf = '2592000'
-    dt = ('12800','6400','3200','1600','800','400','200')
-
+    dt = ('6400','3200','1600','800','400','200','100','50')
+elif TC==5:
+    fd = '8 8'
+    tf = '691200'
+    dt = ('1660','800','200','100','50','25')
 t0 = '0'
 
 # data directory
@@ -111,11 +87,11 @@ nlat = 720
 nlon = 1440
 
 # fields to be plotted
-fields = ('theta', 'qr', 'qv', 'qc', 'tracer')
-field_names = (r'$\theta$', r'$q_r$', r'$q_v$', r'$q_c$', 'tracer')
+fields = ('theta', 'qr', 'qv', 'qc')
+field_names = (r'$\theta$', r'$q_r$', r'$q_v$', r'$q_c$')
 
-fields_error = ('tracer','theta','qv','h','u')
-field_error_name = ('tracer', r'$\theta$', r'$q_v$', r'$h$', r'$u$' )
+fields_error = ('theta','qv','h','u')
+field_error_name = ( r'$\theta$', r'$q_v$', r'$h$', r'$u$' )
 
 # plot errors for different all schemes in  different norms
 norm_title  = [r'$L_{\infty}$',r'$L_1$',r'$L_2$']
@@ -163,11 +139,6 @@ for g in range(0, len(glevels)):
                 filename_field_tf = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(tf)+'_'+gridname+str(glevel)+'.dat'
                 filename_field_t0 = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(t0)+'_'+gridname+str(glevel)+'.dat'
 
-                f = open(datadir+filename_field_t0,'rb')
-                data_field = np.fromfile(f, dtype='float32')
-                data_field = np.reshape(data_field,(nlat,nlon,3))
-                val = data_field[:,:,2]
-
                 # Plot the fields
                 f = open(datadir+filename_field_tf,'rb')
                 data_field = np.fromfile(f, dtype='float32')
@@ -178,7 +149,10 @@ for g in range(0, len(glevels)):
                 Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[fv] +', mono = '+str(mono_values[mono])
 
                 if fields[fd]=='qr' or fields[fd]=='qc':
-                    plot(filename_field_tf, colormap, map_projection, title=Title)
+                    q_abs = max(abs(np.amin(val)), abs(np.amax(val)))
+                    q_min, q_max = -q_abs, q_abs
+                    plot(filename_field_tf, 'RdBu', map_projection, qmin = q_min, qmax=q_max, title=Title)
+                    #plot(filename_field_tf, 'jet', map_projection, title=Title)
                 else:
                     plot(filename_field_tf, 'jet', map_projection, title=field_names[fd])
 
