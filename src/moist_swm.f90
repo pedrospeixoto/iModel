@@ -2595,48 +2595,4 @@ subroutine initialize_global_moist_swm_vars()
   end subroutine
 
 
-
-  subroutine init_edges(mesh)  
-    !----------------------------------------------------------------------------------------------
-    ! Initialize some index variables regarding quadrature edges
-    !----------------------------------------------------------------------------------------------
-    implicit none
-
-    type(grid_structure),intent(inout):: mesh
-    integer(i4):: i
-    integer(i4):: j
-    integer(i4):: i1, i2
-    integer(i4):: j1, j2
-    integer(i4):: e, e1, e2
-    integer(i4):: k, q, nquad, maxnnb
-    real(r8):: p1(1:3), p2(1:3), lon, lat, dist, dist_min
-
-    ! Maximum of neighbors in a Voronoi cell
-    maxnnb = maxval(mesh%v(:)%nnb)
-    ! Allocation
-    allocate(edges_indexes(1:mesh%nv, 1:maxnnb,1:1))
-    do e = 1, mesh%ne
-      i1 = mesh%edhx(e)%sh(1)
-      i2 = mesh%edhx(e)%sh(2)
-
-      loopi: do i = 1, mesh%v(i1)%nnb
-         e1 = mesh%v(i1)%ed(i)
-         do j = 1, mesh%v(i2)%nnb
-            e2 = mesh%v(i2)%ed(j)
-            if(e1==e2)then
-              j1 = i
-              j2 = j
-              cycle loopi
-            end if
-        end do
-      end do loopi
-
-      ! Store edge index
-      edges_indexes(i1,j1,1) = e
-      edges_indexes(i2,j2,1) = e
-    end do
-
-  end subroutine init_edges
-
-
   end module moist_swm

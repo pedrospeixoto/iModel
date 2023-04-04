@@ -4389,13 +4389,13 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
          
           !print*,p1
           ! Reconstruct the velocity field at quadrature points
-          !urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
-          call cart2sph(p1(1), p1(2), p1(3), lon, lat)
-          u0 = 2._r8*pi*erad/(12._r8*day2sec)
-          utmp = u0*cos(lat)
-          vtmp = 0._r8
-          call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
-          urecon=uexact 
+          urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+          !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
+          !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+          !utmp = u0*cos(lat)
+          !vtmp = 0._r8
+          !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
+          !urecon=uexact 
 
           ! Store the velocity
           node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon
@@ -4491,7 +4491,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       integer(i4) :: i, j, k, jj
 
       !-----------------------------------------------------------------------------------
-
       ! Flux for phi_star using 1st order upwind scheme at time t
       if (present(hSphi))then ! check if source was given
         !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
@@ -4547,13 +4546,12 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
             !Interpolate vapour to edges and calculate flux at edges
             call scalar_hx2ed(phi_step2, phi_ed, mesh)      !hQv: cell->edge
             call scalar_elem_product(u_step2, phi_ed, uphi) !Flux uhQv at edges
-
-            !Calculate divergence
             call flux_hx(uphi, F_step2, mesh)
           else
-            print*,'monotonicfilter_rk3 error in trsk: need u_step2'
+            print*,'monotonicfilter_rk3 error in trsk: u_step2 missing'
             stop
           end if
+
         else
           print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
           stop
