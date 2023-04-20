@@ -30,27 +30,25 @@ def plot(filename, colormap, map_projection, qmin=None, qmax=None, title=None):
     dpi = 100
 
     # Map projection
-    if map_projection == "mercator":
+    if map_projection == "mercator" or map_projection == 'south_america':
         plateCr = ccrs.PlateCarree()
         plt.figure(figsize=(1832/dpi, 977/dpi), dpi=dpi)
     elif map_projection == "sphere":
         plateCr = ccrs.Orthographic(central_longitude=-60.0, central_latitude=0.0)
         plt.figure(figsize=(800/dpi, 800/dpi), dpi=dpi)
-    elif map_projection == "north_pole":
-        #plateCr = ccrs.Orthographic(central_longitude=-60.0, central_latitude=0.0)
-        plateCr = ccrs.NorthPolarStereo(central_longitude=0.0, globe=None)
+    elif map_projection == 'south_america':
+        plateCr = ccrs.PlateCarree()
         plt.figure(figsize=(800/dpi, 800/dpi), dpi=dpi)
-
 
     plateCr._threshold = plateCr._threshold/10.
     ax = plt.axes(projection=plateCr)
     ax.stock_img()
 
-    if map_projection == 'mercator':
+    if map_projection == 'mercator' or map_projection == 'south_america':
         ax.gridlines(draw_labels=True)
 
-    # Add coastlines
-    ax.coastlines()
+    if map_projection == 'south_america':
+        ax.set_extent([-100, 0, -80, -30], crs=ccrs.PlateCarree())
 
     if not qmin or not qmax:
         # Plot the scalar field
@@ -63,8 +61,11 @@ def plot(filename, colormap, map_projection, qmin=None, qmax=None, title=None):
         plt.colorbar(orientation='horizontal',fraction=0.046, pad=0.04, format='%.1e')
     elif map_projection == 'sphere':
         plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04, format='%.1e')
-    elif map_projection == 'north_pole':
+    elif map_projection == 'south_america':
         plt.colorbar(orientation='vertical',fraction=0.046, pad=0.04, format='%.1e')
+
+    # Add coastlines
+    ax.coastlines()
 
     # add title
     if title:
@@ -76,5 +77,11 @@ def plot(filename, colormap, map_projection, qmin=None, qmax=None, title=None):
     plt.close()
     print('Figure has been saved in '+graphdir+filename+'.'+fig_format)
 
+#filename="moist_swm_tc2_dt800_HTC_trsk10_areageo_advmethod_trsk_rk4_mono1_qc_t2592000_icos_pol_scvt_h1_3.dat"
+#filename="moist_swm_tc3_dt800_HTC_trsk10_areageo_advmethod_trsk_rk4_mono1_qc_t2592000_icos_pol_scvt_h1_3.dat"
+#filename="moist_swm_tc3_dt800_HTC_trsk10_areageo_advmethod_trsk_rk4_mono1_qr_t2592000_icos_pol_scvt_h1_3.dat"
+#filename="moist_swm_tc2_dt800_HTC_trsk10_areageo_qc_t2592000_icos_pol_scvt_h1_3.dat"
+#filename="moist_swm_tc4_dt800_HTC_trsk10_areageo_qc_t2592000_icos_pol_scvt_h1_3.dat"
+#filename="moist_swm_tc4_dt800_HTC_trsk10_areageo_qr_t2592000_icos_pol_scvt_h1_3.dat"
 #filename = 'order2_v5_in6_mono0_phi_t_10_icos_pol_scvt_h1_4.dat'
 #plot(filename, 'jet', 'mercator')
