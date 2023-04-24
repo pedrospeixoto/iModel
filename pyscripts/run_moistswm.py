@@ -39,7 +39,7 @@ program = "./imodel"
 run = False # Run the simulations?
 
 # Grids
-glevels = (4,4,4,4,5)
+glevels = (3,3,3,3,4)
 grid_ref  = 'icos_readref_sa_andes3_scvt_h1_'
 grid_unif = 'icos_pol_scvt_h1_'
 gridnames=(grid_unif, grid_unif, grid_unif, grid_unif, grid_unif)
@@ -51,8 +51,8 @@ rk = 'rk3'
 
 # Plotting parameters
 #map_projection = 'sphere'
-#map_projection = 'south_america'
-map_projection = 'mercator'
+map_projection = 'south_pole'
+#map_projection = 'mercator'
 
 # Test case - (2, 3 or 4)
 TC = 3
@@ -153,7 +153,7 @@ for g in range(0, len(glevels)):
     for mono in range(0, len(mono_values)):
         for fd in range(0,len(fields)):
             # File to be opened
-            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[glevel-1]+'_HTC_trsk10_areageo_advmethod_'+fvs[g]
+            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_advmethod_'+fvs[g]
             filename_field_tf = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(tf)+'_'+gridnames[g]+str(glevels[g])+'.dat'
             filename_field_t0 = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(t0)+'_'+gridnames[g]+str(glevels[g])+'.dat'
 
