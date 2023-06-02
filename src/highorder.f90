@@ -514,14 +514,13 @@ contains
 
        call matrix_gas(nodes,mesh)
 
-
        call vector_gas(nodes,mesh)
 
        call reconstruction_gas(nodes,mesh)
 
 !       call interpolation(nodes,mesh) 
 
-       call flux_edges_gas(nodes,mesh,0,0.0D0) 
+       !call flux_edges_gas(nodes,mesh,0,0.0D0) 
 
        call  init_quadrature_edges(mesh)
        ! GASSMANN NO PLANO
@@ -540,43 +539,41 @@ contains
 
        !Avanço temporal 
        time=0.0D0 
-       do j=0,node(0)%ntime+1
+       do j=0,node(0)%ntime
           !Atualizando a solucao
           do i=1,nodes
              node(i)%phi_old=node(i)%phi_new2
-             phi%f(i) = node(i)%phi_new2
           enddo
-          
+
+          if (j==node(0)%ntime)then
+             call erro(nodes,mesh,10.0D0)
+          endif
       
           !Plotando Inicial e Final
           if(j==0.or.j==node(0)%ntime/2 .or.j==node(0)%ntime)then  
+             do i=1,nodes
+                phi%f(i) = node(i)%phi_new2
+             end do
              write(atime,'(i8)') nint(time)
              phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))
              call plot_scalarfield(phi,mesh)
           end if
 
-          ! Time integration
           if (time_integrator=='rk4') then
-            do k=1,4
-               call vector_gas(nodes,mesh)
-               call reconstruction_gas(nodes,mesh)
-               call flux_gas(nodes,mesh,k-1,time)
-               call rungekutta4(nodes,mesh,k) 
-            enddo
-
+             do k=1,4
+                call vector_gas(nodes,mesh)
+                call reconstruction_gas(nodes,mesh)
+                call flux_gas(nodes,mesh,k-1,time)
+                call rungekutta4(nodes,mesh,k) 
+             enddo
           elseif (time_integrator=='rk3') then
             call ode_rk3_adv(nodes, mesh, time)
             !call ode_rk3_advection (mesh, phi_new, phi, time, node(0)%dt, radius)
             !node(1:nodes)%phi_new2=phi_new%f
           endif
 
-          if ((j==node(0)%ntime))then
-            call erro(nodes,mesh,10.0D0)
-          endif
-
           ! Mass update
           mass = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
-         
           mass_var = abs((mass0-mass)/mass0)
           time=time+node(0)%dt
           print*, "Time:",  time
@@ -585,11 +582,9 @@ contains
           print*,''
        enddo
 
-
        !Method FV-OLG
     else
        print*, 'Method FV-OLG'
-
        call matrix_olg(nodes,mesh)
 
        call  init_quadrature_edges(mesh)
@@ -617,15 +612,21 @@ contains
        !Avanço temporal 
        time=0.0D0
 
-       do j=0,node(0)%ntime+1
+       do j=0,node(0)%ntime
           !Atualizando a solucao
           do i=1,nodes
              node(i)%phi_old=node(i)%phi_new2
-             phi%f(i) = node(i)%phi_new2
           enddo
  
+          if (j==node(0)%ntime)then
+             call erro(nodes,mesh,10.0D0)
+          endif
+
           !Plotando Inicial e Final
           if(j==0.or.j==node(0)%ntime/2 .or.j==node(0)%ntime)then  
+             do i=1,nodes
+                phi%f(i) = node(i)%phi_new2
+             end do
              write(atime,'(i8)') nint(time)
              phi%name=trim(adjustl(trim(transpname))//"_phi_t_"//trim(adjustl(trim(atime))))
              call plot_scalarfield(phi,mesh)
@@ -642,10 +643,6 @@ contains
             call ode_rk3_adv(nodes, mesh, time)
             !call ode_rk3_advection (mesh, phi_new, phi, time, node(0)%dt, radius)
             !node(1:nodes)%phi_new2=phi_new%f
-          endif
-
-          if (j==node(0)%ntime)then
-             call erro(nodes,mesh,10.0D0)
           endif
 
           time=time+node(0)%dt
@@ -792,7 +789,7 @@ contains
        h2=dexp(-b0*norm(p-p2)**2)
        f=h1+h2
     case(3) !Non-smooth- Slotted cylinder
-       b=0.1_r8
+       b=0._r8
        c=1._r8 !0.9
        r=1._r8/2._r8
        f=b
@@ -2878,6 +2875,7 @@ contains
     real(r8),allocatable  :: vn(:)      
     real(r8),allocatable  :: pm(:)      
 
+
     allocate (p1(3),p2(3),p3(3),vn(3),pm(3))
     FEPS = 1.0D-8
     dot = 0.0D0
@@ -2887,7 +2885,7 @@ contains
     aaxx = 0.0D0
     erro_Linf = 0.0D0
     contador = 0  
-    
+    !stop
     do i = 132,132
          node(i)%S(z)%flux = 0.0D0
          jend = node(i)%ngbr(1)%numberngbr
@@ -3575,6 +3573,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
            aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
+           !aux3 = 0.d0
            !print*,aux2
            
            node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
@@ -3688,7 +3687,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         phi_RKS2%f(:) = node(1:nodes)%phi_new2 ! phi at time t+dt/2 (second RK stage)
         call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, time)
         node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
-
       end if
 
    end if
@@ -3858,7 +3856,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     end do
 
     end select
-
     return
   end subroutine rungekutta4
 
