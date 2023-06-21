@@ -77,6 +77,7 @@ module highorder
 
   !Method order 
   integer (i4):: order
+  integer (i4):: orderg
   
   !Name for files and kind of staggering
   character (len=128)::  transpname
@@ -349,21 +350,6 @@ contains
        end if
     end if
 
-    !Mixing ration
-    phi%pos=0
-    phi%n=mesh%nv
-    allocate(phi%f(1:phi%n)) 
-    allocate(phi_new%f(1:phi%n)) 
-    phi_new=phi
-
-    !Set a standart name for files
-    write(atmp,'(i8)') int(order)
-    transpname="order"//trim(adjustl(trim(atmp)))    
-    write(atmp,'(i8)') int(testcase)
-    transpname=trim(adjustl(trim(transpname)))//"_v"//trim(adjustl(trim(atmp)))
-    write(atmp,'(i8)') int(initialfield)
-    transpname=trim(adjustl(trim(transpname)))//"_in"//trim(adjustl(trim(atmp)))    
-
     ! Advection scheme order
     select case(advmtd)
     case('upw1')
@@ -372,24 +358,53 @@ contains
 
     case('og2')
         order=2
+        orderg=2
         method='O'
 
     case('og3') 
         order=3
+        orderg=3
         method='O'
 
     case('og4')
         order=4
+        orderg=4
         method='O'
 
+    case('sg2')
+        order=3
+        orderg=2
+        method='G'
+       
     case('sg3')
         order=3
+        orderg=3
         method='G'
+        
+    case('sg4')
+        order=3
+        orderg=4
+        method='G'                
 
     case default
         print*, "Invalid advection method. Please select a proper order."
         stop
     end select
+
+    !Mixing ration
+    phi%pos=0
+    phi%n=mesh%nv
+    allocate(phi%f(1:phi%n)) 
+    allocate(phi_new%f(1:phi%n)) 
+    phi_new=phi
+
+    !Set a standart name for files
+    write(atmp,'(i8)') int(orderg)
+    transpname="order"//trim(adjustl(trim(atmp)))    
+    write(atmp,'(i8)') int(testcase)
+    transpname=trim(adjustl(trim(transpname)))//"_v"//trim(adjustl(trim(atmp)))
+    write(atmp,'(i8)') int(initialfield)
+    transpname=trim(adjustl(trim(transpname)))//"_in"//trim(adjustl(trim(atmp))) 
 
     transpname=trim(transpname)//"_advmethod_"//trim(advmtd)
     if (time_integrator == 'rk3' .or. time_integrator == 'rk4') then
@@ -3572,9 +3587,18 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
-           aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
+           aux3 = sinal*(0.25D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
            !aux3 = 0.d0
            !print*,aux2
+
+           if (orderg==2) then
+           aux2 = 0.0D0 
+           aux3 = 0.0D0
+
+           else if (orderg==4) then
+           aux3 = 0.0D0
+
+           endif 
            
            node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
 
@@ -4511,7 +4535,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       if(controlvolume=='V')then
         !-----------------------------------------------------------------------------------
         ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
-        if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
+        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
           !Calculate divergence and edges flux
           if (present(u_step2))then
             call divhx(phi_step2, div_uphi, mesh, radius, time, u_step2)
@@ -4651,7 +4675,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
       !======================================================================================
       else ! Donald Diagram
-        if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
+        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
           call divhx(phi_step2, div_uphi, mesh, radius, time)
         end if
 
@@ -4782,7 +4806,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     ! High order variables
     integer(i4) :: i
     
-    if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3'.or. advmtd=='og4') then
+    if (advmtd=='sg2'.or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3'.or. advmtd=='og4') then
       !$omp parallel do &
       !$omp default(none) &
       !$omp shared(mesh, q, node) &
