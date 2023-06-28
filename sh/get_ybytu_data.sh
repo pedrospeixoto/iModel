@@ -6,15 +6,15 @@
 # Hosts and users
 remote_host1="brucutuiv.ime.usp.br"  # accessed from local host
 remote_host2="ybytu.ime.usp.br"      # accessed from remote host1
-user1="luansantos"                   # user at remote_host1
-user2="luansantos"                   # user at remote_host2
+user1="Jeferson-local"                   # user at remote_host1
+user2="jbrambatti"                   # user at remote_host2
 #-------------------------------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------------------------------
 # Directories and output
-output_dir_remote_host1="/var/tmp/"                                #remote host data directory (remote_host1)
-output_dir_remote_host2="/home/luansantos/doc/imodel/"              #remote host data directory (remote_host2)
-output_dir_local_host="/home/luan/doc/code/iModel/"  #local data directory
+output_dir_remote_host1="/var/tmp/jbram/"                                #remote host data directory (remote_host1)
+output_dir_remote_host2="/home/jbrambatti/imodel/"                   #remote host data directory (remote_host2)
+output_dir_local_host="/home/jeferson/imodel/"  #local data directory
 data='graphs'           #name of directory where data is in output_dir_remote_host2
 output='imodel_data'   #output file (.tar)
 

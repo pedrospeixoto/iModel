@@ -15,18 +15,19 @@ program = "./imodel"
 run = True # Run the simulation?
 
 # Grid levels
-glevels = (1,2,3,4,5,6)
+glevels = (2,3,4,5,6,)
 
 # FV Schemes
-fvs = ('og2','og3', 'og4', 'sg3')
+fvs = ('sg3', )
+#fvs = ('og2', 'og3', 'og4','sg2', 'sg3', 'sg4')
 #fvs = ('og2', 'sg3')
 #fvs = ('og4',)
 #fvs = ('sg3',)
 
 # mononotic filter
-#mono_values = (0,) 
+mono_values = (0,) 
 #mono_values = (1,) 
-mono_values = (0,1) 
+#mono_values = (1,0) 
 
 # time integrator
 rk = 'rk3'
@@ -112,11 +113,18 @@ for g in range(0, len(glevels)):
         replace_line(pardir+'highorder.par', str(mono_values[mono]), 9)
         for fv in range(0,len(fvs)):
             replace_line(pardir+'highorder.par', fvs[fv], 5)
+            
+            string = fvs[fv]
+            order = ''.join(filter(str.isdigit, string))
+       
+            
+            
+            
 
             # Files to be opened
-            filename_phi = 'order0_v'+str(vf)+'_in'+str(ic)+'_advmethod_'+str(fvs[fv])+\
+            filename_phi = 'order'+order+'_v'+str(vf)+'_in'+str(ic)+'_advmethod_'+str(fvs[fv])+\
             '_'+rk+'_mono'+str(mono_values[mono])+'_phi_t_5_'+gridname+str(glevel)+'.dat'
-            filename_error = 'order0_v'+str(vf)+'_in'+str(ic)+'_advmethod_'+str(fvs[fv])+\
+            filename_error = 'order'+order+'_v'+str(vf)+'_in'+str(ic)+'_advmethod_'+str(fvs[fv])+\
             '_'+rk+'_mono'+str(mono_values[mono])+'_phi_t_10_'+gridname+str(glevel)+'.dat'
 
             # Run the program

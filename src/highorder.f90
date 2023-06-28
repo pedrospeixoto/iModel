@@ -480,7 +480,7 @@ contains
     if (order > 2) then
        nlines=maxval(mesh%v(:)%nnb)
        ncolumns=maxval(mesh%v(:)%nnb)+1  
-       allocate(nbsv(13,nodes))
+       allocate(nbsv(15,nodes))
        nbsv = 0
        call find_neighbors(nbsv,nlines,ncolumns,nodes)
        do i=1,nodes
@@ -1008,7 +1008,7 @@ contains
     integer(i4),intent(in)    :: nlines
     integer(i4),intent(in)    :: ncolumns
     integer(i4),intent(in)    :: nodes
-    integer(i4),dimension(13,nodes),intent(out)     :: nbsv
+    integer(i4),dimension(15,nodes),intent(out)     :: nbsv
     integer     :: i
     integer     :: k
     integer     :: j
@@ -1081,8 +1081,9 @@ contains
        do k = 1,size(vecv)
           if (vecv(k) /= 0) then
              l = l+1
-             if (l >= 13) then
-                write(*,"(5x,'Mais vizinhos do que o esperado. Esperando no maximo',I8,/)")13
+             if (l >= 15) then
+                write(*,"(5x,'Mais vizinhos do que o esperado. Esperando no maximo',I8,/)")14
+                print*, l
                 stop
              end if
              nbsv(l+1,i) = vecv(k)
@@ -1354,7 +1355,7 @@ contains
     real(r8),allocatable:: pv(:)
     real(r8),allocatable:: pg(:)
 
-    allocate(pv(3),pg(3),dist(6))
+    allocate(pv(3),pg(3),dist(mesh%maxvnb))
     dist=1.0D+10
     do i=1,nodes
        jend=node(i)%ngbr(1)%numberngbr
@@ -1374,7 +1375,7 @@ contains
              k=0
              do
                 k=k+1
-                if(k>6)exit
+                if(k>mesh%maxvnb)exit
                 if(aux_dist==dist(k))exit
              enddo
              dist=1.0D+10
@@ -1399,13 +1400,13 @@ contains
     integer(i4):: n
     integer(i4):: s
     integer(i4):: diml
-    integer(i4):: jend
+    integer(i4):: jend 
     real(r8):: aux_dist
     real(r8),allocatable:: dist(:)
     real(r8),allocatable:: pv(:)
     real(r8),allocatable:: pg(:)
 
-    allocate(pv(3),pg(3),dist(6))
+    allocate(pv(3),pg(3),dist(mesh%maxvnb))
     dist=1.0D+10
     do i=1,nodes
        jend=node(i)%ngbr(1)%numberngbr
@@ -1425,7 +1426,7 @@ contains
              k=0
              do
                 k=k+1
-                if(k>6)exit
+                if(k>mesh%maxvnb)exit
                 if(aux_dist==dist(k))exit
              enddo
              dist=1.0D+10
@@ -3587,7 +3588,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
            aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
-           aux3 = sinal*(0.25D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
+           aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
            !aux3 = 0.d0
            !print*,aux2
 
@@ -3599,6 +3600,8 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
            aux3 = 0.0D0
 
            endif 
+           
+
            
            node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
 

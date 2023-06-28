@@ -6,13 +6,13 @@ sg3
 !Time integration (rk3 or rk4)
 rk3
 !Monotonic limiter? (0-no, 1-yes)
-1
+0
 !Sphere radius (U=1.0D0, T=6371220.0D0)
 U
 !Case for velocity field (1-ndiv, 2-ndiv, 3-div, 4-divrot, 5-Rot, 6-RossHarw, 7-RotVarSpeed)
 5
 !Initial condition (scalar field- 1-cosbel, 2-gauss, 3-cylinder, 4-Passive Adv , 5-Global positive function , 6- One Gaussian
-3
+6
 !Number of time steps (ex 64) and 1-adjust by 2^(glevel-5) or 0-no adjust )
 2048 0
 !!Staggering (HC, HA)

@@ -8,20 +8,20 @@ version=` date +%y.%m.%d `
 output="imodel.tar.bz2"
 
 #Local host backup directory
-dropdir="/home/luan/Dropbox/doc/code/imodel"
+dropdir="/home/jeferson/Dropbox/doc/code/imodel"
 
 #-------------------------------------------------------------------------------------------------------
 # remote host 1 - ime.usp.br
-user_remote_host1="luansantos"
+user_remote_host1="Jeferson-local"
 remote_host1="brucutuiv.ime.usp.br"
-remote_host1_dir="/var/tmp"
+remote_host1_dir="/var/tmp/jbram"
 #-------------------------------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------------------------------
 # remote host 2 - ybytu
-user_remote_host2="luansantos"
-remote_host2="ybytu"
-remote_host2_dir="doc/imodel"
+user_remote_host2="jbrambatti"
+remote_host2="ybytu.ime.usp.br"
+remote_host2_dir="/home/jbrambatti/imodel"
 #-------------------------------------------------------------------------------------------------------
 
 #-------------------------------------------------------------------------------------------------------
@@ -31,7 +31,7 @@ rsync -v -t -u $output  "$dropdir/."
 echo "Synchronized with Dropbox"
 echo
 #-------------------------------------------------------------------------------------------------------
-
+ 
 #-------------------------------------------------------------------------------------------------------
 #remote server ime.usp.br backup sync
 echo "Sending to $remote_host1:"

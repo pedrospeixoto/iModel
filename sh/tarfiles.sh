@@ -23,8 +23,8 @@ pyscripts="../pyscripts/*.py "
 others="../Makefile\
  ../README.* ../*.sh"
 
-#files="$sourcefiles $parfiles $scripts $pyscripts $altfiles $others $griddir"
-files="$sourcefiles $parfiles $scripts $pyscripts $others"
+files="$sourcefiles $parfiles $scripts $pyscripts $altfiles $others $griddir"
+#files="$sourcefiles $parfiles $scripts $pyscripts $others"
 
 output="imodel.tar.bz2"
 
