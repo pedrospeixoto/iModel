@@ -74,7 +74,7 @@ module moist_swm
     time_integrator, &
     monotonicfilter, &
     moistswm, &
-    order, &
+    order, orderg, &
     monotonicfilter_rk3, & 
     find_neighbors, &
     allocation, &
@@ -367,7 +367,9 @@ subroutine allocate_global_moistswm_vars()
     IF(ist>0) STOP 'Error in allocate_globalmoistswmvars'
 
     call initialize_global_moist_swm_vars()
-    if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. advmtd=='upw1' .or. advmtd=='trsk')then
+    if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or.&
+        advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or.&
+        advmtd=='upw1' .or. advmtd=='trsk')then
       call highorder_adv_vars()
       if (advmtd .ne. 'upw1')then
         call init_quadrature_edges(mesh)
@@ -391,8 +393,9 @@ subroutine highorder_adv_vars()
     controlvolume = "V"
     moistswm = .True.
 
-    if (advmtd=='sg3' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' &
-        .or. advmtd=='trsk' .or. advmtd=='upw1') then
+    if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. &
+ 	advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. &
+        advmtd=='trsk' .or. advmtd=='upw1') then
         !Alocando nos
         allocate(node(0:mesh%nv))
 
@@ -409,7 +412,7 @@ subroutine highorder_adv_vars()
           node(i)%ngbr(1)%lvd(1:ngbr+1) = (/0.0D0,mesh%v(i)%nbdg(1:ngbr)/)
         end do
 
-        if (advmtd=='sg3' .or. advmtd=='og3' .or. advmtd=='og4') then
+        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og3' .or. advmtd=='og4') then
            nlines=maxval(mesh%v(:)%nnb)
            ncolumns=maxval(mesh%v(:)%nnb)+1  
            allocate(nbsv(13,mesh%nv))
@@ -438,7 +441,7 @@ subroutine highorder_adv_vars()
 
        if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
           call matrix_olg(mesh%nv,mesh)
-       else if(advmtd=='sg3') then!Gassman
+       else if(advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4') then!Gassman
           call condition_initial_gas(mesh%nv,mesh) 
           call matrix_gas(mesh%nv,mesh)
        endif
@@ -721,7 +724,7 @@ subroutine initialize_global_moist_swm_vars()
     !======================================================================================
     case(2)
       !Field at cell's center
-      u0    = 20._r8
+      u0 = 2._r8*pi*erad/(12._r8*day2sec)
       phi0  = 3._r8*10**4 
       w     = omega*erad*u0 + u0*u0*0.5_r8
       sigma = w/10._r8
@@ -1138,7 +1141,8 @@ subroutine initialize_global_moist_swm_vars()
     !===============================================================
     ! Reconstructs to normal velocity at quadrature points
     !===============================================================
-    if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. advmtd=='sg3')then
+    if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. &
+        advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4')then
        call reconstruct_velocity_quadrature(mesh, u)
     end if
 
@@ -1371,6 +1375,18 @@ subroutine initialize_global_moist_swm_vars()
         dif_coef_tr%f = dsqrt(hypdif_coef_tr%f)
     end if
 
+
+    do i=1, mesh%nv
+        lon = mesh%v(i)%lon
+        lat = mesh%v(i)%lat
+        call sph2cart(lon, lat, p(1), p(2), p(3))
+        call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
+        tracer%f(i) = dexp(-5._r8*norm(p-pc)**2)
+        htracer%f(i) = tracer%f(i)*h%f(i)
+        tracer_exact%f(i) = tracer%f(i)
+        tracer_error%f(i) = tracer%f(i)
+    end do
+
     !Calculate derived initial fields
     call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, masseq%f, momeq%f, tempeq%f, vapoureq%f, &
     cloudeq%f, raineq%f, tracereq%f, 0._r8)
@@ -1486,7 +1502,7 @@ subroutine initialize_global_moist_swm_vars()
         call calc_energies(Penergy, Kenergy, Tenergy, Availenergy)
 
         Ttracer = sumf_areas(htracer)
-        print '(a33, 2e16.8)','Min/max:', minval(tracer%f),  maxval(tracer%f)
+        print '(a33, 2e16.8)','Min/max:', minval(htracer%f/h%f),  maxval(htracer%f/h%f)
         print '(a33, 2e16.8)','Change in mass of tracer:', (Ttracer-Ttracer0)/Ttracer0
         print '(a33, 2e16.8)','Change in mass of h*(total water):', (Twater-iniwater)/iniwater
         print*,''
@@ -1626,11 +1642,9 @@ subroutine initialize_global_moist_swm_vars()
           qr%name=trim(swmname)//"_qr_t"//trim(adjustl(trim(atime)))
           call plot_scalarfield(qr, mesh)
 
+          tracer%f = htracer%f/h%f
           tracer%name=trim(swmname)//"_tracer_t"//trim(adjustl(trim(atime)))
           call plot_scalarfield(tracer, mesh)
-
-          htracer%name=trim(swmname)//"_htracer_t"//trim(adjustl(trim(atime)))
-          call plot_scalarfield(htracer, mesh)
 
           tracer_error%f = tracer_exact%f - tracer%f
           tracer_error%name=trim(swmname)//"_tracer_error_t"//trim(adjustl(trim(atime)))
@@ -1766,12 +1780,12 @@ subroutine initialize_global_moist_swm_vars()
       !First RK step
       t1 = t0 + dt/2._r8
 
-      !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * momf0(1:u%n) / 2.0_r8
-      !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf0(1:h%n) / 2.0_r8
-      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * tempf0(1:theta%n) / 2.0_r8
-      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * vapourf0(1:qv%n) / 2.0_r8
-      !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * cloudf0(1:qc%n) / 2.0_r8
-      !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * rainf0(1:qr%n) / 2.0_r8
+      u_new%f(1:u%n)          = u%f(1:u%n)           !+ dt * momf0(1:u%n) / 2.0_r8
+      h_new%f(1:h%n)          = h%f(1:h%n)           !+ dt * massf0(1:h%n) / 2.0_r8
+      htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  !+ dt * tempf0(1:theta%n) / 2.0_r8
+      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        !+ dt * vapourf0(1:qv%n) / 2.0_r8
+      hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        !+ dt * cloudf0(1:qc%n) / 2.0_r8
+      hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        !+ dt * rainf0(1:qr%n) / 2.0_r8
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf0(1:qr%n) / 2.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
@@ -1780,12 +1794,12 @@ subroutine initialize_global_moist_swm_vars()
       !Second RK step
       t2 = t0 + dt/2._r8
 
-      !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * momf1(1:u%n) / 2.0_r8
-      !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf1(1:h%n) / 2.0_r8
-      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * tempf1(1:theta%n) / 2.0_r8
-      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * vapourf1(1:qv%n) / 2.0_r8
-      !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * cloudf1(1:qc%n) / 2.0_r8
-      !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * rainf1(1:qr%n) / 2.0_r8
+      u_new%f(1:u%n)          = u%f(1:u%n)           !+ dt * momf1(1:u%n) / 2.0_r8
+      h_new%f(1:h%n)          = h%f(1:h%n)           !+ dt * massf1(1:h%n) / 2.0_r8
+      htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  !+ dt * tempf1(1:theta%n) / 2.0_r8
+      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        !+ dt * vapourf1(1:qv%n) / 2.0_r8
+      hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        !+ dt * cloudf1(1:qc%n) / 2.0_r8
+      hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        !+ dt * rainf1(1:qr%n) / 2.0_r8
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf1(1:qr%n) / 2.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new,&
@@ -1794,12 +1808,12 @@ subroutine initialize_global_moist_swm_vars()
 
       !Third  RK step
       t3 = t0 + dt
-      !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * momf2(1:u%n)
-      !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n) 
-      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * tempf2(1:theta%n)
-      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * vapourf2(1:qv%n) 
-      !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * cloudf2(1:qc%n)
-      !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * rainf2(1:qr%n)
+      u_new%f(1:u%n)          = u%f(1:u%n)           !+ dt * momf2(1:u%n)
+      h_new%f(1:h%n)          = h%f(1:h%n)           !+ dt * massf2(1:h%n) 
+      htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  !+ dt * tempf2(1:theta%n)
+      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        !+ dt * vapourf2(1:qv%n) 
+      hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        !+ dt * cloudf2(1:qc%n)
+      hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        !+ dt * rainf2(1:qr%n)
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf2(1:qr%n)
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
@@ -1920,24 +1934,24 @@ subroutine initialize_global_moist_swm_vars()
       call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, massf0, momf0, tempf0, vapourf0, cloudf0, rainf0, tracerf0, t)
 
       !First RK step
-      u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf0(1:u%n) + Su%f(1:u%n)) / 3.0_r8
-      h_new%f(1:h%n)          = h%f(1:h%n)           + dt *  massf0(1:h%n) / 3.0_r8
-      htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf0(1:theta%n) + hStheta%f(1:theta%n)) / 3.0_r8
-      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf0(1:qv%n)  + hSqv%f(1:qv%n)      ) / 3.0_r8
-      hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf0(1:qc%n)   + hSqc%f(1:qc%n)      ) / 3.0_r8
-      hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf0(1:qr%n)    + hSqr%f(1:qr%n)      ) / 3.0_r8
+      !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf0(1:u%n) + Su%f(1:u%n)) / 3.0_r8
+      !h_new%f(1:h%n)          = h%f(1:h%n)           + dt *  massf0(1:h%n) / 3.0_r8
+      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf0(1:theta%n) + hStheta%f(1:theta%n)) / 3.0_r8
+      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf0(1:qv%n)  + hSqv%f(1:qv%n)      ) / 3.0_r8
+      !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf0(1:qc%n)   + hSqc%f(1:qc%n)      ) / 3.0_r8
+      !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf0(1:qr%n)    + hSqr%f(1:qr%n)      ) / 3.0_r8
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf0(1:qr%n) / 3.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
       massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1, t+dt/3._r8)
 
       !Second RK step
-      u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf1(1:u%n) + Su%f(1:u%n)) / 2.0_r8
-      h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf1(1:h%n) / 2.0_r8
-      htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf1(1:theta%n) + hStheta%f(1:theta%n)) / 2.0_r8
-      hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf1(1:qv%n)  + hSqv%f(1:qv%n)      ) / 2.0_r8
-      hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf1(1:qc%n)   + hSqc%f(1:qc%n)      ) / 2.0_r8
-      hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf1(1:qr%n)    + hSqr%f(1:qr%n)      ) / 2.0_r8
+      !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf1(1:u%n) + Su%f(1:u%n)) / 2.0_r8
+      !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf1(1:h%n) / 2.0_r8
+      !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf1(1:theta%n) + hStheta%f(1:theta%n)) / 2.0_r8
+      !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf1(1:qv%n)  + hSqv%f(1:qv%n)      ) / 2.0_r8
+      !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf1(1:qc%n)   + hSqc%f(1:qc%n)      ) / 2.0_r8
+      !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf1(1:qr%n)    + hSqr%f(1:qr%n)      ) / 2.0_r8
       htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf1(1:qr%n) / 2.0_r8
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new,&
@@ -1946,25 +1960,25 @@ subroutine initialize_global_moist_swm_vars()
       ! Third  RK step
       ! Last RK step applies a different approach if the monotonic limiter is active 
       if(.not. monotonicfilter) then
-        u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf2(1:u%n) + Su%f(1:u%n))
-        h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n)
-        htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf2(1:theta%n) + hStheta%f(1:theta%n))
-        hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf2(1:qv%n)  + hSqv%f(1:qv%n))
-        hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf2(1:qc%n)   + hSqc%f(1:qc%n))
-        hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf2(1:qr%n)    + hSqr%f(1:qr%n))
+        !u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf2(1:u%n) + Su%f(1:u%n))
+        !h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n)
+        !htheta_new%f(1:theta%n) = htheta%f(1:theta%n)  + dt * (tempf2(1:theta%n) + hStheta%f(1:theta%n))
+        !hqv_new%f(1:qv%n)       = hqv%f(1:qv%n)        + dt * (vapourf2(1:qv%n)  + hSqv%f(1:qv%n))
+        !hqc_new%f(1:qc%n)       = hqc%f(1:qc%n)        + dt * (cloudf2(1:qc%n)   + hSqc%f(1:qc%n))
+        !hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf2(1:qr%n)    + hSqr%f(1:qr%n))
         htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf2(1:qr%n)
 
       else if(monotonicfilter) then
         ! Update tracers
-        call  monotonicfilter_rk3(mesh, htheta , htheta_new , dt, erad, t, u, u_new, hStheta)
-        call  monotonicfilter_rk3(mesh, hqv    , hqv_new    , dt, erad, t, u, u_new, hSqv)
-        call  monotonicfilter_rk3(mesh, hqr    , hqr_new    , dt, erad, t, u, u_new, hSqr)
-        call  monotonicfilter_rk3(mesh, hqc    , hqc_new    , dt, erad, t, u, u_new, hSqc)
+        !call  monotonicfilter_rk3(mesh, htheta , htheta_new , dt, erad, t, u, u_new, hStheta)
+        !call  monotonicfilter_rk3(mesh, hqv    , hqv_new    , dt, erad, t, u, u_new, hSqv)
+        !call  monotonicfilter_rk3(mesh, hqr    , hqr_new    , dt, erad, t, u, u_new, hSqr)
+        !call  monotonicfilter_rk3(mesh, hqc    , hqc_new    , dt, erad, t, u, u_new, hSqc)
         call  monotonicfilter_rk3(mesh, htracer, htracer_new, dt, erad, t, u, u_new)
  
         !Update momentum and mass conservation equations
-        u_new%f(1:u%n)          = u%f(1:u%n)           + dt * (momf2(1:u%n) + Su%f(1:u%n))
-        h_new%f(1:h%n)          = h%f(1:h%n)           + dt * massf2(1:h%n)
+        u_new%f(1:u%n)          = u%f(1:u%n)!           + dt * (momf2(1:u%n) + Su%f(1:u%n))
+        h_new%f(1:h%n)          = h%f(1:h%n)!           + dt * massf2(1:h%n)
       end if
       return
     end subroutine ode_rk3_moist_swm
@@ -2333,24 +2347,37 @@ subroutine initialize_global_moist_swm_vars()
 
     case('og2')
         order=2
+        orderg=2
         method='O'
 
     case('og3') 
         order=3
+        orderg=3
         method='O'
 
     case('og4')
         order=4
+        orderg=4
         method='O'
 
+    case('sg2')
+        order=3
+        orderg=2
+        method='G'
+       
     case('sg3')
         order=3
+        orderg=3
+        method='G'
+        
+    case('sg4')
+        order=3
+        orderg=4
         method='G'
 
     case('trsk')
         order=2 ! just to avoid allocation problems in highorder_adv_vars
         method='O'
-
 
     case default
         print*, "Invalid advection method. Please select a proper order."
