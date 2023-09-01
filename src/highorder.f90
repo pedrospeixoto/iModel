@@ -1546,14 +1546,32 @@ contains
     integer(i4):: i
     integer(i4):: j
     real(r8):: peso
+    integer :: clock_rate, clock_start, clock_end
+    real(8) :: start_time, end_time, elapsed_time
 
+
+    !-------------------------------------------------------------------------
+    ! Get the clock rate (ticks per second)
+    !call system_clock(count_rate=clock_rate)
+    ! Start the clock
+    !call system_clock(count=clock_start)
+    !$OMP PARALLEL DO &
+    !$OMP DEFAULT(NONE) & 
+    !$OMP SHARED(nodes, node) &
+    !$OMP PRIVATE(i, j) &
+    !$OMP SCHEDULE(static)
     do i=1,nodes
        do j=1,node(i)%ngbr(1)%numberngbr
-!          node(i)%VBG(j) = f(mesh%v(node(i)%stencil(j))%lon,mesh%v(node(i)%stencil(j))%lat) &
- !         - f(mesh%v(i)%lon,mesh%v(i)%lat)
            node(i)%VBG(j) = node(node(i)%stencil(j))%phi_new2 - node(i)%phi_new2
        end do
     end do
+    !$OMP END PARALLEL DO
+    ! Stop the clock
+    !call system_clock(count=clock_end)
+    ! Calculate the elapsed time using clock ticks
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("RHS   = ",f9.6," seconds.")', elapsed_time
+ 
   end subroutine vector_gas
 
   subroutine reconstruction_gas(nodes,mesh)  
@@ -1570,7 +1588,22 @@ contains
     integer(i4):: l
     integer(i4):: c
     real(r8):: aux
+    integer :: clock_rate, clock_start, clock_end
+    real(r8) :: start_time, end_time, elapsed_time
 
+
+    !-------------------------------------------------------------------------
+    ! Get the clock rate (ticks per second)
+    !call system_clock(count_rate=clock_rate)
+    ! Start the clock
+    !call system_clock(count=clock_start)
+
+
+    !$OMP PARALLEL DO &
+    !$OMP DEFAULT(NONE) & 
+    !$OMP SHARED(nodes, node) &
+    !$OMP PRIVATE(i, l, c, m, aux) &
+    !$OMP SCHEDULE(static)
     do i=1,nodes
        l=ubound(node(i)%MRG,1)
        c=ubound(node(i)%MRG,2)
@@ -1584,6 +1617,12 @@ contains
           node(i)%coef(m+1)=aux
        end do
     end do
+    !$OMP END PARALLEL DO
+    ! Stop the clock
+    !call system_clock(count=clock_end)
+    ! Calculate the elapsed time using clock ticks
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Recon = ",f9.6," seconds.")', elapsed_time
     return 
   end subroutine reconstruction_gas
 
@@ -1743,8 +1782,22 @@ contains
     integer(i4):: k
     integer(i4):: l,entrei
     real(r8):: m
+    !integer :: clock_rate, clock_start, clock_end
+    !real(r8) :: start_time, end_time, elapsed_time
 
+    !-------------------------------------------------------------------------
+    ! Get the clock rate (ticks per second)
+    !call system_clock(count_rate=clock_rate)
+    ! Start the clock
+    !call system_clock(count=clock_start)
+ 
     if(order==2)then 
+       !$OMP PARALLEL DO &
+       !$OMP DEFAULT(NONE) & 
+       !$OMP SHARED(node, nodes) & 
+       !$OMP PRIVATE(i,j,k,l,m) &
+       !$OMP SCHEDULE(static)
+       ! Upwind fluxes
        do i=1,nodes
           node(i)%VBO(1)=node(i)%phi_new2
           k=ubound(node(i)%geometric,1)+1
@@ -1755,7 +1808,13 @@ contains
              node(i)%VBO(j+1)=node(i)%VBO(j+1)-m*node(i)%VBO(1)
           end do
        enddo
+       !$OMP END PARALLEL DO
     else
+       !$OMP PARALLEL DO &
+       !$OMP DEFAULT(NONE) & 
+       !$OMP SHARED(node, nodes) & 
+       !$OMP PRIVATE(i,j,k,l,m) &
+       !$OMP SCHEDULE(static)
        do i=1,nodes
           node(i)%VBO(1)=node(i)%phi_new2
           k=ubound(node(i)%geometric,1)+1
@@ -1766,7 +1825,14 @@ contains
              node(i)%VBO(j+1)=node(i)%VBO(j+1)-m*node(i)%VBO(1)
           end do
        enddo
+       !$OMP END PARALLEL DO
     endif
+
+    ! Stop the clock
+    !call system_clock(count=clock_end)
+    ! Calculate the elapsed time using clock ticks
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("RHS   = ",f9.6," seconds.")',elapsed_time
     return
   end subroutine vector_olg2
 
@@ -1783,8 +1849,22 @@ contains
     integer(i4):: l
     integer(i4):: c
     real(r8):: soma
+    !integer :: clock_rate, clock_start, clock_end
+    !real(r8) :: start_time, end_time, elapsed_time
+
+
+    !-------------------------------------------------------------------------
+    ! Get the clock rate (ticks per second)
+    !call system_clock(count_rate=clock_rate)
+    ! Start the clock
+    !call system_clock(count=clock_start)
 
     if(order==2)then
+       !$OMP PARALLEL DO &
+       !$OMP DEFAULT(NONE) & 
+       !$OMP SHARED(node, nodes) & 
+       !$OMP PRIVATE(i,l,c,m,soma) &
+       !$OMP SCHEDULE(static)
        do i=1,nodes
           l=ubound(node(i)%MRO,1)
           c=ubound(node(i)%MRO,2)
@@ -1801,7 +1881,13 @@ contains
           enddo
           node(i)%coef(1)=node(i)%VBO(1)-soma 
        enddo
+       !$OMP END PARALLEL DO
     elseif(order==3)then
+       !$OMP PARALLEL DO &
+       !$OMP DEFAULT(NONE) & 
+       !$OMP SHARED(node, nodes) & 
+       !$OMP PRIVATE(i,l,c,m,soma) &
+       !$OMP SCHEDULE(static)
        do i = 1,nodes
           !Calculando os coeficients (Pseudoinversa x B) 
           l=ubound(node(i)%MRO,1)
@@ -1820,7 +1906,13 @@ contains
           end do
           node(i)%coef(1) = node(i)%VBO(1) - soma 
        end do
+       !$OMP END PARALLEL DO
     elseif(order==4)then  
+       !$OMP PARALLEL DO &
+       !$OMP DEFAULT(NONE) & 
+       !$OMP SHARED(node, nodes) & 
+       !$OMP PRIVATE(i,l,c,m,soma) &
+       !$OMP SCHEDULE(static)
        do i=1,nodes
           !Calculando os coeficients (Pseudoinversa x B) 
           l=ubound(node(i)%MRO,1)
@@ -1839,7 +1931,14 @@ contains
           end do
           node(i)%coef(1) = node(i)%VBO(1) - soma 
        end do
+       !$OMP END PARALLEL DO
     endif
+
+    ! Stop the clock
+    !call system_clock(count=clock_end)
+    ! Calculate the elapsed time using clock ticks
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate) 
+    !print '("Recon = ",f9.6," seconds.")',elapsed_time
     return 
   end subroutine reconstruction_olg
 
@@ -3292,34 +3391,54 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8):: minval_i2, maxval_i2
     real(r8):: FEPS
     real(r8),allocatable:: p1(:),p2(:),p3(:)
+    !integer :: clock_rate, clock_start, clock_end
+    !real(r8) :: start_time, end_time, elapsed_time
+
+    !-------------------------------------------------------------------------
+    ! Get the clock rate (ticks per second)
+    !call system_clock(count_rate=clock_rate)
+    ! Start the clock
+    !call system_clock(count=clock_start)
+
     allocate(p1(3),p2(3),p3(3))
     FEPS = 1.0D-8
 
-
+    !$OMP PARALLEL DO &
+    !$OMP DEFAULT(NONE) & 
+    !$OMP SHARED(node, mesh, z, edges_indexes, orderg) &
+    !$OMP SHARED(nodes, time, moistswm, time_integrator, monotonicfilter) & 
+    !$OMP SHARED(order, controlvolume, feps) &
+    !$OMP PRIVATE(i, j, dot,  w, n, e, jend, k, i1, i2, p1, p2, p3) &
+    !$OMP PRIVATE(cc, diml) &
+    !$OMP PRIVATE(xx, yy, zz, cx, sx, cy, sy, xp, yp, zp) &
+    !$OMP PRIVATE(maxval_i1, maxval_i2, maxval_i, pol_filtered) &
+    !$OMP PRIVATE(minval_i1, minval_i2, minval_i, pol) &
+    !$OMP SCHEDULE(static)
     do i=1,nodes
-       node(i)%S(z)%flux=0.0D0
-       jend=node(i)%ngbr(1)%numberngbr
-       diml=nint((order)/2.0D0)
-       !Percorrendo todas as faces do volume de controle i
-       if(controlvolume=="D")then
-          cc=2
-       else
-          cc=1
-       endif
+        node(i)%S(z)%flux=0.0D0
+        jend=node(i)%ngbr(1)%numberngbr
+        diml=nint((order)/2.0D0)
+        !Percorrendo todas as faces do volume de controle i
+        if(controlvolume=="D")then
+            cc=2
+        else
+            cc=1
+        endif
 
-       ! Flux at edges
-       node(i)%edge_flux(:) = 0._r8
+        ! Flux at edges
+        node(i)%edge_flux(:) = 0._r8
 
-       do n=1,cc*jend
-          p1=node(i)%edge(n)%xyz2(1,:) 
-          p2=node(i)%edge(n)%xyz2(2,:) 
-          do s=1,diml
-             !Calculando o produto interno entre o vetor velocidade e o vetor normal unitario a edge 
-             if (.not. moistswm)then
-               dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time), node(i)%G(s)%lvn(n,1:3))
-             else
-               dot=dot_product(node(i)%G(s)%velocity_quadrature(n)%v, node(i)%G(s)%lvn(n,1:3))
-             end if
+        do n=1,cc*jend
+            p1=node(i)%edge(n)%xyz2(1,:) 
+            p2=node(i)%edge(n)%xyz2(2,:) 
+            do s=1,diml
+                ! Compute the dot product of the normal vector with the velocity vector
+                if (.not. moistswm)then
+                    dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time), node(i)%G(s)%lvn(n,1:3))
+                else
+                    dot=dot_product(node(i)%G(s)%velocity_quadrature(n)%v, node(i)%G(s)%lvn(n,1:3))
+                end if
+
              !Determinando os coeficientes da matriz de rotação para o node i 
              xx=mesh%v(i)%p(1)
              yy=mesh%v(i)%p(2)
@@ -3353,25 +3472,19 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
                 ! Correct the value if monotonic limiter is applied
                 if (monotonicfilter .and. time_integrator=='rk4')then
-                  !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
                     i2 = mesh%edhx(e)%sh(2)
-                        
+
                     call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
                     call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
+
                     minval_i = min(minval_i1, minval_i2)
-                    maxval_i = max(maxval_i1, maxval_i2)
-                        
-                  !else
-                  !  call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                  !end if
-                     
-                  pol_filtered = max(pol,minval_i)
-                  pol_filtered = min(pol_filtered,maxval_i)
-                        
-                  pol = pol_filtered
+                    maxval_i = max(maxval_i1, maxval_i2)    
+
+                    pol_filtered = max(pol,minval_i)
+                    pol_filtered = min(pol_filtered,maxval_i)
+                    pol = pol_filtered
                 end if
 
                 ! Flux update
@@ -3381,7 +3494,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
 
              else
-   
                 if(controlvolume=="D")then
                   w=node(i)%G(s)%upwind_donald(n)
                 else
@@ -3415,25 +3527,19 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
                 ! Correct the value if monotonic limiter is applied
                 if (monotonicfilter .and. time_integrator=='rk4')then
-                  !if(moistswm)then ! To ensure mass conservation
                     e = edges_indexes(i,n,1)
                     i1 = mesh%edhx(e)%sh(1)
                     i2 = mesh%edhx(e)%sh(2)
-                        
+
                     call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
                     call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-                        
+
                     minval_i = min(minval_i1, minval_i2)
                     maxval_i = max(maxval_i1, maxval_i2)
-                        
-                  !else
-                  !    call monotonic_limiter(pol, i, mesh, minval_i, maxval_i)
-                  !end if
-                     
-                  pol_filtered = max(pol,minval_i)
-                  pol_filtered = min(pol_filtered,maxval_i)
- 
-                  pol = pol_filtered
+
+                    pol_filtered = max(pol,minval_i)
+                    pol_filtered = min(pol_filtered,maxval_i)
+                    pol = pol_filtered
                 end if
 
                 ! Flux update
@@ -3441,13 +3547,18 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
                 ! Store flux at edge
                 node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
-
-
              endif
           enddo
        enddo
     enddo
+    !$OMP END PARALLEL DO
     deallocate(p1,p2,p3)
+
+    ! Stop the clock
+    !call system_clock(count=clock_end)
+    ! Calculate the elapsed time using clock ticks
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Flux  = ",f9.6," seconds.")',elapsed_time
     return  
   end subroutine flux_olg
 
@@ -3471,11 +3582,12 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     integer(i4)   :: m
     integer(i4)   :: n
     integer(i4)   :: w
+    integer(i4)   :: e
     integer(i4)   :: s
     integer(i4)   :: kk
+    integer(i4)   :: jj
     integer(i4)   :: cc
     integer(i4)   :: diml
-    integer(i4)   :: contador
     integer(i4)   :: jend
     real(r8)  :: dot
     real(r8)  :: cx
@@ -3499,14 +3611,18 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8)  :: zi
     real(r8)  :: xf
     real(r8)  :: yf
-    real(r8)  :: zf, theta, alfa, div_est, sol_numerica, sol_exata, derivada_i, derivada_j, cosseno, seno, aux
-    real(r8)  :: FEPS, temp, aaxx, erro_Linf, erro, integral,phi_i, phi_j,dist,sinal, aux1, aux2, aux3, lon, lat
+    real(r8)  :: zf, theta, alfa, div_est, sol_numerica, sol_exata, derivada_i, derivada_k, cosseno, seno, aux
+    real(r8)  :: FEPS, temp, aaxx, erro_Linf, erro, integral,phi_i, phi_k,dist,sinal, aux1, aux2, aux3, lon, lat
     real(r8)  :: lat1, lat2
     real(r8),allocatable  :: p1(:)      
     real(r8),allocatable  :: p2(:)      
     real(r8),allocatable  :: p3(:)      
     real(r8),allocatable  :: vn(:)      
-    real(r8) :: dir_i(1:3), dir_j(1:3), rot_dir_i(1:3), rot_dir_j(1:3)
+    real(r8) :: p(1:3), normal_vector(1:3)
+    real(r8) :: dir_i(1:3), dir_k(1:3), rot_dir_i(1:3), rot_dir_k(1:3)
+    integer :: clock_rate, clock_start, clock_end
+    real(r8) :: start_time, end_time, elapsed_time
+
 
     allocate (p1(3),p2(3),p3(3),vn(3))
     FEPS = 1.0D-8
@@ -3514,103 +3630,135 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     temp = 0.0D0
     aaxx = 0.0D0
     erro_Linf = 0.0D0
-    contador = 0  
 
-    do i = 1,nodes
-         node(i)%S(z)%flux = 0.0D0
-         jend = node(i)%ngbr(1)%numberngbr
-         node(i)%edge_flux(:) = 0._r8
-         do n = 1,jend     
-           contador = contador + 1
-           w=node(i)%upwind_voronoi(n)
-           p3 =(mesh%v(i)%p+mesh%v(w)%p)/2.0D0 
-           p3 = p3/norm(p3)       
-
-           if (.not. moistswm)then
-              dot = dot_product (velocity(p3, time),node(i)%G(1)%lvn(n,1:3))
-           else
-              dot = dot_product (node(i)%G(1)%velocity_quadrature(n)%v, node(i)%G(1)%lvn(n,1:3))
-           endif
-
-           if(dot>=0.0D0)then
-              sinal=+1.0D0
-           else
-              sinal=-1.0D0
-           endif
- 
-           !Determinando os valores para o node i 
-           xx = mesh%v(i)%p(1)
-           yy = mesh%v(i)%p(2)
-           zz = mesh%v(i)%p(3)
-           call constr(xx,yy,zz,cx,sx,cy,sy)
-
-           xx = mesh%v(w)%p(1)
-           yy = mesh%v(w)%p(2)
-           zz = mesh%v(w)%p(3)
-           call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-
- 
-           phi_i = node(i)%coef(1)
-
-           ! Compute the second derivative in normal direction
-           dir_i = node(i)%G(1)%lvn(n,1:3)
-           dir_i = proj_vec_sphere(dir_i, mesh%v(i)%p)
-           call aplyr(dir_i(1),dir_i(2),dir_i(3),cx,sx,cy,sy,rot_dir_i(1),rot_dir_i(2),rot_dir_i(3))
-           rot_dir_i = rot_dir_i/norm(rot_dir_i)
-           derivada_i = 2.d0*node(i)%coef(4)*rot_dir_i(1)*rot_dir_i(1) + &
-                        2.d0*node(i)%coef(5)*rot_dir_i(1)*rot_dir_i(2) + &
-                        2.d0*node(i)%coef(6)*rot_dir_i(2)*rot_dir_i(2)
-
-           !Determinando os valores dos vizinhos do node i 
-           xx = mesh%v(w)%p(1)
-           yy = mesh%v(w)%p(2)
-           zz = mesh%v(w)%p(3)
-           call constr(xx,yy,zz,cx,sx,cy,sy)
-
-           xx = mesh%v(i)%p(1)
-           yy = mesh%v(i)%p(2)
-           zz = mesh%v(i)%p(3)
-           call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-
-           phi_j = node(w)%coef(1)
-
-           ! Compute second derivate in the normal direction to the edge
-           dir_j = -node(i)%G(1)%lvn(n,1:3)
-           dir_j = proj_vec_sphere(dir_j, mesh%v(w)%p)
-           call aplyr(dir_j(1),dir_j(2),dir_j(3),cx,sx,cy,sy,rot_dir_j(1),rot_dir_j(2),rot_dir_j(3))
-           rot_dir_j = rot_dir_j/norm(rot_dir_j)
-           derivada_j = 2.d0*node(w)%coef(4)*rot_dir_j(1)*rot_dir_j(1) + &
-                        2.d0*node(w)%coef(5)*rot_dir_j(1)*rot_dir_j(2) + &
-                        2.d0*node(w)%coef(6)*rot_dir_j(2)*rot_dir_j(2)
-
-           !Distancia entre o node i e seu respectivo vizinho   
-           dist=arclen(mesh%v(i)%p,mesh%v(w)%p)           
-
-           aux1 = (1.0D0/2.0D0)*(phi_i + phi_j)
-           aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_j + derivada_i)
-           aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_j - derivada_i)
-           !aux3 = 0.d0
-           !print*,aux2
-
-           if (orderg==2) then
-           aux2 = 0.0D0 
-           aux3 = 0.0D0
-
-           else if (orderg==4) then
-           aux3 = 0.0D0
-
-           endif 
-           
-
-           
-           node(i)%S(z)%flux = node(i)%S(z)%flux  + (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
-
-           ! Store flux at edge
-           node(i)%edge_flux(n) = node(i)%edge_flux(n) +  (aux1-aux2+aux3)*node(i)%G(1)%lwg(n)*dot
-
-      end do
+    do i = 1, nodes
+        node(i)%S(z)%flux = 0.0D0
     end do
-  deallocate(p1,p2,p3,vn)   
+
+    ! Get the clock rate (ticks per second)
+    !call system_clock(count_rate=clock_rate)
+    ! Start the clock
+    !call system_clock(count=clock_start)
+
+    !$OMP PARALLEL DO &
+    !$OMP DEFAULT(NONE) & 
+    !$OMP SHARED(node, mesh, z, orderg) &
+    !$OMP SHARED(nodes, time, moistswm) & 
+    !$OMP PRIVATE(i, j, jj, jend, e, k, p, dot, sinal) &
+    !$OMP PRIVATE(phi_i, phi_k, normal_vector, aux1, aux2, aux3) &
+    !$OMP PRIVATE(derivada_i, derivada_k, dist) &
+    !$OMP PRIVATE(xx, yy, zz, cx, sx, cy, sy, xp, yp, zp) &
+    !$OMP PRIVATE(rot_dir_i, rot_dir_k, dir_i, dir_k) &
+    !$OMP SCHEDULE(static)
+    do i = 1, mesh%nv
+        jend =mesh%v(i)%nnb
+        do j = 1, jend
+            ! Get neighbor index
+            if (j .ne. jend)then
+                jj = min(j+1,jend)
+            else
+                jj = 1
+            end if
+
+            ! get edge
+            k = mesh%v(i)%nb(jj)
+            e = mesh%v(i)%ed(jj)
+            p = mesh%ed(e)%c%p
+
+            ! Normal vector
+            normal_vector = node(i)%G(1)%lvn(j,1:3)
+
+            ! Compute the dot product of the normal vector with the velocity vector
+            if (.not. moistswm)then
+                dot = dot_product (velocity(p, time),normal_vector)
+            else
+                !dot = dot_product (node(i)%G(1)%velocity_quadrature(j)%v, normal_vector)
+                dot = node(i)%G(1)%velocity_quadrature(j)%v(1)
+            endif
+
+            ! Sign
+            if(dot >= 0.d0)then
+                sinal =  1.d0
+            else
+                sinal = -1.d0
+            endif
+
+            !Distance between the vertice i and its neighbor
+            dist=mesh%v(i)%nbdg(jj)
+
+            !------------------------------------------------------------------------
+            !node i rotation values and derivatives
+            xx = mesh%v(i)%p(1)
+            yy = mesh%v(i)%p(2)
+            zz = mesh%v(i)%p(3)
+            call constr(xx,yy,zz,cx,sx,cy,sy)
+
+            xx = mesh%v(k)%p(1)
+            yy = mesh%v(k)%p(2)
+            zz = mesh%v(k)%p(3)
+            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
+
+            phi_i = node(i)%coef(1)
+
+            ! Compute the second derivative in normal direction
+            dir_i = normal_vector
+            dir_i = proj_vec_sphere(dir_i, mesh%v(i)%p)
+            call aplyr(dir_i(1),dir_i(2),dir_i(3),cx,sx,cy,sy,rot_dir_i(1),rot_dir_i(2),rot_dir_i(3))
+            rot_dir_i = rot_dir_i/norm(rot_dir_i)
+            derivada_i = 2.d0*node(i)%coef(4)*rot_dir_i(1)*rot_dir_i(1) + &
+                         2.d0*node(i)%coef(5)*rot_dir_i(1)*rot_dir_i(2) + &
+                         2.d0*node(i)%coef(6)*rot_dir_i(2)*rot_dir_i(2)
+
+            !------------------------------------------------------------------------
+            !node k rotation values and derivatives
+            xx = mesh%v(k)%p(1)
+            yy = mesh%v(k)%p(2)
+            zz = mesh%v(k)%p(3)
+            call constr(xx,yy,zz,cx,sx,cy,sy)
+
+            xx = mesh%v(i)%p(1)
+            yy = mesh%v(i)%p(2)
+            zz = mesh%v(i)%p(3)
+            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
+
+            phi_k = node(k)%coef(1)
+
+            ! Compute the second derivative in normal direction
+            dir_k = -dir_i
+            dir_k = proj_vec_sphere(dir_k, mesh%v(k)%p)
+            call aplyr(dir_k(1),dir_k(2),dir_k(3),cx,sx,cy,sy,rot_dir_k(1),rot_dir_k(2),rot_dir_k(3))
+            rot_dir_k = rot_dir_k/norm(rot_dir_k)
+            derivada_k = 2.d0*node(k)%coef(4)*rot_dir_k(1)*rot_dir_k(1) + &
+                         2.d0*node(k)%coef(5)*rot_dir_k(1)*rot_dir_k(2) + &
+                         2.d0*node(k)%coef(6)*rot_dir_k(2)*rot_dir_k(2)
+   
+            !------------------------------------------------------------------------
+            ! Compute the flux
+            aux1 = (1.0D0/2.0D0)*(phi_i + phi_k)
+            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_k + derivada_i)
+            aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_k - derivada_i)
+
+            if (orderg==2) then
+                aux2 = 0.0D0 
+                aux3 = 0.0D0
+            else if (orderg==4) then
+                aux3 = 0.0D0
+            endif  
+
+            ! Store flux at edge
+            node(i)%edge_flux(j) = (aux1-aux2+aux3)*node(i)%G(1)%lwg(j)*dot
+            node(i)%S(z)%flux = node(i)%S(z)%flux + node(i)%edge_flux(j)
+        end do
+    end do
+    !$OMP END PARALLEL DO
+    deallocate(p1,p2,p3,vn)   
+
+    ! Stop the clock
+    !call system_clock(count=clock_end)
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Flux  = ",f9.6," seconds.")',elapsed_time
+
+
    return  
    end subroutine flux_gas   
 
@@ -4367,9 +4515,9 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     type(grid_structure),intent(inout):: mesh
     type(scalar_field), intent(inout) :: uedges
     real(r8):: urecon(1:3)
-    real(r8):: p(1:3), p1(1:3), p2(1:3)
+    real(r8):: p(1:3), p1(1:3), p2(1:3), signcor
     real(r8):: u0, utmp, vtmp, lat, lon, aux, aux1, aux2,error, uexact(1:3)
-    integer(i4):: i, j, k, e, q
+    integer(i4):: i, j, k, e, q, jj, jend
     integer(i4):: nquad
     integer(i4):: i1, i2, j1, j2, q1, q2
     character (len=8) :: reconadvmtd = "lsqhxe"
@@ -4379,89 +4527,110 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
     !Alocate space if necessary
     if(.not.allocated(uedges%pol))then
-      allocate(uedges%pol(1:mesh%nv))
+        allocate(uedges%pol(1:mesh%nv))
     end if
 
     ! Olliver-Gooch method
     if (method=='O')then
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad) &
-      !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q,lon,lat,utmp,vtmp,u0,uexact) &
-      !$omp private(urecon) &
-      !$omp schedule(static)
-      do e = 1, mesh%ne ! Edges loop
-        do q = 1, nquad ! Quadrature points loop
-          q1 = q
-          if (q==1) then
-            q2 = nquad
-          else
-            q2 = 1
-          end if
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad) &
+        !$omp private(i1, i2, j1, j2, p1, p2, q1, q2, q,lon,lat,utmp,vtmp,u0,uexact) &
+        !$omp private(urecon) &
+        !$omp schedule(static)
+        do e = 1, mesh%ne ! Edges loop
+            do q = 1, nquad ! Quadrature points loop
+                q1 = q
+                if (q==1) then
+                    q2 = nquad
+                else
+                    q2 = 1
+                end if
 
-          !Get neighbor Voronoi cells
-          i1 = mesh%edhx(e)%sh(1)
-          i2 = mesh%edhx(e)%sh(2)
+                !Get neighbor Voronoi cells
+                i1 = mesh%edhx(e)%sh(1)
+                i2 = mesh%edhx(e)%sh(2)
           
-          ! Get edge e indexes
-          j1 = sh_edges_indexes(e,1)
-          j2 = sh_edges_indexes(e,2)
+                ! Get edge e indexes
+                j1 = sh_edges_indexes(e,1)
+                j2 = sh_edges_indexes(e,2)
           
-          ! Quadrature points
-          p1 = node(i1)%G(q1)%lpg(j1,1:3)
-          p2 = node(i2)%G(q2)%lpg(j2,1:3)
+                ! Quadrature points
+                p1 = node(i1)%G(q1)%lpg(j1,1:3)
+                p2 = node(i2)%G(q2)%lpg(j2,1:3)
          
-          !print*,p1
-          ! Reconstruct the velocity field at quadrature points
-          urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
-          !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
-          !u0 = 2._r8*pi*erad/(12._r8*day2sec)
-          !utmp = u0*cos(lat)
-          !vtmp = 0._r8
-          !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
-          !urecon=uexact 
+                !print*,p1
+                ! Reconstruct the velocity field at quadrature points
+                urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
+                !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
+                !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+                !utmp = u0*cos(lat)
+                !vtmp = 0._r8
+                !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
+                !urecon=uexact 
 
-          ! Store the velocity
-          node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon
-          node(i2)%G(q2)%velocity_quadrature(j2)%v = urecon
+                ! Store the velocity
+                node(i1)%G(q1)%velocity_quadrature(j1)%v = urecon
+                node(i2)%G(q2)%velocity_quadrature(j2)%v = urecon
 
-          !p = p1
-          !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
-          !u0 = 2._r8*pi*erad/(12._r8*day2sec)
-          !utmp = u0*cos(lat)
-          !vtmp = 0._r8
-          !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
-          !error = max(error, norm2(uexact-urecon)/norm2(uexact))
-      end do    
-    end do
-    !$omp end parallel do
+                !p = p1
+                !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
+                !u0 = 2._r8*pi*erad/(12._r8*day2sec)
+                !utmp = u0*cos(lat)
+                !vtmp = 0._r8
+                !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
+                !error = max(error, norm2(uexact-urecon)/norm2(uexact))
+            end do    
+        end do
+        !$omp end parallel do
 
     else
-      ! Gassman method
-      !$omp parallel do &
-      !$omp default(none) &
-      !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad, reconadvmtd) &
-      !$omp private(j, k, p) &
-      !$omp private(urecon) &
-      !$omp schedule(static)
-      do i = 1,mesh%nv
-        do j = 1,node(i)%ngbr(1)%numberngbr
-          k=node(i)%upwind_voronoi(j)
+        ! Gassman method
+        !$omp parallel do &
+        !$omp default(none) &
+        !$omp shared(mesh, uedges, node, sh_edges_indexes, nquad, reconadvmtd) &
+        !$omp private(j, k, p, e, jj) &
+        !$omp private(urecon, signcor) &
+        !$omp schedule(static)
+        do i = 1,mesh%nv
+            do j = 1, mesh%v(i)%nnb
+                ! Get neighbor index
+                if (j .ne. mesh%v(i)%nnb)then
+                    jj = min(j+1,mesh%v(i)%nnb)
+                else
+                    jj = 1
+                end if
 
-          !Reconstruction point
-          p =(mesh%v(i)%p+mesh%v(k)%p)/2.0D0 
-          p = p/norm(p)
+                ! get edge
+                k = mesh%v(i)%nb(jj)
+                e = mesh%v(i)%ed(jj)
 
-          ! Reconstruct the vector field at given point
-          urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
+                !Get edge outer normal related to the hexagon
+                signcor= dot_product(mesh%ed(e)%tg,node(i)%G(1)%lvn(j,1:3))
+                if(signcor>0.d0)then
+                    signcor =  1.d0
+                else
+                    signcor = -1.d0
+                end if
 
-          ! Store the velocity field
-          node(i)%G(1)%velocity_quadrature(j)%v = urecon 
+                !print*, norm(mesh%ed(e)%tg-node(i)%G(1)%lvn(j,1:3))
+                !Reconstruction point
+                !p = mesh%ed(e)%c%p
+
+                ! Reconstruct the vector field at given point
+                !urecon = vector_reconstruct (p, uedges, mesh, reconadvmtd)
+
+                ! Store the velocity field
+                node(i)%G(1)%velocity_quadrature(j)%v(1) = signcor*uedges%f(e)
+
+        !        print*, abs(&
+        !dot_product(node(i)%G(1)%velocity_quadrature(j)%v, node(i)%G(1)%lvn(j,1:3))&
+        !-signcor*uedges%f(e))
+            end do
         end do
-      end do
-      !$omp end parallel do
+        !$omp end parallel do
     endif
-
+    !stop
   end subroutine reconstruct_velocity_quadrature
 
   subroutine monotonic_limiter(Pol,no,mesh,min_output, max_output)
@@ -4513,6 +4682,10 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       type(scalar_field), optional, intent(inout):: hSphi ! Source - optional
       real(r8), intent(in) :: dt, radius, time ! time-step and sphere radius 
       integer(i4) :: i, j, k, jj
+      !integer :: clock_rate, clock_start, clock_end
+      !real(r8) :: start_time, end_time, elapsed_time
+
+
 
       !-----------------------------------------------------------------------------------
       ! Flux for phi_star using 1st order upwind scheme at time t
@@ -4539,6 +4712,14 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         !-----------------------------------------------------------------------------------
         ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
         if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
+          !print*, 'mono...'
+          !-------------------------------------------------------------------------
+          ! Get the clock rate (ticks per second)
+          !call system_clock(count_rate=clock_rate)
+          ! Start the clock
+          !call system_clock(count=clock_start)
+
+ 
           !Calculate divergence and edges flux
           if (present(u_step2))then
             call divhx(phi_step2, div_uphi, mesh, radius, time, u_step2)
@@ -4583,7 +4764,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         !-----------------------------------------------------------------------------------
 
 
-        !-----------------------------------------------------------------------------------
+       !-----------------------------------------------------------------------------------
         ! Flux for phi corrected (equation 4 from wang et al 2009)
         !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
         !$OMP SHARED(F_cor, F_step2, F_star)      
@@ -4675,7 +4856,13 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
           phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/mesh%hx(i)%areag/radius
         end do
         !$omp end parallel do
-
+        ! Stop the clock
+        !call system_clock(count=clock_end)
+        ! Calculate the elapsed time using clock ticks
+        !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+        !print '("Mono  = ",f9.6," seconds.")',elapsed_time
+        !print*
+ 
       !======================================================================================
       else ! Donald Diagram
         if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
@@ -4792,6 +4979,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
           phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/node(i)%area/radius
         end do
         !$omp end parallel do
+
       end if
   end subroutine monotonicfilter_rk3
 
@@ -4821,22 +5009,30 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       !$omp end parallel do
 
       if (advmtd == 'og2' .or. advmtd=='og3'.or. advmtd=='og4')then ! Ollivier-Gooch method
+        !---------------------------------------------------------
         call vector_olg2(mesh%nv)
         call reconstruction_olg(mesh%nv, mesh) 
+
         if (present(u))then
           call flux_olg(mesh%nv, mesh, 0, time, u)
         else
           call flux_olg(mesh%nv, mesh, 0, time)
         end if
-
+        !---------------------------------------------------------
+        !---------------------------------------------------------
       else ! Gassman method
+
+        !---------------------------------------------------------
         call vector_gas(mesh%nv, mesh)
         call reconstruction_gas(mesh%nv, mesh) 
+
         if (present(u))then
           call flux_gas(mesh%nv, mesh, 0, time, u)
         else
           call flux_gas(mesh%nv, mesh, 0, time)
         end if
+        !---------------------------------------------------------
+ 
       end if
 
       !$omp parallel do &

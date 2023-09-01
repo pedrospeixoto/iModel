@@ -36,23 +36,28 @@ def replace_line(filename, content, line_number):
 # Parameters
 # Program to be run
 program = "./imodel"
-run = False # Run the simulations?
+run = True # Run the simulations?
 
 # Grids
-glevels = (3,3,3,3,4)
+#glevels = (3,3,3,3,3,3)
+#glevels = (6,6,6,6,6,6)
+glevels = (7,7,7,7,7,7)
+#glevels = (3,3,3)
 grid_ref  = 'icos_readref_sa_andes3_scvt_h1_'
 grid_unif = 'icos_pol_scvt_h1_'
-gridnames=(grid_unif, grid_unif, grid_unif, grid_unif, grid_unif)
+gridnames=(grid_unif, grid_unif, grid_unif, grid_unif, grid_unif, grid_unif)
+#gridnames=(grid_ref, grid_ref, grid_ref, grid_ref, grid_ref, grid_ref)
 
 # FV Schemes
 mono_values = (1,) # mononotic options
-fvs = ('og2','og3', 'og4', 'sg3', 'sg3')
+#fvs = ('og2','og3', 'og4','sg2', 'sg3', 'sg4')
+fvs = ('sg2', 'sg3', 'sg4')
 rk = 'rk3'
 
 # Plotting parameters
 #map_projection = 'sphere'
-map_projection = 'south_pole'
-#map_projection = 'mercator'
+#map_projection = 'south_pole'
+map_projection = 'mercator'
 
 # Test case - (2, 3 or 4)
 TC = 3
@@ -66,7 +71,18 @@ if TC==2:
 elif TC==3:
     fd = '30 30'
     tf = '2592000'
-    dt = ('800','800','800','800','400')
+    #DT='3200' # ur2
+    #DT='1600' # ur3
+    #DT='800'  # ur4 
+    #DT='400'  # ur5 
+    #DT='200'  # ur6 
+    DT='100'  # ur7 
+    #DT='800'  # vr3
+    #DT='400'  # vr4
+    #DT='200'  # vr5
+    #DT='100'  # vr6
+    #DT='50'  # vr7
+    dt = (DT,DT,DT,DT,DT,DT) #ur3
 
 t0 = '0'
 
@@ -112,9 +128,10 @@ replace_line(pardir+'moist_swm.par', fd,  5)
 replace_line(pardir+'moist_swm.par', 'trsk10', 11)
 replace_line(pardir+'moist_swm.par', rk, 23)
 replace_line(pardir+'moist_swm.par', 'geo', 27)
+replace_line(pardir+'moist_swm.par', '10000000000000 align', 33)
 
 # compile the code
-subprocess.run('cd .. ; make', shell=True)
+subprocess.run('cd .. ; make F90=gfortran', shell=True)
 
 for g in range(0, len(glevels)):
     # Grid level
@@ -122,7 +139,7 @@ for g in range(0, len(glevels)):
 
     # update par files
     replace_line(pardir+'mesh.par', gridnames[g]+str(glevel)+'.xyz', 17)
-    replace_line(pardir+'moist_swm.par', dt[glevel-1] + ' 0 0 ', 7)
+    replace_line(pardir+'moist_swm.par', dt[g] + ' 0 0 ', 7)
 
     for mono in range(0, len(mono_values)):
         # update monotonic scheme
@@ -135,7 +152,7 @@ for g in range(0, len(glevels)):
 
         for fd in range(0,len(fields)):
             # File to be opened
-            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[glevel-1]+'_HTC_trsk10_areageo_advmethod_'+fvs[g]
+            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_align_hyperdiffusion_10to13.000_advmethod_'+fvs[g]
             filename_field_tf = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(tf)+'_'+gridnames[g]+str(glevels[g])+'.dat'
             filename_field_t0 = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(t0)+'_'+gridnames[g]+str(glevels[g])+'.dat'
 
@@ -153,7 +170,7 @@ for g in range(0, len(glevels)):
     for mono in range(0, len(mono_values)):
         for fd in range(0,len(fields)):
             # File to be opened
-            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_advmethod_'+fvs[g]
+            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_align_hyperdiffusion_10to13.000_advmethod_'+fvs[g]
             filename_field_tf = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(tf)+'_'+gridnames[g]+str(glevels[g])+'.dat'
             filename_field_t0 = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(t0)+'_'+gridnames[g]+str(glevels[g])+'.dat'
 
@@ -165,10 +182,10 @@ for g in range(0, len(glevels)):
             Q_min, Q_max = np.amin(fields_min[:,:,fd]), np.amax(fields_max[:,:,fd])
             q_min, q_max = np.amin(val), np.amax(val)
             q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
-            Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[g] +', mono = '+str(mono_values[mono])
+            Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[g] +', mono = '+str(mono_values[mono])+'\n'
 
             if fields[fd]=='qr' or fields[fd]=='qc':
-                plot(filename_field_tf, 'plasma', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
+                plot(filename_field_tf, 'Blues', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
                 #plot(filename_field_tf, 'jet', map_projection, title=Title)
-            else:
-                plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max,  title=field_names[fd])
+            #else:
+            #    plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max,  title=field_names[fd])
