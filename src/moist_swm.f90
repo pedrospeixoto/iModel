@@ -1136,22 +1136,24 @@ subroutine initialize_global_moist_swm_vars()
     !Right hand side of tracer (number of cell equations)
     real(r8), intent(inout)::tracereq(:) 
 
-    integer :: clock_rate, clock_start, clock_end
-    real(r8) :: start_time, end_time, elapsed_time
+    !integer :: clock_rate, clock_start, clock_end
+    !real(r8) :: start_time, end_time, elapsed_time
 
     !-------------------------------------------------------------------------
     ! Get the clock rate (ticks per second)
-    call system_clock(count_rate=clock_rate)
+    !call system_clock(count_rate=clock_rate)
     ! Start the clock
-    call system_clock(count=clock_start)
+    !call system_clock(count=clock_start)
+
     !Compute the SWM tendency
     call tendency(h, u, masseq, momeq)
+
     ! Stop the clock
-    call system_clock(count=clock_end)
+    !call system_clock(count=clock_end)
     ! Calculate the elapsed time using clock ticks
-    elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    print*
-    print '("SWE   = ",f9.6," seconds.")',elapsed_time
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print*
+    !print '("SWE   = ",f9.6," seconds.")',elapsed_time
     !-------------------------------------------------------------------------
 
     !Initialize RHS of temperature and moist variables equations (in paralel)
@@ -1168,17 +1170,17 @@ subroutine initialize_global_moist_swm_vars()
     if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. &
         advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4')then
         ! Get the clock rate (ticks per second)
-        call system_clock(count_rate=clock_rate)
+        !call system_clock(count_rate=clock_rate)
         ! Start the clock
-        call system_clock(count=clock_start)
+        !call system_clock(count=clock_start)
 
         call reconstruct_velocity_quadrature(mesh, u)
 
         ! Stop the clock
-        call system_clock(count=clock_end)
+        !call system_clock(count=clock_end)
         ! Calculate the elapsed time using clock ticks
-        elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-        print '("Urecon= ",f9.6," seconds.")',elapsed_time
+        !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+        !print '("Urecon= ",f9.6," seconds.")',elapsed_time
     end if
 
  
@@ -1186,9 +1188,9 @@ subroutine initialize_global_moist_swm_vars()
     !Calculate temperature tendency
     !===============================================================
     ! Get the clock rate (ticks per second)
-    call system_clock(count_rate=clock_rate)
+    !call system_clock(count_rate=clock_rate)
     ! Start the clock
-    call system_clock(count=clock_start)
+    !call system_clock(count=clock_start)
 
     call scalar_hx2ed(htheta, htheta_ed, mesh)      !theta: cell->edge
     call scalar_elem_product(u, htheta_ed, uhtheta_ed) !Flux utheta at edges
@@ -1196,58 +1198,58 @@ subroutine initialize_global_moist_swm_vars()
     tempeq = -div_uhtheta%f !-divuh_exact%f !
 
     ! Stop the clock
-    call system_clock(count=clock_end)
-    elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    print '("Temp  = ",f9.6," seconds.")',elapsed_time
+    !call system_clock(count=clock_end)
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Temp  = ",f9.6," seconds.")',elapsed_time
     !call tendency_advection(htheta, tempeq, mesh, time, erad, u)
 
     !===============================================================
     !Calculate vapour tendency
     !===============================================================
     ! Get the clock rate (ticks per second)
-    call system_clock(count_rate=clock_rate)
+    !call system_clock(count_rate=clock_rate)
     ! Start the clock
-    call system_clock(count=clock_start)
+    !call system_clock(count=clock_start)
 
     !Calculate divergence / vapour eq RHS
     call tendency_advection(hqv, vapoureq, mesh, time, erad, u)
 
     ! Stop the clock
-    call system_clock(count=clock_end)
-    elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    print '("Vapour= ",f9.6," seconds.")',elapsed_time
+    !call system_clock(count=clock_end)
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Vapour= ",f9.6," seconds.")',elapsed_time
 
     !===============================================================
     !Calculate cloud tendency
     !===============================================================
     ! Get the clock rate (ticks per second)
-    call system_clock(count_rate=clock_rate)
+    !call system_clock(count_rate=clock_rate)
     ! Start the clock
-    call system_clock(count=clock_start)
+    !call system_clock(count=clock_start)
 
     !Calculate divergence / cloud eq RHS
     call tendency_advection(hqc, cloudeq, mesh, time, erad, u)
 
     ! Stop the clock
-    call system_clock(count=clock_end)
-    elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    print '("Cloud = ",f9.6," seconds.")',elapsed_time
+    !call system_clock(count=clock_end)
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Cloud = ",f9.6," seconds.")',elapsed_time
 
     !===============================================================
     !Calculate rain tendency
     !===============================================================
     ! Get the clock rate (ticks per second)
-    call system_clock(count_rate=clock_rate)
+    !call system_clock(count_rate=clock_rate)
     ! Start the clock
-    call system_clock(count=clock_start)
+    !call system_clock(count=clock_start)
 
     !Calculate divergence / rain eq RHS
     call tendency_advection(hqr, raineq, mesh, time, erad, u)
 
     ! Stop the clock
-    call system_clock(count=clock_end)
-    elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    print '("Rain  = ",f9.6," seconds.")',elapsed_time
+    !call system_clock(count=clock_end)
+    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+    !print '("Rain  = ",f9.6," seconds.")',elapsed_time
 
     !===============================================================
     !Calculate tracer tendency
@@ -2015,9 +2017,9 @@ subroutine initialize_global_moist_swm_vars()
 
       !-------------------------------------------------------------------------
       ! Get the clock rate (ticks per second)
-      call system_clock(count_rate=clock_rate)
+      !call system_clock(count_rate=clock_rate)
       ! Start the clock
-      call system_clock(count=clock_start)
+      !call system_clock(count=clock_start)
 
       call tendency_moist_swm(h, u, htheta, hqv, hqc, hqr, htracer, massf0, momf0, tempf0, vapourf0, cloudf0, rainf0, tracerf0, t)
 
@@ -2030,20 +2032,19 @@ subroutine initialize_global_moist_swm_vars()
       hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf0(1:qr%n)    + hSqr%f(1:qr%n)      ) / 3.0_r8
       !htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf0(1:qr%n) / 3.0_r8
       ! Stop the clock
-      call system_clock(count=clock_end)
+      !call system_clock(count=clock_end)
       ! Calculate the elapsed time using clock ticks
-      elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-
-      print '("T1    = ",f9.6," seconds.")', elapsed_time
-      print*
+      !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+      !print '("T1    = ",f9.6," seconds.")', elapsed_time
+      !print*
       !read(*,*)
       !-------------------------------------------------------------------------
 
       !-------------------------------------------------------------------------
       ! Get the clock rate (ticks per second)
-      call system_clock(count_rate=clock_rate)
+      !call system_clock(count_rate=clock_rate)
       ! Start the clock
-      call system_clock(count=clock_start)
+      !call system_clock(count=clock_start)
 
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new, &
       massf1, momf1, tempf1, vapourf1, cloudf1, rainf1, tracerf1, t+dt/3._r8)
@@ -2057,33 +2058,30 @@ subroutine initialize_global_moist_swm_vars()
       hqr_new%f(1:qr%n)       = hqr%f(1:qr%n)        + dt * (rainf1(1:qr%n)    + hSqr%f(1:qr%n)      ) / 2.0_r8
 
       ! Stop the clock
-      call system_clock(count=clock_end)
+      !call system_clock(count=clock_end)
       ! Calculate the elapsed time using clock ticks
-      elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-      print '("T2  = ",f9.6," seconds.")', elapsed_time
-      print*
+      !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+      !print '("T2  = ",f9.6," seconds.")', elapsed_time
+      !print*
       !read(*,*)
- 
-
       !htracer_new%f(1:qr%n)   = htracer%f(1:qr%n)    + dt * tracerf1(1:qr%n) / 2.0_r8
       !-------------------------------------------------------------------------
 
 
       !-------------------------------------------------------------------------
       ! Get the clock rate (ticks per second)
-      call system_clock(count_rate=clock_rate)
+      !call system_clock(count_rate=clock_rate)
       ! Start the clock
-      call system_clock(count=clock_start)
-
+      !call system_clock(count=clock_start)
  
       call tendency_moist_swm(h_new, u_new, htheta_new, hqv_new, hqc_new, hqr_new, htracer_new,&
       massf2, momf2, tempf2, vapourf2, cloudf2, rainf2, tracerf2, t+dt/2._r8)
       ! Stop the clock
-      call system_clock(count=clock_end)
+      !call system_clock(count=clock_end)
       ! Calculate the elapsed time using clock ticks
-      elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-      print '("T3  = ",f9.6," seconds.")', elapsed_time
-      print*
+      !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+      !print '("T3  = ",f9.6," seconds.")', elapsed_time
+      !print*
       !read(*,*)
  
 
