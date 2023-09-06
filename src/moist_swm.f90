@@ -1192,16 +1192,16 @@ subroutine initialize_global_moist_swm_vars()
     ! Start the clock
     !call system_clock(count=clock_start)
 
-    call scalar_hx2ed(htheta, htheta_ed, mesh)      !theta: cell->edge
-    call scalar_elem_product(u, htheta_ed, uhtheta_ed) !Flux utheta at edges
-    call div_hx(uhtheta_ed, div_uhtheta, mesh)
-    tempeq = -div_uhtheta%f !-divuh_exact%f !
+    !call scalar_hx2ed(htheta, htheta_ed, mesh)      !theta: cell->edge
+    !call scalar_elem_product(u, htheta_ed, uhtheta_ed) !Flux utheta at edges
+    !call div_hx(uhtheta_ed, div_uhtheta, mesh)
+    !tempeq = -div_uhtheta%f !-divuh_exact%f !
 
     ! Stop the clock
     !call system_clock(count=clock_end)
     !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
     !print '("Temp  = ",f9.6," seconds.")',elapsed_time
-    !call tendency_advection(htheta, tempeq, mesh, time, erad, u)
+    call tendency_advection(htheta, tempeq, mesh, time, erad, u)
 
     !===============================================================
     !Calculate vapour tendency
