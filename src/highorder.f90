@@ -1236,7 +1236,7 @@ contains
      phieq%pos=0
      allocate(phieq%f(1:phieq%n), stat=ist)
 
-     if(time_integrator=='rk3' .and.monotonicfilter)then
+     if(monotonicfilter)then
           phi_star%n = mesh%nv
           phi_RKS0%n = mesh%nv
           phi_RKS2%n = mesh%nv
@@ -3471,21 +3471,21 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 end if
 
                 ! Correct the value if monotonic limiter is applied
-                if (monotonicfilter .and. time_integrator=='rk4')then
-                    e = edges_indexes(i,n,1)
-                    i1 = mesh%edhx(e)%sh(1)
-                    i2 = mesh%edhx(e)%sh(2)
+                !if (monotonicfilter .and. time_integrator=='rk4')then
+                !    e = edges_indexes(i,n,1)
+                !    i1 = mesh%edhx(e)%sh(1)
+                !    i2 = mesh%edhx(e)%sh(2)
 
-                    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                !    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                !    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
 
-                    minval_i = min(minval_i1, minval_i2)
-                    maxval_i = max(maxval_i1, maxval_i2)    
+                !    minval_i = min(minval_i1, minval_i2)
+                !    maxval_i = max(maxval_i1, maxval_i2)    
 
-                    pol_filtered = max(pol,minval_i)
-                    pol_filtered = min(pol_filtered,maxval_i)
-                    pol = pol_filtered
-                end if
+                !    pol_filtered = max(pol,minval_i)
+                !    pol_filtered = min(pol_filtered,maxval_i)
+                !    pol = pol_filtered
+                !end if
 
                 ! Flux update
                 node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
@@ -3526,21 +3526,21 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 end if
 
                 ! Correct the value if monotonic limiter is applied
-                if (monotonicfilter .and. time_integrator=='rk4')then
-                    e = edges_indexes(i,n,1)
-                    i1 = mesh%edhx(e)%sh(1)
-                    i2 = mesh%edhx(e)%sh(2)
+                !if (monotonicfilter .and. time_integrator=='rk4')then
+                !    e = edges_indexes(i,n,1)
+                !    i1 = mesh%edhx(e)%sh(1)
+                !    i2 = mesh%edhx(e)%sh(2)
 
-                    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                !    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
+                !    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
 
-                    minval_i = min(minval_i1, minval_i2)
-                    maxval_i = max(maxval_i1, maxval_i2)
+                !    minval_i = min(minval_i1, minval_i2)
+                !    maxval_i = max(maxval_i1, maxval_i2)
 
-                    pol_filtered = max(pol,minval_i)
-                    pol_filtered = min(pol_filtered,maxval_i)
-                    pol = pol_filtered
-                end if
+                !    pol_filtered = max(pol,minval_i)
+                !    pol_filtered = min(pol_filtered,maxval_i)
+                !    pol = pol_filtered
+                !end if
 
                 ! Flux update
                 node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
@@ -4718,7 +4718,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
           !call system_clock(count_rate=clock_rate)
           ! Start the clock
           !call system_clock(count=clock_start)
-
  
           !Calculate divergence and edges flux
           if (present(u_step2))then
@@ -4865,121 +4864,8 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
  
       !======================================================================================
       else ! Donald Diagram
-        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4')then
-          call divhx(phi_step2, div_uphi, mesh, radius, time)
-        end if
-
-        ! Store the flux
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, node, F_step2) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          F_step2(i,1:2) = node(i)%edge_flux(2*mesh%v(i)%nnb-1:2*mesh%v(i)%nnb)
-          F_step2(i,3:2*mesh%v(i)%nnb) = node(i)%edge_flux(1:2*mesh%v(i)%nnb-2)
-        end do
-        !$omp end parallel do
-
-        !-----------------------------------------------------------------------------------
-        ! Flux for phi corrected (equation 4 from wang et al 2009)
-        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-        !$OMP SHARED(F_cor, F_step2, F_star)      
-        F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
-        !$OMP END PARALLEL WORKSHARE
-        !-----------------------------------------------------------------------------------
-
-        ! Equation 5 from Wang et al 2009 - 1st order upwind solution
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, node, phi_tilda, phi_star, F_star, dt, radius) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_tilda%f(i) = phi_star%f(i) - dt*sum(F_star(i,:))/node(i)%area/radius
-        end do
-        !$omp end parallel do
-
-        ! Compute negative and positive flux updates
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, node, phi_tilda, phi_tilda_min, phi_tilda_max, F_cor, dt, radius) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_tilda_min%f(i) = phi_tilda%f(i)
-          phi_tilda_max%f(i) = phi_tilda%f(i)
-          do j = 1, 2*mesh%v(i)%nnb
-            if(F_cor(i,j)>0._r8)then
-              ! Equation 6a from Wang et al 2009
-              phi_tilda_min%f(i) = phi_tilda_min%f(i) - dt*F_cor(i,j)/node(i)%area/radius
-
-            else
-              ! Equation 6b from Wang et al 2009
-              phi_tilda_max%f(i) = phi_tilda_max%f(i) - dt*F_cor(i,j)/node(i)%area/radius
-            end if
-          end do
-        end do
-        !$omp end parallel do
-
-        ! Min/max in neighborhood at time t
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, phi_step0, phi_min, phi_max) &
-        !$omp private(j, k) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_min%f(i) = phi_step0%f(i)
-          phi_max%f(i) = phi_step0%f(i)
-          do j = 1, mesh%v(i)%nnb
-            k = mesh%v(i)%nb(j)
-            if(phi_step0%f(k) < phi_min%f(i))then
-              phi_min%f(i) = phi_step0%f(k)
-            else if(phi_step0%f(k) > phi_max%f(i))then
-              phi_max%f(i) = phi_step0%f(k)
-            end if
-         end do
-        end do
-        !$omp end parallel do
-
-        ! Flux correction
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, F_cor, phi_tilda, phi_tilda_min, phi_tilda_max, phi_min, phi_max) &
-        !$omp private(j, jj, k) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          jj = 1
-          do j = 1, mesh%v(i)%nnb
-            k = mesh%v(i)%nb(j)
-            if(F_cor(i,j)>0._r8) then
-              if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
-                F_cor(i,jj) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
-                                       (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,jj)
-                F_cor(i,jj+1) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
-                                       (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,jj+1)
- 
-              end if
-            else
-              if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
-                F_cor(i,jj) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
-                                          (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,jj)
-                F_cor(i,jj+1) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
-                                          (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,jj+1)
-              end if
-            end if
-            jj = jj+2
-          end do
-        end do
-        !$omp end parallel do
-
-        ! Final solution
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, node, phi_step2, phi_tilda, F_cor, F_star,F_step2, radius, dt) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/node(i)%area/radius
-        end do
-        !$omp end parallel do
-
+        print*, 'ERROR in monotonicfilter_rk3: filter has not been implemented to Donald diagram.'
+        stop
       end if
   end subroutine monotonicfilter_rk3
 
@@ -5032,9 +4918,8 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
           call flux_gas(mesh%nv, mesh, 0, time)
         end if
         !---------------------------------------------------------
- 
-      end if
 
+      end if
       !$omp parallel do &
       !$omp default(none) &
       !$omp shared(mesh, div, controlvolume, node, radius) &
