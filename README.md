@@ -47,13 +47,19 @@ iModel:
 
 5) Output is written in data/
  
-6) Use GMT visualization tool scripts from gmt/plot.sh to plot output (Generic Mapping Tool need to be installed separately) 
+6) 
+  a) Use GMT visualization tool scripts from gmt/plot.sh to plot output (Generic Mapping Tool need to be installed separately) - depreceated 
+  b) Use Python scripts from pyscript folder for visualization.
 
-7) Problems? Send an e-mail to pedrosp@ime.usp.br
+7) Problems? Send an e-mail to ppeixoto@usp.br
 
 ----------------------------------------------------------------------------
 
 Main references for iModel (see www.ime.usp.br/~pedrosp for exact reference):
+
+- Santos, Peixoto, 2021: Topography based local spherical Voronoi grid refinement on classical and moist shallow-water finite volume models (Geoscientific Model Development)
+
+- Yonggang Yu; Ning Wang; Jacques Middlecoff; Pedro Peixoto; Mark Govett, 2020: Comparing Numerical Accuracy of Icosahedral A-grid and C-grid Schemes in Solving the Shallow-Water Model (Monthly Weather Review) 
 
 - Peixoto, Thuburn and Bell, 2018: Numerical instabilities of spherical shallow water models considering small equivalent depths ( Quarterly Journal of the Royal Meteorological Society)
 
