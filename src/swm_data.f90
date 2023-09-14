@@ -681,7 +681,7 @@ contains
       swmname=trim(swmname)//"_"//trim(hyperdiffus)//"_hyperdiffusion_10to"//trim(adjustl(trim(atmp)))     
     end if      
 
-    RefSolRead=testcase==5.or. testcase==51.or.testcase==6.or.testcase==21.or.testcase==23
+    RefSolRead=testcase==5.or. testcase==51.or.testcase==6 !.or.testcase==21.or.testcase==23
     RefSolAnal= testcase==1.or.testcase==2.or. testcase==22.or. testcase==24 &
       .or. testcase==32.or. testcase==33 .or. testcase==34 .or. testcase==35 .or. &
       testcase==40 .or. testcase==41.or. testcase==42
