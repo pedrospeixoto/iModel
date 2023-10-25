@@ -1,14 +1,14 @@
 !Shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-2 0
+21 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
-12 1000
+8 8
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
 120 0 0
 !Scalar/vector location (HC or HTC)
-HC
+HTC
 !Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
-pxt16
+trsk10
 !Cell vec reconstruction method (Kenergy) / Gassmann parameter (if gass set - default 0.75 or 0 for Dubos scheme)
 trsk 1.0
 !Coriolis vec reconstruction method
@@ -20,7 +20,7 @@ trsk
 !Area used for triangles and voronoi cells (geo=geodesic (default), tile= tiled (products of lengths)
 geo
 !Number of plots on animation (ex: 10 plots) / print on screen step (ex:every 100 time steps) / plot errors ( 0 or 1)
-2 60 1
+8 60 0
 !Diffusion coef - Leave zero for no diffusion / coeficient function (possible values: const, align, diam)
 0 const
 !Hyperdiffusion maximum coef - Leave zero for no hyperdiffusion / coeficient function (possible values: const, align, diam)

@@ -60,11 +60,12 @@ def plot_grid(map_projection, lats, lons, N, name):
 griddir = "../grid/"
 
 # Map projection
-#map_projection = "sphere"
-map_projection = "mercator"
+map_projection = "sphere"
+#map_projection = "mercator"
 
 # Grid name (containing edges info)
-name = "icos_pol_nopt_4_edhx"
+#name = "icos_pol_nopt_4_edhx"
+name = "unif240km_mpas_edhx"
 num_lines = sum(1 for line in open(griddir+name+".gmt"))
 
 # Open grid file
