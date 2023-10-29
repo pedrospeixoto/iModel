@@ -84,32 +84,26 @@ def plot(file, colormap, map_projection, qmin=None, qmax=None, title=None):
     plt.close()
     print('Figure has been saved in '+graphdir+filename+'.'+fig_format)
 
-parser = argparse.ArgumentParser()
 
-parser.add_argument('file', 
-                    type=str, 
-                    help='''File you want to plot from''',
-                    nargs='+'
-                    )
+if __name__ == "__main__":
+    parser = argparse.ArgumentParser()
 
-args = parser.parse_args()
+    parser.add_argument('file', 
+                        type=str, 
+                        help='''File you want to plot from''',
+                        nargs='+'
+                        )
 
-
-file = args.file[0]
-
-#Check file existence
-if not os.path.isfile(file):
-    print("That file was not found :(")
-    sys.exit(-1)
+    args = parser.parse_args()
 
 
+    file = args.file[0]
+
+    #Check file existence
+    if not os.path.isfile(file):
+        print("That file was not found :(")
+        sys.exit(-1)
 
 
-#filename="order3_v5_in6_advmethod_sg3_rk3_mono1_phi_t_5_icos_readref_sa_andes3_scvt_h1_5.dat"
-#filename="moist_swm_tc3_dt800_HTC_trsk10_areageo_advmethod_trsk_rk4_mono1_qc_t2592000_icos_pol_scvt_h1_3.dat"
-#filename="moist_swm_tc3_dt800_HTC_trsk10_areageo_advmethod_trsk_rk4_mono1_qr_t2592000_icos_pol_scvt_h1_3.dat"
-#filename="moist_swm_tc2_dt800_HTC_trsk10_areageo_qc_t2592000_icos_pol_scvt_h1_3.dat"
-#filename="moist_swm_tc4_dt800_HTC_trsk10_areageo_qc_t2592000_icos_pol_scvt_h1_3.dat"
-#file="swm_tc21_dt120_HTC_trsk10_areageo_h_t691200_icos_eqs_nopt_5.dat"
-#filename = 'order2_v5_in6_mono0_phi_t_10_icos_pol_scvt_h1_4.dat'
-plot(file, 'jet', 'mercator')
+
+    plot(file, 'jet', 'mercator')

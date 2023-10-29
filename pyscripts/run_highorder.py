@@ -15,19 +15,19 @@ program = "./imodel"
 run = True # Run the simulation?
 
 # Grid levels
-glevels = (2,3,4,5,6,)
+glevels = (2,3,4,5,6,7)
 
 # FV Schemes
-fvs = ('sg3', )
-#fvs = ('og2', 'og3', 'og4','sg2', 'sg3', 'sg4')
+#fvs = ('sg3', )
+fvs = ('og2', 'og3', 'og4','sg2', 'sg3', 'sg4')
 #fvs = ('og2', 'sg3')
 #fvs = ('og4',)
 #fvs = ('sg3',)
 
 # mononotic filter
-mono_values = (0,) 
+#mono_values = (0,) 
 #mono_values = (1,) 
-#mono_values = (1,0) 
+mono_values = (0,1) 
 
 # time integrator
 rk = 'rk3'
@@ -129,7 +129,7 @@ for g in range(0, len(glevels)):
 
             # Run the program
             if (run):
-                subprocess.run('cd .. ; ./imodel', shell=True)
+                subprocess.run('cd .. ;  export OMP_NUM_THREADS=8; ./imodel', shell=True)
 
             # Open the file and reshape
             # scalar field
@@ -152,15 +152,16 @@ for g in range(0, len(glevels)):
             q_min, q_max = np.amin(val), np.amax(val)
             q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
             title = 'Min = '+str(q_min)+', Max = '+str(q_max)+', '+fvs[fv]+', mono='+str(mono_values[mono])+' \n'
-            plot(filename_phi, 'jet', map_projection, -0.2, 1.2, title)
+            plot(datadir+filename_phi, 'jet', map_projection, -0.2, 1.2, title)
 
             eabs = max(abs(np.amin(error_val)), abs(np.amax(error_val)))
             emin, emax = -eabs, eabs
-            plot(filename_error, 'seismic', map_projection, emin, emax)
+            plot(datadir+filename_error, 'seismic', map_projection, emin, emax)
 
 # Plot the error graph
-colors  = ('green','blue','red','orange','purple','gray')
+colors  = ('green','blue','red','green','blue','red',)
 markers = ('x','D','o','*','+','d')
+linestyles = ('-','-','-','--','--','--')
 labels  = fvs
 
 emin = np.amin(abs(errors))
@@ -168,7 +169,7 @@ emax = np.amax(abs(errors))
 
 for mono in range(0,len(mono_values)):
     for fv in range(0,len(fvs)):
-        plt.semilogy(glevels, errors[:,mono,fv], color=colors[fv], marker=markers[fv], label = labels[fv])
+        plt.semilogy(glevels, errors[:,mono,fv], color=colors[fv], marker=markers[fv], linestyle=linestyles[fv], label = labels[fv])
     plt.ylim(0.95*emin, 1.05*emax)
 
     # Plot reference lines
@@ -193,7 +194,7 @@ for mono in range(0,len(mono_values)):
     plt.ylabel('Error')
     plt.legend()
     plt.grid(True, which="both")
-    plt.savefig(graphdir+'errors_adv_mono'+str(mono_values[mono])+\
+    plt.savefig(graphdir+gridname+'errors_adv_mono'+str(mono_values[mono])+\
     '_ic'+str(ic)+'_vf'+str(vf)+'.pdf', format='pdf')
     plt.close()
 
@@ -201,14 +202,14 @@ for mono in range(0,len(mono_values)):
     # Compute and plot the convergence rate
     n = len(glevels)
     for fv in range(0, len(fvs)):
-        CR_linf = np.abs(np.log(errors[1:n,mono,fv])-np.log(errors[0:n-1,mono,fv]))/np.log(2.0)
+        CR_linf = (np.log(errors[0:n-1,mono,fv])-np.log(errors[1:n,mono,fv]))/np.log(2.0)
         plt.ylim(0,4)
-        plt.plot(glevels[1:n], CR_linf, color=colors[fv], marker=markers[fv], label = labels[fv])
+        plt.plot(glevels[1:n], CR_linf, color=colors[fv],  linestyle=linestyles[fv], marker=markers[fv], label = labels[fv])
     plt.xlabel('Grid level')
     plt.xticks(glevels[1:n])
     plt.ylabel('Convergence rate')
     plt.legend()
     plt.grid(True, which="both")
-    plt.savefig(graphdir+'convergence_rate_mono'+str(mono_values[mono])+\
+    plt.savefig(graphdir+gridname+'convergence_rate_mono'+str(mono_values[mono])+\
     '_ic'+str(ic)+'_vf'+str(vf)+'.pdf', format='pdf')
     plt.close()

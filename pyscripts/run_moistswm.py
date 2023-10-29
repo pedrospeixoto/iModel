@@ -10,6 +10,25 @@ import os.path
 import numpy as np
 
 #----------------------------------------------------------------------------
+# colorbar for clouds and precipitation
+cmap_data = [(1.0, 1.0, 1.0),
+             (0.3137255012989044, 0.8156862854957581, 0.8156862854957581),
+             (0.0, 1.0, 1.0),
+             (0.0, 0.8784313797950745, 0.501960813999176),
+             (0.0, 0.7529411911964417, 0.0),
+             (0.501960813999176, 0.8784313797950745, 0.0),
+             (1.0, 1.0, 0.0),
+             (1.0, 0.6274510025978088, 0.0),
+             (1.0, 0.0, 0.0),
+             (1.0, 0.125490203499794, 0.501960813999176),
+             (0.9411764740943909, 0.250980406999588, 1.0),
+             (0.501960813999176, 0.125490203499794, 1.0),
+             (0.250980406999588, 0.250980406999588, 1.0),
+             (0.125490203499794, 0.125490203499794, 0.501960813999176)]
+colormap = mcolors.ListedColormap(cmap_data, 'precipitation')
+#----------------------------------------------------------------------------
+
+#----------------------------------------------------------------------------
 def replace_line(filename, content, line_number):
     import re
     if os.path.exists(filename): # The file exists
@@ -36,14 +55,14 @@ def replace_line(filename, content, line_number):
 # Parameters
 # Program to be run
 program = "./imodel"
-run = True # Run the simulations?
-
+run = False # Run the simulations?
+datadir = '../data/'
 # Grids
 #glevels = (3,3,3,3,3,3)
 #glevels = (6,6,6,6,6,6)
-glevels = (7,7,7,7,7,7)
-#glevels = (3,3,3)
-grid_ref  = 'icos_readref_sa_andes3_scvt_h1_'
+#glevels = (7,7,7,7,7,7)
+glevels = (3,3,3)
+#grid_ref  = 'icos_readref_sa_andes3_scvt_h1_'
 grid_unif = 'icos_pol_scvt_h1_'
 gridnames=(grid_unif, grid_unif, grid_unif, grid_unif, grid_unif, grid_unif)
 #gridnames=(grid_ref, grid_ref, grid_ref, grid_ref, grid_ref, grid_ref)
@@ -72,11 +91,11 @@ elif TC==3:
     fd = '30 30'
     tf = '2592000'
     #DT='3200' # ur2
-    #DT='1600' # ur3
+    DT='1600' # ur3
     #DT='800'  # ur4 
     #DT='400'  # ur5 
     #DT='200'  # ur6 
-    DT='100'  # ur7 
+    #DT='100'  # ur7 
     #DT='800'  # vr3
     #DT='400'  # vr4
     #DT='200'  # vr5
@@ -128,7 +147,7 @@ replace_line(pardir+'moist_swm.par', fd,  5)
 replace_line(pardir+'moist_swm.par', 'trsk10', 11)
 replace_line(pardir+'moist_swm.par', rk, 23)
 replace_line(pardir+'moist_swm.par', 'geo', 27)
-replace_line(pardir+'moist_swm.par', '10000000000000 align', 33)
+replace_line(pardir+'moist_swm.par', '10000000000000 diam', 33)
 
 # compile the code
 subprocess.run('cd .. ; make F90=gfortran', shell=True)
@@ -148,11 +167,11 @@ for g in range(0, len(glevels)):
 
         # Run the program
         if (run):
-            subprocess.run('cd .. ; ./imodel', shell=True)
+            subprocess.run('cd .. ;  export OMP_NUM_THREADS=8; ./imodel', shell=True)
 
         for fd in range(0,len(fields)):
             # File to be opened
-            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_align_hyperdiffusion_10to13.000_advmethod_'+fvs[g]
+            filename = datadir+'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_diam_hyperdiffusion_10to13.000_advmethod_'+fvs[g]
             filename_field_tf = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(tf)+'_'+gridnames[g]+str(glevels[g])+'.dat'
             filename_field_t0 = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(t0)+'_'+gridnames[g]+str(glevels[g])+'.dat'
 
@@ -170,7 +189,7 @@ for g in range(0, len(glevels)):
     for mono in range(0, len(mono_values)):
         for fd in range(0,len(fields)):
             # File to be opened
-            filename = 'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_align_hyperdiffusion_10to13.000_advmethod_'+fvs[g]
+            filename = datadir+'moist_swm_tc'+str(TC)+'_dt'+dt[g]+'_HTC_trsk10_areageo_diam_hyperdiffusion_10to13.000_advmethod_'+fvs[g]
             filename_field_tf = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(tf)+'_'+gridnames[g]+str(glevels[g])+'.dat'
             filename_field_t0 = filename+'_'+rk+'_mono'+str(mono_values[mono])+'_'+fields[fd]+'_t'+str(t0)+'_'+gridnames[g]+str(glevels[g])+'.dat'
 
@@ -185,7 +204,7 @@ for g in range(0, len(glevels)):
             Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[g] +', mono = '+str(mono_values[mono])+'\n'
 
             if fields[fd]=='qr' or fields[fd]=='qc':
-                plot(filename_field_tf, 'Blues', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
+                plot(filename_field_tf, colormap, map_projection, qmin=Q_min, qmax=Q_max, title=Title)
                 #plot(filename_field_tf, 'jet', map_projection, title=Title)
             #else:
             #    plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max,  title=field_names[fd])
