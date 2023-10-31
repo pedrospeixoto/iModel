@@ -202,9 +202,8 @@ for g in range(0, len(glevels)):
                 Q_min, Q_max = np.amin(fields_min[:,:,:,fd]), np.amax(fields_max[:,:,:,fd])
                 q_min, q_max = np.amin(val), np.amax(val)
                 q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
-                Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[g] +', mono = '+str(mono_values[mono])+'\n'
-
-                #plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
+                Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[fv] +', mono = '+str(mono_values[mono])+'\n'
+                plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
 
 
     # plot errors
@@ -225,7 +224,7 @@ for g in range(0, len(glevels)):
                 qabs = max(abs(Q_min), abs(Q_max))
                 Q_min, Q_max = -qabs, qabs
                 q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
-                Title = field_error_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[g] +', mono = '+str(mono_values[mono])+'\n'
+                Title = field_error_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[fv] +', mono = '+str(mono_values[mono])+'\n'
 
                 plot(filename_field_tf, 'seismic', map_projection, qmin=Q_min, qmax=Q_max,  title=Title)
 
