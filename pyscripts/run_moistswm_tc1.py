@@ -6,35 +6,11 @@
 #-----------------------------------------------------------------------
 
 from plot_scalar_field import plot
-import matplotlib.colors as mcolors
 import matplotlib.pyplot as plt
 import subprocess
 import os.path
 import numpy as np
-
-#----------------------------------------------------------------------------
-def replace_line(filename, content, line_number):
-    import re
-    if os.path.exists(filename): # The file exists
-        # Open the grid file
-        file  = open(filename, "r")
-        lines = file.readlines()
-
-        # new content
-        lines[line_number-1] = content+'\n'
-
-        # Close the file
-        file.close()
-
-        # Write new file
-        with open(filename, 'w') as file:
-            for line in lines:
-                file.write(line)
-
-    else:   # The file does not exist
-        print("ERROR in edit_file_line: file"+filename+" not found in /par.")
-        exit()
-#----------------------------------------------------------------------------
+from miscellaneous import *
 
 # Parameters
 # Test case - (1 or 2)
@@ -45,7 +21,6 @@ tc = str(TC)+' 0'
 program = "./imodel"
 #run = False # Run the simulations?
 run = True # Run the simulations?
-datadir = '../data/'
 
 # Grids
 glevels = (1,2,3,4,5,6,7)
@@ -56,7 +31,10 @@ grid = 'icos_pol_scvt_h1_'
 
 # FV Schemes
 mono_values = (1,) # mononotic options
+#fvs = ('sg3', 'og3', 'og4')
+#fvs = ('og4',)
 fvs = ('sg3', 'og3', 'og4')
+#fvs = ('og3', )
 rk = 'rk3'
 
 # Plotting parameters
@@ -77,19 +55,6 @@ fd = str(days)+' '+str(days)
 tf = days*86400 # in seconds
 t0 = 0
 
-# data directory
-datadir = "../data/"
-
-# graphs directory
-graphdir = "../graphs/"
-
-# par directory
-pardir = '../par/'
-
-# imodel latlon grid size
-nlat = 720
-nlon = 1440
-
 # fields to be plotted
 if TC == 1:
     fields = ('tracer',)
@@ -109,7 +74,6 @@ fields_max  = np.zeros((len(glevels),len(mono_values), len(fvs), len(fields)))
 field_errors_min  = np.zeros((len(glevels),len(mono_values), len(fvs), len(field_errors)))
 field_errors_max  = np.zeros((len(glevels),len(mono_values), len(fvs), len(field_errors)))
 error_max  = np.zeros((len(glevels),len(mono_values), len(fvs), len(field_errors)))
-
 
 # Define high order test in mesh.par'
 replace_line(pardir+'mesh.par', 'read', 5)
@@ -203,7 +167,7 @@ for g in range(0, len(glevels)):
                 q_min, q_max = np.amin(val), np.amax(val)
                 q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
                 Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[fv] +', mono = '+str(mono_values[mono])+'\n'
-                plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
+                #plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max, title=Title)
 
 
     # plot errors
@@ -226,7 +190,7 @@ for g in range(0, len(glevels)):
                 q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
                 Title = field_error_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[fv] +', mono = '+str(mono_values[mono])+'\n'
 
-                plot(filename_field_tf, 'seismic', map_projection, qmin=Q_min, qmax=Q_max,  title=Title)
+                #plot(filename_field_tf, 'seismic', map_projection, qmin=Q_min, qmax=Q_max,  title=Title)
 
 
 #-------------------------------------------------------------------------------------------------
