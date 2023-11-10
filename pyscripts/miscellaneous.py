@@ -61,7 +61,7 @@ cmap_data2 = [(1.0, 1.0, 1.0),
              (0.8549019694328308, 0.6509804129600525, 0.47058823704719543),
              (0.6274510025978088, 0.42352941632270813, 0.23529411852359772),
              (0.4000000059604645, 0.20000000298023224, 0.0)]
-colormap2 = mcolors.ListedColormap(cmap_data, 'precipitation')
+colormap2 = mcolors.ListedColormap(cmap_data2, 'precipitation')
 
 #----------------------------------------------------------------------------
 def replace_line(filename, content, line_number):

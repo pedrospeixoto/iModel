@@ -13,16 +13,16 @@ from miscellaneous import *
 # Parameters
 # Program to be run
 program = "./imodel"
-#run = True # Run the simulations?
-run = False # Run the simulations?
-datadir = '../data/'
+run = True # Run the simulations?
+#run = False # Run the simulations?
 
 #-------------------------------------------------------------------------------------
 # Grids
-glevels = (7,7,7,7,7)
+glevels = (3,3,3)
 grid_ref  = 'icos_readref_sa_andes3_scvt_h1_'
 grid_unif = 'icos_pol_scvt_h1_'
 gridnames=(grid_unif, grid_unif, grid_unif, grid_ref, grid_ref, grid_ref)
+gridnames=(grid_unif, grid_unif, grid_unif)
 
 # time step
 DT_unif='100' # ur7
@@ -49,15 +49,6 @@ days = 30
 fd = str(days)+' '+str(days)
 tf = days*86400 # seconds
 t0 = '0'
-
-# data directory
-datadir = "../data/"
-
-# graphs directory
-graphdir = "../graphs/"
-
-# par directory
-pardir = '../par/'
 
 # imodel latlon grid size
 nlat = 720
@@ -144,6 +135,6 @@ for g in range(0, len(glevels)):
             Title = field_names[fd]+' - Min = '+str(q_min)+', Max = '+str(q_max)+' - '+fvs[g] +', mono = '+str(mono_values[mono])+'\n'
 
             if fields[fd]=='qr' or fields[fd]=='qc':
-                plot(filename_field_tf, colormap, map_projection, qmin=Q_min, qmax=Q_max, title=Title)
+                plot(filename_field_tf, colormap2, map_projection, qmin=Q_min, qmax=Q_max, title=Title)
             else:
                 plot(filename_field_tf, 'jet', map_projection, qmin=Q_min, qmax=Q_max,  title=field_names[fd])
