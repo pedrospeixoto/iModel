@@ -370,13 +370,14 @@ subroutine allocate_global_moistswm_vars()
     IF(ist>0) STOP 'Error in allocate_globalmoistswmvars'
 
     call initialize_global_moist_swm_vars()
+
     if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or.&
         advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or.&
         advmtd=='upw1' .or. advmtd=='trsk')then
+
       call highorder_adv_vars()
-      if (advmtd .ne. 'upw1')then
-        call init_quadrature_edges(mesh)
-      end if
+      !if (advmtd .ne. 'upw1')then
+      !end if
     end if
   end subroutine allocate_global_moistswm_vars
 
@@ -397,7 +398,7 @@ subroutine highorder_adv_vars()
     moistswm = .True.
 
     if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4' .or. &
-    advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. &
+        advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. &
         advmtd=='trsk' .or. advmtd=='upw1') then
         !Alocando nos
         allocate(node(0:mesh%nv))
@@ -415,7 +416,8 @@ subroutine highorder_adv_vars()
           node(i)%ngbr(1)%lvd(1:ngbr+1) = (/0.0D0,mesh%v(i)%nbdg(1:ngbr)/)
         end do
 
-        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og3' .or. advmtd=='og4') then
+        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' &
+       .or. advmtd=='og3' .or. advmtd=='og4') then
           nlines=maxval(mesh%v(:)%nnb)
           ncolumns=maxval(mesh%v(:)%nnb)+1  
           allocate(nbsv(15,nodes))
@@ -450,10 +452,13 @@ subroutine highorder_adv_vars()
           call matrix_gas(mesh%nv,mesh)
        endif
 
+       call init_quadrature_edges(mesh)
        do i=1,mesh%nv
           node(i)%phi_exa=node(i)%phi_new2
        enddo
     end if
+
+
 
     div_uphi%n = mesh%nv
     uphi%n = mesh%ne
@@ -462,6 +467,7 @@ subroutine highorder_adv_vars()
     allocate(div_uphi%f(1:div_uphi%n), stat=ist)
     allocate(uphi%f(1:uphi%n), stat=ist)
     allocate(phi_ed%f(1:phi_ed%n), stat=ist)
+
 
     if(monotonicfilter) then
       phi_star%n = mesh%nv
@@ -480,7 +486,7 @@ subroutine highorder_adv_vars()
       allocate(F_step2(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
       allocate(F_cor(1:mesh%nv, 1:maxval(mesh%v(:)%nnb)), stat=ist)
     end if
- 
+
 end subroutine highorder_adv_vars
 
 subroutine initialize_global_moist_swm_vars()
@@ -748,7 +754,7 @@ subroutine initialize_global_moist_swm_vars()
             ! tracer
             call sph2cart(lon, lat, p(1), p(2), p(3))
             call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
-            tracer%f(i) = 0.1d0 + 0.9d0*dexp(-5._r8*norm(p-pc)**2)
+            tracer%f(i) = 1.0d0*dexp(-5._r8*norm(p-pc)**2)
             htracer%f(i) = tracer%f(i)*h%f(i)
             tracer_exact%f(i) = tracer%f(i)
         end do
@@ -813,7 +819,7 @@ subroutine initialize_global_moist_swm_vars()
         ! tracer
         call sph2cart(lon, lat, p(1), p(2), p(3))
         call sph2cart(0._r8, 0._r8, pc(1), pc(2), pc(3))
-        tracer%f(i) = 0.1d0 + 0.9d0*dexp(-5._r8*norm(p-pc)**2)
+        tracer%f(i) = 1d0*dexp(-5._r8*norm(p-pc)**2)
         htracer%f(i) = tracer%f(i)*h%f(i)
         tracer_exact%f(i) = tracer%f(i)
   end do
@@ -915,7 +921,6 @@ subroutine initialize_global_moist_swm_vars()
         hqr%f(i) = h%f(i)*qr%f(i)
         htheta%f(i) = h%f(i)*theta%f(i)
       end do
-
       q0 = 0.02_r8/maxval(qv%f)
       qv%f = q0*qv%f
       hqv%f = q0*hqv%f
@@ -1197,9 +1202,7 @@ subroutine initialize_global_moist_swm_vars()
 
     !===============================================================
     !Compute the SWM tendency
-    if (testcase>1) then 
-        call tendency(h, u, masseq, momeq)
-    end if
+    if (testcase>1) call tendency(h, u, masseq, momeq)
 
     !===============================================================
     ! Reconstructs to normal velocity at quadrature points
@@ -1548,6 +1551,7 @@ subroutine initialize_global_moist_swm_vars()
           rel_error_qr = maxval(abs(qr_error%f))
           rel_error_theta = maxval(abs(theta_error%f))/maxval(abs(theta_exact%f))
           !print*, k, ntime
+          print*
           print*, "Time (dys) :",   k*dt*sec2day, " of ", ntime*dt*sec2day
           print*, "Step = ", k, " of ", ntime
           print '(a33, 3e16.8)','linf errors of (h, u, theta) = ',rel_error_h,rel_error_u,rel_error_theta
@@ -1564,6 +1568,7 @@ subroutine initialize_global_moist_swm_vars()
           !print '(a22, 2e16.8)',' rain = ',minval(qr%f),maxval(qr%f)
           call write_swmp_error_file(time)
         else 
+          print*
           print*, "Time (dys) :",   k*dt*sec2day, " of ", ntime*dt*sec2day
           print*, "Step = ", k, " of ", ntime
           print*,'                          min               max               mass'
@@ -2108,6 +2113,7 @@ subroutine initialize_global_moist_swm_vars()
       else if (testcase==1)then
           htracer_new%f(1:htracer%n) = htracer%f(1:htracer%n)+dt*tracerf0(1:htracer%n)/3.0_r8
       end if
+
       !-------------------------------------------------------------------------
       ! update u source
       if(testcase>1) call source_u(h_new, u_new, htheta_new)
@@ -2597,7 +2603,6 @@ subroutine initialize_global_moist_swm_vars()
     swmname=trim(swmname)//"_mono"//trim(mono)
 
     print*, "SWM Name for Plots: ", trim(swmname)
-
     return
   end subroutine swm_phys_pars
 

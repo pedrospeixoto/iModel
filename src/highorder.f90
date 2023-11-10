@@ -3559,6 +3559,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     ! Calculate the elapsed time using clock ticks
     !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
     !print '("Flux  = ",f9.6," seconds.")',elapsed_time
+    !print*, 'FLUX', order
     return  
   end subroutine flux_olg
 
@@ -4524,7 +4525,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
-
+    error = 0.d0
     !Alocate space if necessary
     if(.not.allocated(uedges%pol))then
         allocate(uedges%pol(1:mesh%nv))
@@ -4582,8 +4583,12 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 !error = max(error, norm2(uexact-urecon)/norm2(uexact))
             end do    
         end do
+        !print*, error, nquad
+        !read(*,*)
+        !stop
         !$omp end parallel do
 
+        !print*, nquad
     else
         ! Gassman method
         !$omp parallel do &
@@ -4882,8 +4887,9 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8) :: area
     ! High order variables
     integer(i4) :: i
-    
-    if (advmtd=='sg2'.or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3'.or. advmtd=='og4') then
+   
+    if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' &
+   .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4') then
       !$omp parallel do &
       !$omp default(none) &
       !$omp shared(mesh, q, node) &
