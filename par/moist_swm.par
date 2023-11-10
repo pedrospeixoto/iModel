@@ -1,10 +1,10 @@
 !Moist shallow water model parameters file - see below for details
 !Test case / Test local truncation 0/1 (only possible in some test cases)
-2 0
+1 0
 !Total period definition (ex:12days) / integrations stopping time (5 days)
 12 12
 !dt (in sec) / number of time steps (if dt=0) / adjust by grid level 5 (0 or 1) 
-800 0 0 
+400 0 0 
 !Scalar/vector location (HC or HTC)
 HTC
 !Wrapper (overrides next 4 options: none, trsk10, pxt16, gass18)
@@ -18,7 +18,7 @@ trsk
 !Gradient discrete method
 trsk
 !Advection method (sg3, og2, og3, og4)
-sg3
+og4
 !Time integration (rk3 or rk4)
 rk3
 !Monotonic limiter (0-no, 1-yes)
@@ -30,7 +30,7 @@ geo
 !Diffusion coef - Leave zero for no diffusion / coeficient function (possible values: const, align, diam)
 0 const
 !Hyperdiffusion maximum coef - Leave zero for no hyperdiffusion / coeficient function (possible values: const, align, diam)
-0 const
+10000000000000 diam
 !Hollingsworth coef - Only for test case 32, 33, 34
 0.001
 !Reference threshold for hybrid method (only if 'hyb' is set on coriolis method - zero to obtain pure trsk)
@@ -44,6 +44,7 @@ none 0.5
 !Options
 !
 !Test Cases implemented 
+1 : advection of a Gaussian hill using a zonal wind
 2 : Steady State  - from Zerroukat and Allen JCP 2015
 3 : Flow over mountain  - from Zerroukat and Allen JCP 2015
 4 : Galewski et al Barotropically unstable jet with perturbation

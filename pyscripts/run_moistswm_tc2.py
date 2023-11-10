@@ -1,10 +1,8 @@
 #-----------------------------------------------------------------------
-# Python script to run and analyse converge of TC1 in the 
+# Python script to run and analyse converge of TC2 in the 
 # moist shallow water model
 #
-# TC1 - advection of a single tracer
-# IC: One gaussian hill, VF: zonal wind
-# This test allows to assess the accuracy of the high order advection schemes
+# TC2: steady test case of Zerroukat and Allen 2015
 #
 # Luan Santos - october 2023
 #-----------------------------------------------------------------------
@@ -18,7 +16,7 @@ from miscellaneous import *
 
 # Parameters
 # Test case
-TC = 1
+TC = 2
 tc = str(TC)+' 0'
 
 # Program to be run
@@ -27,7 +25,7 @@ program = "./imodel"
 run = True # Run the simulations?
 
 # Grids
-glevels = (1,2,3,4,5,)
+glevels = (1,2,3,4,)
 
 # Grid: unif or ref?
 #grid  = 'icos_readref_sa_andes3_scvt_h1_'
@@ -62,8 +60,8 @@ t0 = 0
 # fields to be plotted
 fields = ('tracer',)
 field_names = ('Tracer',)
-field_errors = ('tracer_error',)
-field_error_names = ('Tracer error',)
+field_errors = ('qr', 'qc', 'tracer_error')
+field_error_names = ('Rain', 'Cloud', 'tracer error')
 
 
 # error files
@@ -87,8 +85,8 @@ replace_line(pardir+'moist_swm.par', rk, 23)
 replace_line(pardir+'moist_swm.par', 'geo', 27)
 
 # Hyperdifusion parameter
-replace_line(pardir+'moist_swm.par', '10000000000000 diam', 33)
-hypdifname = "diam_hyperdiffusion_10to13.000"
+replace_line(pardir+'moist_swm.par', '1000000000000 diam', 33)
+hypdifname = "diam_hyperdiffusion_10to12.000"
 # compile the code
 subprocess.run('cd .. ; make F90=gfortran', shell=True)
 
