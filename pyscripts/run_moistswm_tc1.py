@@ -220,7 +220,7 @@ for fd in range(0,len(field_errors)):
             CR = (np.log(error[0:n-1])-np.log(error[1:n]))/np.log(2.0)
             plt.plot(glevels[1:n], CR, marker='o', label = fvs[fv])
     plt.xlabel('Grid level')
-    plt.ylabel('Error')
+    plt.ylabel('Convergence rate')
     plt.ylim(-0.5, 3)
     plt.legend()
     plt.title(field_error_names[fd]+' - convergence rate')
