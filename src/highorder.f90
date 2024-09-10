@@ -2329,7 +2329,6 @@ contains
           end do
        end do
     end do
-
     deallocate(x,w,p1,p2,p3,paux)
     return
   end subroutine gaussedges
@@ -3553,13 +3552,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     enddo
     !$OMP END PARALLEL DO
     deallocate(p1,p2,p3)
-
-    ! Stop the clock
-    !call system_clock(count=clock_end)
-    ! Calculate the elapsed time using clock ticks
-    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    !print '("Flux  = ",f9.6," seconds.")',elapsed_time
-    !print*, 'FLUX', order
     return  
   end subroutine flux_olg
 
@@ -3758,7 +3750,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     !call system_clock(count=clock_end)
     !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
     !print '("Flux  = ",f9.6," seconds.")',elapsed_time
-
+ 
 
    return  
    end subroutine flux_gas   
@@ -3975,6 +3967,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       call divhx(phi, div_uphi, mesh, radius, time)
     end if
     phif = -div_uphi%f
+
   return
   end subroutine tendency_advection
 
@@ -4465,10 +4458,14 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     type(grid_structure),intent(inout):: mesh
     integer(i4):: i
     integer(i4):: j
+    integer(i4):: j1_min, j2_min
     integer(i4):: j1, j2
+    integer(i4):: i1, i2
+    integer(i4):: q1, q2
     integer(i4):: e
     integer(i4):: k, q, nquad, maxnnb
-    real(r8):: p(1:3), lon, lat
+    real(r8):: p(1:3), lon, lat, mindist, tempdist
+    real(r8):: p1(1:3), p2(1:3)
 
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
@@ -4483,28 +4480,41 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     allocate(sh_edges_indexes(1:mesh%ne, 1:4))
     allocate(edges_indexes(1:mesh%nv, 1:maxnnb, 1:nquad))
     sh_edges_indexes = 0
-
-    do i = 1, mesh%nv
-      do j = 1, mesh%v(i)%nnb
-        do q = 1, nquad
-          ! Get the quadrature points
-          p = node(i)%G(q)%lpg(j,1:3)
-
-          ! Get the nearest edge index
-          e =  getnearhxedge(p, mesh)
-
-          ! Store edge index
-          edges_indexes(i,j,q) = e
-
-          ! Save the index j
-          if(sh_edges_indexes(e,1) == 0)then
-            sh_edges_indexes(e,1) = j
+    do e = 1, mesh%ne
+       do q = 1, nquad
+          q1 = q
+          if (q==1) then
+             q2 = nquad
           else
-            sh_edges_indexes(e,2) = j
+             q2 = 1
           end if
-        end do
-      end do
-    end do
+
+
+          !Get neighbor Voronoi cells
+          i1 = mesh%edhx(e)%sh(1)
+          i2 = mesh%edhx(e)%sh(2)
+
+          ! Find minimum distance
+          mindist = 10d0**(10.d0)
+          do j1 = 1, mesh%v(i1)%nnb
+             do j2 = 1, mesh%v(i2)%nnb
+               p1 = node(i1)%G(q1)%lpg(j1,1:3)
+               p2 = node(i2)%G(q2)%lpg(j2,1:3)
+               tempdist = norm2(p1-p2)
+               if(tempdist<mindist)then
+                  mindist = tempdist
+                  j1_min = j1
+                  j2_min = j2
+               endif
+             enddo
+          enddo
+          !print*,q,e,j1_min, j2_min, mindist
+          !print*
+          sh_edges_indexes(e,1) = j1_min
+          sh_edges_indexes(e,2) = j2_min
+       enddo
+    enddo
+    !stop
   end subroutine init_quadrature_edges
 
   subroutine reconstruct_velocity_quadrature(mesh, uedges)  
@@ -4515,12 +4525,12 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
     type(grid_structure),intent(inout):: mesh
     type(scalar_field), intent(inout) :: uedges
-    real(r8):: urecon(1:3)
+    real(r8):: urecon(1:3), dmax, emax
     real(r8):: p(1:3), p1(1:3), p2(1:3), signcor
-    real(r8):: u0, utmp, vtmp, lat, lon, aux, aux1, aux2,error, uexact(1:3)
-    integer(i4):: i, j, k, e, q, jj, jend
+    real(r8):: u0, utmp, vtmp, lat, lon, aux, aux1, aux2,error, uexact(1:3), soma
+    integer(i4):: i, j, k, e, q, jj, jend, s
     integer(i4):: nquad
-    integer(i4):: i1, i2, j1, j2, q1, q2
+    integer(i4):: i1, i2, j1, j2, q1, q2, diml
     character (len=8) :: reconadvmtd = "lsqhxe"
 
     ! Number of quadrature points
@@ -4559,13 +4569,20 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 ! Quadrature points
                 p1 = node(i1)%G(q1)%lpg(j1,1:3)
                 p2 = node(i2)%G(q2)%lpg(j2,1:3)
+                if(maxval(abs(p1-p2))>10d0**(-10d0)) then
+                  print*, 'ERROR in reconstruct_velocity_quadrature: mismatch of Gaussian points at edges.'
+                  print*, 'Edge: ',e
+                  print*, 'diff: ', maxval(abs(p1-p2))
+                  print*
+                  stop
+                endif
+                !emax = max(emax,maxval(abs(p1-p2)))
          
-                !print*,p1
                 ! Reconstruct the velocity field at quadrature points
                 urecon = vecrecon_lsq_ed(p1, uedges, mesh, e)
                 !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
                 !u0 = 2._r8*pi*erad/(12._r8*day2sec)
-                !utmp = u0*cos(lat)
+                !utmp = u0*dcos(lat)
                 !vtmp = 0._r8
                 !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
                 !urecon=uexact 
@@ -4577,18 +4594,13 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 !p = p1
                 !call cart2sph(p1(1), p1(2), p1(3), lon, lat)
                 !u0 = 2._r8*pi*erad/(12._r8*day2sec)
-                !utmp = u0*cos(lat)
+                !utmp = u0*dcos(lat)
                 !vtmp = 0._r8
                 !call convert_vec_sph2cart(utmp, vtmp, p1, uexact)
                 !error = max(error, norm2(uexact-urecon)/norm2(uexact))
             end do    
         end do
-        !print*, error, nquad
-        !read(*,*)
-        !stop
         !$omp end parallel do
-
-        !print*, nquad
     else
         ! Gassman method
         !$omp parallel do &
@@ -4869,7 +4881,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
  
       !======================================================================================
       else ! Donald Diagram
-        print*, 'ERROR in monotonicfilter_rk3: filter has not been implemented to Donald diagram.'
+        print*, 'ERROR in monotonicfilter_rk3: filter has not been implemented for Donald diagrams.'
         stop
       end if
   end subroutine monotonicfilter_rk3
@@ -4887,7 +4899,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8) :: area
     ! High order variables
     integer(i4) :: i
-   
+
     if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' &
    .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4') then
       !$omp parallel do &
