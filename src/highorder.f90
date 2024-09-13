@@ -4043,6 +4043,8 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8):: razao_L2
     real(r8):: razao_Linf
     real(r8):: area
+    character (len=256):: filename
+    integer(i4) :: errorsunit
 
     erro_Linf = 0.0D0
     erro_L1 = 0.0D0
@@ -4074,6 +4076,16 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     erro_Linf = erro_Linf/razao_Linf
     call plot_scalarfield(phi,mesh)
     print*,'Erro_Linf',erro_Linf,'Erro L2',erro_L2
+
+    !File for errors
+    filename=trim(datadir)//trim(transpname)//"_"//trim(mesh%name)//"_errors.txt"
+    print*, 'Errors saved in: ', filename
+    call getunit(errorsunit)
+    open(errorsunit,file=filename, status='replace')
+    write(errorsunit, *) erro_Linf
+    write(errorsunit, *) erro_L2
+    close(errorsunit)
+
     return
   end subroutine erro
 
