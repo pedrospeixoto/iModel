@@ -13,9 +13,11 @@ import os.path
 # Program to be run
 program = "./imodel"
 run = True # Run the simulation?
+#run = False # Run the simulation?
 
 # Grid levels
 glevels = (2,3,4,5,6,7)
+#glevels = (2,3,4,5)
 
 # FV Schemes
 #fvs = ('sg3', )
@@ -154,12 +156,13 @@ for g in range(0, len(glevels)):
             title = 'Min = '+str(q_min)+', Max = '+str(q_max)+', '+fvs[fv]+', mono='+str(mono_values[mono])+' \n'
             plot(datadir+filename_phi, 'jet', map_projection, -0.2, 1.2, title)
 
+
             eabs = max(abs(np.amin(error_val)), abs(np.amax(error_val)))
             emin, emax = -eabs, eabs
             plot(datadir+filename_error, 'seismic', map_projection, emin, emax)
 
 # Plot the error graph
-colors  = ('green','blue','red','green','blue','red',)
+colors  = ('orange','blue','magenta','orange','blue','magenta')
 markers = ('x','D','o','*','+','d')
 linestyles = ('-','-','-','--','--','--')
 labels  = fvs
@@ -190,8 +193,10 @@ for mono in range(0,len(mono_values)):
     #plt.semilogy(glevels, order3 , '-.', color='black', label = '3rd order')
     #plt.semilogy(glevels, order4 , '--', color='black', label = '4rd order')
     plt.xticks(glevels)
-    plt.xlabel('Grid level')
-    plt.ylabel('Error')
+    plt.xlabel('Grid level', fontsize=15)
+    plt.ylabel('Error', fontsize=15)
+    plt.tick_params(axis='x', labelsize=15)
+    plt.tick_params(axis='y', labelsize=14)
     plt.legend()
     plt.grid(True, which="both")
     plt.savefig(graphdir+gridname+'errors_adv_mono'+str(mono_values[mono])+\
@@ -205,9 +210,11 @@ for mono in range(0,len(mono_values)):
         CR_linf = (np.log(errors[0:n-1,mono,fv])-np.log(errors[1:n,mono,fv]))/np.log(2.0)
         plt.ylim(0,4)
         plt.plot(glevels[1:n], CR_linf, color=colors[fv],  linestyle=linestyles[fv], marker=markers[fv], label = labels[fv])
-    plt.xlabel('Grid level')
+    plt.xlabel('Grid level', fontsize=15)
+    plt.ylabel('Convergence rate', fontsize=15)
     plt.xticks(glevels[1:n])
-    plt.ylabel('Convergence rate')
+    plt.tick_params(axis='x', labelsize=15)
+    plt.tick_params(axis='y', labelsize=14)
     plt.legend()
     plt.grid(True, which="both")
     plt.savefig(graphdir+gridname+'convergence_rate_mono'+str(mono_values[mono])+\
