@@ -185,12 +185,12 @@ for g in range(0, len(glevels)):
             q_min, q_max = np.amin(val), np.amax(val)
             q_min, q_max =  str("{:.2e}".format(q_min)),  str("{:.2e}".format(q_max))
             title = 'Min = '+str(q_min)+', Max = '+str(q_max)+', '+fvs[fv]+', mono='+str(mono_values[mono])+' \n'
-            #plot(datadir+filename_phi, 'jet', map_projection, -0.2, 1.2, title)
+            plot(datadir+filename_phi, 'jet', map_projection, -0.2, 1.2, title)
 
 
             eabs = max(abs(np.amin(error_val)), abs(np.amax(error_val)))
             emin_linf, emax_linf = -eabs, eabs
-            #plot(datadir+filename_error, 'seismic', map_projection, emin, emax)
+            plot(datadir+filename_error, 'seismic', map_projection, emin, emax)
 
 # Plot the error graph
 colors  = ('orange','blue','magenta','orange','blue','magenta')
