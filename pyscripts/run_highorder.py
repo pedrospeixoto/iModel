@@ -16,7 +16,7 @@ run = True # Run the simulation?
 #run = False
 
 # Grid levels
-glevels = (2,3,4,5,6,7)
+glevels = (2,3,4,5,6,7,8)
 #glevels = (1,2,3,4,5,6)
 #glevels = (1,2,3,4)
 
@@ -36,10 +36,10 @@ mono_values = (0,1)
 rk = 'rk3'
 
 # Initial condition
-ic = 6
+ic = 2
 
 # Velocity field
-vf = 5
+vf = 3
 
 # Grid name
 gridname = 'icos_pol_scvt_h1_' # uniform grid
@@ -56,7 +56,7 @@ else:
     ic_name = ''
 
 # Wind name
-if vf == 5:
+if vf==5:
     vf_name = 'zonal wind'
 elif vf==4:
     vf_name = 'divergence free deformational flow + zonal wind'
@@ -189,7 +189,7 @@ for g in range(0, len(glevels)):
 
 
             eabs = max(abs(np.amin(error_val)), abs(np.amax(error_val)))
-            emin_linf, emax_linf = -eabs, eabs
+            emin, emax = -eabs, eabs
             plot(datadir+filename_error, 'seismic', map_projection, emin, emax)
 
 # Plot the error graph
