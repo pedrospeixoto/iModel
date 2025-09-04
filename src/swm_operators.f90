@@ -827,12 +827,11 @@ contains
   end subroutine rel_vort_tr
 
 
-  subroutine laplacian_ed(u, lapu, div, vort, grad_ed_div, grad_ed_vort, mesh)
+  subroutine laplacian_ed(lapu, div, vort, grad_ed_div, grad_ed_vort, mesh)
     !---------------------------------------------------------------
     !Calculate diffusion (Laplacian) of field u at edges
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
-    type(scalar_field), intent(in) :: u      !given field
     type(scalar_field), intent(inout):: lapu !laplacian - must be already allocated
 
     !auxiliary fields - must be already allocated
@@ -853,7 +852,7 @@ contains
   end subroutine laplacian_ed
   
 
-  subroutine diffusion_ed(u, lapu, dif_coef_hx, dif_coef_tr,div, vort, grad_ed_div, grad_ed_vort, mesh)
+  subroutine diffusion_ed(lapu, dif_coef_hx, dif_coef_tr,div, vort, grad_ed_div, grad_ed_vort, mesh)
     !---------------------------------------------------------------
     !Calculate variable diffusion of field u at edges
     !dif_coef stores the diffusion coefficient
@@ -863,7 +862,6 @@ contains
     !< https://doi.org/10.1175/MWR-D-17-0015.1>. Web. 28 Sep. 2021.
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
-    type(scalar_field), intent(in) :: u      !given field
     type(scalar_field), intent(inout):: lapu !laplacian - must be already allocated
 
     type(scalar_field), intent(in) :: dif_coef_hx !diffusion coeficient at edges - must be already computed
@@ -929,7 +927,7 @@ contains
   end subroutine second_order_laplacian_ed
 
 
-  subroutine hyperdiffusion_ed(u, lapu, lap_lapu, dif_coef_hx, dif_coef_tr, div, vort, grad_ed_div, grad_ed_vort, mesh)
+  subroutine hyperdiffusion_ed(lapu, lap_lapu, dif_coef_hx, dif_coef_tr, div, vort, grad_ed_div, grad_ed_vort, mesh)
     !---------------------------------------------------------------
     !Calculate variable hyperdiffusion of field u at edges
     !dif_coef stores the diffusion coefficient
@@ -940,7 +938,6 @@ contains
     !< https://doi.org/10.1175/MWR-D-17-0015.1>. Web. 28 Sep. 2021.
     !---------------------------------------------------------------
     type(grid_structure), intent(in) :: mesh
-    type(scalar_field), intent(in) :: u !given field
     type(scalar_field), intent(inout) :: lapu !given field
     type(scalar_field), intent(inout):: lap_lapu !laplacian - must be already allocated
 
@@ -964,7 +961,7 @@ contains
     grad_ed_vort_lap = grad_ed_vort
     
     !Compute 2nd order diffusion
-    call diffusion_ed(u, lapu, dif_coef_hx, dif_coef_tr, div, vort, grad_ed_div, grad_ed_vort, mesh)
+    call diffusion_ed(lapu, dif_coef_hx, dif_coef_tr, div, vort, grad_ed_div, grad_ed_vort, mesh)
  
     !Calculate divergence
     call div_hx(lapu, div_lap, mesh)
@@ -973,7 +970,7 @@ contains
     call rel_vort_tr(lapu, vort_lap, mesh)
  
     !Compute 4th order diffusion
-    call diffusion_ed(lapu, lap_lapu, dif_coef_hx, dif_coef_tr, div_lap, vort_lap, grad_ed_div_lap, grad_ed_vort_lap, mesh)   
+    call diffusion_ed(lap_lapu, dif_coef_hx, dif_coef_tr, div_lap, vort_lap, grad_ed_div_lap, grad_ed_vort_lap, mesh)   
     return
   end subroutine hyperdiffusion_ed
   

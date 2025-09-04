@@ -1988,7 +1988,7 @@ contains
           if(ifile) then
              print*, "Reading density function data: ", trim(filename2)
              !Read the density data
-	     open(iunit3, file=filename2,status='old')
+             open(iunit3, file=filename2,status='old')
              read(iunit3,*) n_lat, n_lon
              allocate (mesh%densf_table(n_lat*n_lon, 3))
              !print*, n_lat, n_lon

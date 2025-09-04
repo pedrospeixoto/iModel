@@ -539,8 +539,8 @@ contains
            if(ifile) then
              print*, "Reading density function data: ", trim(filename2)
              !Read the density data
-	     open(iunit2, file=filename2,status='old')
-    	       read(iunit2,*) n_lat, n_lon 
+             open(iunit2, file=filename2,status='old')
+               read(iunit2,*) n_lat, n_lon 
                allocate (mesh%densf_table(n_lat*n_lon,3))
                read(iunit2,*) ((mesh%densf_table(i,j), j=1,3), i=1,n_lat*n_lon)
              close(iunit2) 

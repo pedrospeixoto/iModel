@@ -2576,7 +2576,7 @@ contains
     !Diffusion
     !------------------------------------------
     if(K2_max /= 0)then 
-      call diffusion_ed(u, lapu, dif_coef_hx, dif_coef_tr, divu, zeta, grad_ed_div, grad_ed_vort, mesh) 
+      call diffusion_ed(lapu, dif_coef_hx, dif_coef_tr, divu, zeta, grad_ed_div, grad_ed_vort, mesh) 
       momeq = momeq + lapu%f
     end if
 
@@ -2584,7 +2584,7 @@ contains
     !Hyperdiffusion
     !------------------------------------------
     if(K4_max /= 0)then
-      call hyperdiffusion_ed(u, lapu, lap_lapu, dif_coef_hx, dif_coef_tr, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
+      call hyperdiffusion_ed(lapu, lap_lapu, dif_coef_hx, dif_coef_tr, divu, zeta, grad_ed_div, grad_ed_vort, mesh)
       momeq = momeq - lap_lapu%f
     end if
 
