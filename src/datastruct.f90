@@ -25,6 +25,21 @@ module datastruct
   end type vector
 
   !-------------------------------------------------
+  ! Simple 2d cartesian vector
+  !------------------------------------------------
+  type vector_2d
+     real (r8), dimension(1:2) :: v
+  end type vector_2d
+
+  !-------------------------------------------------
+  ! Simple 2d cartesian point
+  !------------------------------------------------
+  type point_2d
+     real (r8), dimension(1:2) :: p
+  end type point_2d
+
+
+  !-------------------------------------------------
   ! Simple string of 8 chars, to be used when creating array of strings
   !------------------------------------------------
   type string8
@@ -37,18 +52,43 @@ module datastruct
   ! Also has the rotation parameters
   !------------------------------------------------
   type polcoef
+     ! Rotated normal direction (tangent plane) - for neighboring nodes
+     type(vector_2d), allocatable :: tgplane_nr(:)
+
+     ! Coordinates at tangent plane (after rotation) - for neighboring nodes
+     type(point_2d), allocatable :: tgplane_coords(:) 
+
      !Polinomial coeficients
      real (r8), allocatable :: c(:)
+
+     !Values of 2nd order direction derivatives for each normal direction
+     real (r8), allocatable :: n2d(:)
 
      ! Rotation parameters
      real(r8):: cx, sx, cy, sy
 
+     ! pseudoinverse
+     real (r8), allocatable :: lsq_matrix(:,:)
+     real (r8), allocatable :: lsq_matrix_pinv(:,:)
+
+     ! rhs
+     real (r8), allocatable :: rhs(:)
+
+     ! define the weight of the edge
+     real (r8), allocatable :: wt(:)
+
+     ! average of distances
+     real (r8 ):: av
+
+     ! List of edges used in vector reconstruction
+     integer(i4), allocatable :: eds(:)
      !Kind of coeficients stored
      ! "spol2" = 2nd order scalar polinomial
      ! "vpol1" = 1st order vector polonomial
      character (len=8) :: polkind
 
   end type polcoef
+
 
   !-------------------------------------------------
   !General sphere point structure
@@ -72,6 +112,7 @@ module datastruct
      integer(i4) :: kt
 
   end type point_structure
+
 
   !----------------------------------------------------------------
   !Triangle vertice/node structure
@@ -144,6 +185,10 @@ module datastruct
      ! In the case of triangles, only their index is stored
      ! In the case of hexagons, vertice indexes are stored
      integer (i4), dimension(1:2) :: sh
+
+     ! Edge local indexes for each cell sharing this edge
+     !not saved with mesh
+     integer (i4), dimension(1:2) :: sh_local_index
 
      !Projected length- Euclidian distance in R3
      ! considers the unit sphere
@@ -701,6 +746,46 @@ module datastruct
      real (r8) :: rbf_par
 
   end type vectorinterpol_methods
+
+  !-------------------------------------------------
+  ! Gaussian quadrature at edges
+  ! Includes nodes, weights, and node coordinates on tangent planes centered at each of the
+  ! cell centers that share the edge where the  nodes are located
+  !-------------------------------------------------
+  type gaussian_quad_point
+     ! Quadrature points
+     type(point_structure), allocatable :: node(:) ! size 1:number of quadrature points
+
+     ! Tangent plane coordinates (after rotation)
+     type(point_2d), allocatable :: tgp_p1(:) ! quadrature points after rotation centered at mesh%edhx(e)%sh(1)
+     type(point_2d), allocatable :: tgp_p2(:) ! quadrature points after rotation centered at mesh%edhx(e)%sh(2)
+
+     ! Normal vector at quadrature points
+     type(vector), allocatable :: nr(:) ! size 1:number of quadrature points
+
+     ! aux vars
+     ! Velocity field at quadrature points
+     type(vector), allocatable :: u(:) ! size 1:number of quadrature points
+
+     ! Scalar field at quadrature points
+     real(r8), allocatable :: q(:) ! size 1:number of quadrature points
+
+     ! Quadrature weights
+     real(r8), allocatable :: w(:) ! size 1:number of quadrature points
+
+  end type gaussian_quad_point
+
+  type gaussian_quadrature
+     ! Quadrature points
+     type(gaussian_quad_point), allocatable :: edge(:) !size 1:ne
+
+     ! Quadrature weights
+     real (r8), allocatable :: w(:) ! size 1:n
+
+     ! number of quadrature points
+     integer :: n
+
+  end type gaussian_quadrature
 
 
 end module datastruct
