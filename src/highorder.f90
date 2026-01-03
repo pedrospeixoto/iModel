@@ -591,6 +591,12 @@ contains
           mass = sum(node(1:nodes)%phi_new2*mesh%hx(1:nodes)%areag)
           mass_var = abs((mass0-mass)/mass0)
           time=time+node(0)%dt
+
+         ! compute error for zonal wind simulations
+          if((testcase==5 .or. testcase==7) .and. initialfield==6) then
+              call compute_error_zonal_wind(mesh, time, j)
+          end if
+
           print*, "Time:",  time
           print '(a33, 3e16.8)','min, max, mass variation = ',&
           minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2), mass_var
@@ -671,6 +677,11 @@ contains
 
           mass_var = abs((mass0-mass)/mass0)
 
+          ! compute error for zonal wind simulations
+          if((testcase==5 .or. testcase==7) .and. initialfield==6) then
+              call compute_error_zonal_wind(mesh, time, j)
+          end if
+
           print*, "Time:",  time
           print '(a33, 3e16.8)','min, max, mass variation = ',&
           minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2), mass_var
@@ -682,7 +693,77 @@ contains
     return
   end subroutine highordertests
 
+subroutine compute_error_zonal_wind(mesh, time, step)
+    implicit none 
+    type(grid_structure) :: mesh
+    real (r8), intent(in) :: time
+    integer (i4), intent(in) :: step
+    real (r8) :: p(1:3), rotated_p(1:3), Q(1:3,1:3)
+    real (r8) :: lat, lon, phi_exact
+    real (r8) :: u0, T, ws, wt, error, max_error
+    integer :: i, iunit
+    character(len=256) :: filename
+    logical :: ifile
 
+    T = 5._r8
+    u0 = 2._r8*pi/T
+    wt = -u0*time
+
+    ! Rotation matrix
+    ! First row
+    Q(1,1) =  cos(wt) 
+    Q(1,2) = -sin(wt) 
+    Q(1,3) = 0._r8
+
+    ! Second row
+    Q(2,1) = sin(wt) 
+    Q(2,2) = cos(wt) 
+    Q(2,3) = 0._r8
+
+    ! Third row
+    Q(3,1) = 0._r8
+    Q(3,2) = 0._r8
+    Q(3,3) = 1._r8
+
+    max_error = 0._r8
+    do i = 1, mesh%nv
+        p = mesh%v(i)%p
+        rotated_p = matmul(Q,p)
+        call cart2sph(rotated_p(1), rotated_p(2), rotated_p(3), lon, lat)
+        phi_exact = f(lon, lat) 
+        error = abs(node(i)%phi_new2 - phi_exact)
+        max_error = max(max_error, error)
+    end do
+
+    ! --- Prepare filename for error logging ---
+    filename = trim(datadir)//trim(transpname)//"_"//trim(mesh%name)//"_errors_evol.txt"
+
+    ! --- Get a free unit number for file I/O ---
+    call getunit(iunit)
+
+    ! --- Check if the file exists ---
+    inquire(file=filename, exist=ifile)
+    if (ifile) then
+        ! File exists
+        if (step==0) then
+            ! First timestep: replace the file
+            open(iunit, file=filename, status='replace')
+        else
+            ! Subsequent timesteps: append
+            open(iunit, file=filename, status='old', position='append')
+        end if
+    else
+        ! File does not exist: create new
+        open(iunit, file=filename, status='replace')
+    end if
+
+    ! --- Write time and max_error ---
+    write(iunit,'(F12.5,1X,F12.5)') time, max_error
+
+    ! --- Close the file ---
+    close(iunit)
+
+end subroutine
 
   !----------------------------------------------------------------------------------------
   !  Initial conditions and vector fields
@@ -797,6 +878,11 @@ contains
        f=b
     case(2) !Gaussian
        b0=5
+       !lon1=-70._r8*pi/180._r8-pi/(6._r8)
+       !lat1=-15._r8*pi/180._r8
+       !lon2=-70._r8*pi/180._r8+pi/(6._r8)
+       !lat2=-15._r8*pi/180._r8
+ 
        call sph2cart(lonp, latp, p(1), p(2), p(3))
        call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
        call sph2cart(lon2, lat2, p2(1), p2(2), p2(3))
@@ -808,7 +894,11 @@ contains
        c=1._r8 !0.9
        r=1._r8/2._r8
        f=b
-
+       !lon1=-70._r8*pi/180._r8-pi/(6._r8)
+       !lat1=-15._r8*pi/180._r8
+       !lon2=-70._r8*pi/180._r8+pi/(6._r8)
+       !lat2=-15._r8*pi/180._r8
+ 
        r1= arcdistll(lonp, latp, lon1, lat1)
        if(r1<=r.and.abs(lonp-lon1)>=r/(6._r8))then
           f=c
@@ -838,6 +928,10 @@ contains
        !f=(dcos(latp))**3*(dsin(lonp))**2
     case(6) !One Gaussian  
        b0=5
+       !lon1=-70._r8*pi/180._r8
+       !lat1=-15._r8*pi/180._r8
+
+
        call sph2cart(lonp, latp, p(1), p(2), p(3))
        call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
        f=dexp(-b0*norm(p-p1)**2)
@@ -1734,6 +1828,116 @@ contains
     end if
     return
   end subroutine matrix_olg
+
+
+  subroutine matrix_og(nodes,mesh)  
+    !----------------------------------------------------------------------------------------------
+    !    Matrix Method FV-OLG
+    !----------------------------------------------------------------------------------------------
+    implicit none
+    integer,intent(in):: nodes
+    type(grid_structure),intent(in):: mesh
+    integer(i4):: i 
+    integer(i4):: j 
+    integer(i4):: l
+    integer(i4):: c
+    integer(i4):: m
+    integer(i4):: n
+    real(r8),allocatable:: MRG(:,:)
+
+    if(order==2)then
+       do i=1,nodes
+          !Calculando os momentos para o node i 
+          call moment(i,mesh)
+          !Calculando os termos geometricos para o node i 
+          call geometric(i,mesh)
+          !Calculando phi para o node i 
+          call condition_initial_olg(i,mesh)
+          !Determinado o vetor B FV-OLG
+          call vector_olg(i) 
+          !Determinado a matriz de reconstrucao MRO FV-OLG 
+          l=ubound(node(i)%geometric,1)+1
+          allocate(MRG(l-1,2))
+          node(i)%MRO(1,1)=node(i)%moment(1)/node(i)%moment(1)
+          node(i)%MRO(1,2:)=node(i)%moment(2:)/node(i)%moment(1)
+          node(i)%MRO(2:,1)=node(i)%geometric(1:,1)
+          do j=2,l
+             node(i)%MRO(j,2:) = node(i)%geometric(j-1,2:)*node(i)%geometric(j-1,1)
+          end do
+          l = ubound(node(i)%MRO,1)
+          c = ubound(node(i)%MRO,2)
+          !Determinando a Pseudoinversa MPI FV-OLG
+          do m=2,l
+             do n=2,c
+                MRG(m-1,n-1)=node(i)%MRO(m,n) - node(i)%MRO(m,1)*node(i)%MRO(1,n)
+             end do
+          end do
+          call pseudoinversa(l-1,c-1,MRG,node(i)%MPO)
+          deallocate(MRG)
+       enddo
+    elseif(order==3)then
+       do i=1,nodes
+          !Calculando os momentos para o node i 
+          call moment(i,mesh)
+          !Calculando os termos geometricos para o node i 
+          call geometric(i,mesh)
+          !Calculando phi para o node i 
+          call condition_initial_olg(i,mesh)
+          !Determinado o vetor B FV-OLG
+          call vector_olg(i) 
+          !Determinado a matriz de reconstrucao MRO FV-OLG 
+          l=ubound(node(i)%geometric,1)+1
+          allocate(MRG(l-1,5))
+          node(i)%MRO(1,1)=node(i)%moment(1)/node(i)%moment(1)
+          node(i)%MRO(1,2:)=node(i)%moment(2:)/node(i)%moment(1)
+          node(i)%MRO(2:,1)=node(i)%geometric(1:,1)
+          do j=2,l
+             node(i)%MRO(j,2:) = node(i)%geometric(j-1,2:)*node(i)%geometric(j-1,1)
+          end do
+          l = ubound(node(i)%MRO,1)
+          c = ubound(node(i)%MRO,2)
+          !Determinando a Pseudoinversa MPI FV-OLG
+          do m=2,l
+             do n=2,c
+                MRG(m-1,n-1)=node(i)%MRO(m,n) - node(i)%MRO(m,1)*node(i)%MRO(1,n)
+             end do
+          end do
+          call pseudoinversa(l-1,c-1,MRG,node(i)%MPO)
+          deallocate(MRG)
+       enddo
+    else if (order == 4) then  
+       do i=1,nodes
+          !Calculando os momentos para o node i 
+          call moment(i,mesh)
+          !Calculando os termos geometricos para o node i 
+          call geometric(i,mesh)
+          !Calculando phi para o node i 
+          call condition_initial_olg(i,mesh)         
+          !Determinado o vetor B FV-OLG
+          call vector_olg(i)          
+          !Determinado a matriz de reconstrucao MRO FV-OLG 
+          l=ubound(node(i)%geometric,1)+1
+          allocate(MRG(l-1,9))
+          node(i)%MRO(1,1)=node(i)%moment(1)/node(i)%moment(1)
+          node(i)%MRO(1,2:)=node(i)%moment(2:)/node(i)%moment(1)
+          node(i)%MRO(2:,1)=node(i)%geometric(1:,1)
+          do j=2,l
+             node(i)%MRO(j,2:) = node(i)%geometric(j-1,2:)*node(i)%geometric(j-1,1)
+          end do
+          l = ubound(node(i)%MRO,1)
+          c = ubound(node(i)%MRO,2)
+          !Determinando a Pseudoinversa MPI FV-OLG
+          do m=2,l
+             do n=2,c
+                MRG(m-1,n-1)=node(i)%MRO(m,n) - node(i)%MRO(m,1)*node(i)%MRO(1,n)
+             end do
+          end do
+          call pseudoinversa(l-1,c-1,MRG,node(i)%MPO)
+          deallocate(MRG)
+       enddo
+    end if
+    return
+  end subroutine matrix_og
 
   subroutine vector_olg(no)  
     !----------------------------------------------------------------------------------------------
@@ -3607,6 +3811,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8)  :: zf, theta, alfa, div_est, sol_numerica, sol_exata, derivada_i, derivada_k, cosseno, seno, aux
     real(r8)  :: FEPS, temp, aaxx, erro_Linf, erro, integral,phi_i, phi_k,dist,sinal, aux1, aux2, aux3, lon, lat
     real(r8)  :: lat1, lat2
+    real(r8)  :: beta
     real(r8),allocatable  :: p1(:)      
     real(r8),allocatable  :: p2(:)      
     real(r8),allocatable  :: p3(:)      
@@ -3623,6 +3828,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     temp = 0.0D0
     aaxx = 0.0D0
     erro_Linf = 0.0D0
+    beta = 1d0
 
     do i = 1, nodes
         node(i)%S(z)%flux = 0.0D0
@@ -3636,7 +3842,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     !$OMP PARALLEL DO &
     !$OMP DEFAULT(NONE) & 
     !$OMP SHARED(node, mesh, z, orderg) &
-    !$OMP SHARED(nodes, time, moistswm) & 
+    !$OMP SHARED(nodes, time, moistswm, beta) & 
     !$OMP PRIVATE(i, j, jj, jend, e, k, p, dot, sinal) &
     !$OMP PRIVATE(phi_i, phi_k, normal_vector, aux1, aux2, aux3) &
     !$OMP PRIVATE(derivada_i, derivada_k, dist) &
@@ -3729,7 +3935,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
             ! Compute the flux
             aux1 = (1.0D0/2.0D0)*(phi_i + phi_k)
             aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_k + derivada_i)
-            aux3 = sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_k - derivada_i)
+            aux3 = beta*sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_k - derivada_i)
 
             if (orderg==2) then
                 aux2 = 0.0D0 
