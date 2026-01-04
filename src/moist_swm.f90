@@ -58,6 +58,7 @@ module moist_swm
     plot_scalarfield, &
     plot_cart_vectorfield, &
     aplyr, &
+    aplyrt, &
     constr, &
     vecrecon_lsqeval, &
     vecrecon_lsqfitpol
@@ -260,6 +261,10 @@ module moist_swm
 
     ! Time integrator 
     character (len=32):: time_integrator
+    
+    ! wind reconstruction
+    character (len=5):: urecon_mtd = "ed" ! edge centered LSQ reconstruction
+    !character (len=5):: urecon_mtd = "hx" ! hexagon centered LSQ reconstruction
 
 
 !=============================================================================
@@ -3315,8 +3320,8 @@ end subroutine write_water_evol_file
         do k = 1, nquad
            ! Compute the dot product of the normal vector with the velocity vector
            !p  = gauss_quad%edge(e)%node(k)%p 
-           !dot_prod = dot_product(gauss_quad%edge(e)%u(k)%v, nr)
-           dot_prod = gauss_quad%edge(e)%u(k)%v(1)
+           dot_prod = dot_product(gauss_quad%edge(e)%u(k)%v, nr)
+           !dot_prod = gauss_quad%edge(e)%u(k)%v(1)
 
            if (dot_prod>=0._r8) then
                iupw = i1
@@ -3840,6 +3845,216 @@ subroutine map_edge_to_cell_local_index(mesh)
   end subroutine flux_limiter
 
 
+subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
+!-----------------------------------------------------------------------
+! Vector reconstruction at an edge using least-squares polynomial fitting
+!-----------------------------------------------------------------------
+  integer (i4), intent(in)    :: e
+  type(grid_structure), intent(in) :: mesh
+  type(scalar_field), intent(inout) :: u
+
+  !real (r8) :: urecon(1:3), p(1:3), coefs(1:6)
+
+  !--------------------------------------------------
+  ! Local variables
+  !--------------------------------------------------
+  integer (i4) :: i, j, n, l, k, ed
+  integer (i4) :: n_edges
+  integer (i4), allocatable :: ed_list(:)
+
+  real (r8) :: cx, sx, cy, sy
+  real (r8) :: x, y, z
+  real (r8) :: xp, yp, zp
+
+  real (r8) :: nx, ny, nz
+  real (r8) :: nr(3)
+
+  integer (i4), parameter :: n_coefs = 6
+  real (r8), allocatable :: a(:,:), rhs(:)
+
+  ! --- geometric weights
+  real (r8) :: pref(3)
+  real (r8) :: d, dsum, dmax
+  real (r8) :: av, rmax, rinv, wt
+
+  !Alocate space if necessary
+  if (.not. allocated(u%pol)) then
+     allocate(u%pol(1:mesh%ne))
+  end if
+
+  !==================================================
+  ! Build edge stencil (two cells sharing edge e)
+  !==================================================
+
+  i = mesh%edhx(e)%sh(1)
+  j = mesh%edhx(e)%sh(2)
+
+  n_edges = 1
+  do n = 1, mesh%v(i)%nnb
+     if (mesh%v(i)%ed(n) /= e) n_edges = n_edges + 1
+  end do
+  do n = 1, mesh%v(j)%nnb
+     if (mesh%v(j)%ed(n) /= e) n_edges = n_edges + 1
+  end do
+
+  allocate(ed_list(n_edges))
+  ed_list(1) = e
+
+  k = 1
+  do n = 1, mesh%v(i)%nnb
+     ed = mesh%v(i)%ed(n)
+     if (ed /= e) then
+        k = k + 1
+        ed_list(k) = ed
+     end if
+  end do
+
+  do n = 1, mesh%v(j)%nnb
+     ed = mesh%v(j)%ed(n)
+     if (ed /= e) then
+        k = k + 1
+        ed_list(k) = ed
+     end if
+  end do
+
+  !==================================================
+  ! Allocate LSQ structures
+  !==================================================
+
+
+  !Check if coeficients already exist,
+  ! if so, they will be overwritten
+  if (.not. allocated(u%pol(e)%c)) then
+     allocate(u%pol(e)%c(1:n_coefs))
+  end if
+
+  if (.not. allocated(u%pol(e)%eds)) then
+     allocate(u%pol(e)%eds(1:n_edges))
+  endif
+
+  ! store edges used by stencil
+  do k = 1, n_edges
+     u%pol(e)%eds(k) = ed_list(k) 
+  end do
+
+  if (.not. allocated(u%pol(e)%lsq_matrix_pinv)) then
+     allocate(u%pol(e)%lsq_matrix_pinv(1:n_coefs,1:n_edges))
+  endif
+
+ 
+  allocate(a(n_edges, n_coefs))
+  allocate(rhs(n_edges))
+
+  !==================================================
+  ! Reference point = center of edge e
+  !==================================================
+
+  pref = mesh%ed(e)%c%p
+
+  !--------------------------------------------------
+  ! Compute angular distances
+  !--------------------------------------------------
+  if (.not. allocated(u%pol(e)%wt))then
+     allocate(u%pol(e)%wt(1:n_edges))
+  endif
+
+  if (.not. allocated(u%pol(e)%rhs))then
+     allocate(u%pol(e)%rhs(1:n_edges))
+  endif
+
+  dsum = 0.0_r8
+  dmax = -1.0e30_r8
+
+  do l = 1, n_edges
+     ed = ed_list(l)
+     if (ed /= e) then
+        d = - dot_product(pref, mesh%ed(ed)%c%p)
+        dsum = dsum + (1.0_r8 - d*d)
+        dmax = max(dmax, d)
+     endif
+  end do
+
+  av   = dsqrt( dsum / real(n_edges, r8) )
+  rmax = dmax + 0.25_r8 * abs(dmax)
+  rinv = 1.0_r8 / (1.0_r8 + rmax)
+  u%pol(e)%av = av
+
+  !==================================================
+  ! Rotation to tangent plane at edge e
+  !==================================================
+
+  call constr(pref(1), pref(2), pref(3), cx, sx, cy, sy)
+
+  !==================================================
+  ! Assemble weighted LSQ system
+  !==================================================
+
+  do l = 1, n_edges
+
+     ed = ed_list(l)
+
+     ! rotate edge center
+     call aplyr(mesh%ed(ed)%c%p(1), mesh%ed(ed)%c%p(2), &
+                mesh%ed(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+
+     ! geometric weight
+     if (ed .ne. e) then
+        wt = 1.0_r8 / (1.0_r8 - zp) - rinv
+        wt = 1.0_r8
+     else
+        wt = 1.0_r8
+     end if
+     u%pol(e)%wt(l) = wt
+
+     ! rotate normal (Delaunay edge tangent = Voronoi normal)
+     nr = mesh%ed(ed)%tg
+     call aplyr(nr(1), nr(2), nr(3), cx, sx, cy, sy, nx, ny, nz)
+
+     ! project to tangent plane
+     nx = nx / dsqrt(nx*nx + ny*ny)
+     ny = ny / dsqrt(nx*nx + ny*ny)
+
+     ! LSQ matrix
+     if (ed .ne. e) then
+        a(l,1) =  nx
+        a(l,2) =  ny
+        a(l,3) = (xp * nx)
+        a(l,4) = (xp * ny)
+        a(l,5) = (yp * nx)
+        a(l,6) = (yp * ny)
+     else
+        a(l,1) =  nx       ! * wt
+        a(l,2) =  ny       ! * wt
+        a(l,3) = (xp * nx) ! * wt / av
+        a(l,4) = (xp * ny) ! * wt / av
+        a(l,5) = (yp * nx) ! * wt / av
+        a(l,6) = (yp * ny) ! * wt / av
+     endif
+     rhs(l) = u%f(ed) * u%pol(e)%wt(l)
+
+  end do
+
+  !==================================================
+  ! Solve LSQ
+  !==================================================
+
+  call pseudoinversa(n_edges, n_coefs, a, u%pol(e)%lsq_matrix_pinv)
+
+  !Save the rotation parameters
+  u%pol(e)%cx=cx
+  u%pol(e)%cy=cy
+  u%pol(e)%sx=sx
+  u%pol(e)%sy=sy
+
+ 
+  !==================================================
+  ! Cleanup
+  !==================================================
+
+  deallocate(ed_list, a)
+
+end subroutine init_vecrecon_lsqfitpol_ed
+
 
   subroutine init_vecrecon_lsqfitpol_hxe(kc, var, mesh)
     !----------------------------------------------------------
@@ -4192,7 +4407,7 @@ subroutine map_edge_to_cell_local_index(mesh)
   !    POLINOMIAL Least Square Vector Reconstruction
   !=====================================================================================
 
-  function vecrecon_lsq_ed (p, var, mesh, e)
+  function vecrecon_lsq_hxe_ed (p, var, mesh, e)
     !----------------------------------------------------------
     !
     ! This function assumes that the point p lives in Voronoi edge "e"
@@ -4223,10 +4438,10 @@ subroutine map_edge_to_cell_local_index(mesh)
     integer (i4) :: k1, k2
 
     !Returning value of approximation
-    real (r8):: vecrecon_lsq_ed(1:3), vecrecon_lsq_ed_1(1:3), vecrecon_lsq_ed_2(1:3)
+    real (r8):: vecrecon_lsq_hxe_ed(1:3), vecrecon_lsq_ed_1(1:3), vecrecon_lsq_ed_2(1:3)
 
     if(var%pos/=6)then
-       print*, "vecrecon_lsq_ed warning: vector field given in incorrect position", var%pos
+       print*, "vecrecon_lsq_hxe_ed warning: vector field given in incorrect position", var%pos
        stop
     end if
 
@@ -4247,10 +4462,84 @@ subroutine map_edge_to_cell_local_index(mesh)
     vecrecon_lsq_ed_2 = proj_vec_sphere(vecrecon_lsq_ed_2, p)
 
     ! Average the vectors
-    vecrecon_lsq_ed = (vecrecon_lsq_ed_1+vecrecon_lsq_ed_2)*0.5_r8
+    vecrecon_lsq_hxe_ed = (vecrecon_lsq_ed_1+vecrecon_lsq_ed_2)*0.5_r8
     return
 
-  end function vecrecon_lsq_ed
+  end function vecrecon_lsq_hxe_ed
+
+function vecrecon_lsq_ed(p, u, e) result(vecrecon)
+!-----------------------------------------------------------------------
+! Reconstruct vector field at point p using LSQ polynomial coefficients
+! precomputed at edge e (tangent-plane formulation).
+!-----------------------------------------------------------------------
+
+  !-----------------------------
+  ! Input
+  !-----------------------------
+  real (r8), intent(in)            :: p(1:3)     ! Target point on sphere
+  integer (i4), intent(in)         :: e           ! Central edge
+  type(scalar_field), intent(inout):: u           ! Edge-based scalar field
+
+  !-----------------------------
+  ! Output
+  !-----------------------------
+  real (r8) :: vecrecon(1:3)       ! Reconstructed vector at p
+
+  !-----------------------------
+  ! Local variables
+  !-----------------------------
+  real (r8) :: urecon(1:3)
+  real (r8) :: cx, sx, cy, sy      ! Rotation parameters
+  real (r8) :: xp, yp, zp          ! Rotated coordinates
+  real (r8) :: nx, ny, nz
+  real (r8) :: nr(3)
+
+  integer (i4) :: n_edges, l, ed
+
+  !==================================================
+  ! Assemble RHS using stored stencil and weights
+  !==================================================
+
+  n_edges = size(u%pol(e)%eds)
+
+  do l = 1, n_edges
+     ed = u%pol(e)%eds(l)
+     u%pol(e)%rhs(l) = u%f(ed) * u%pol(e)%wt(l)
+  end do
+
+  !==================================================
+  ! Solve LSQ system (coefficients already projected)
+  !==================================================
+
+  u%pol(e)%c = matmul(u%pol(e)%lsq_matrix_pinv, u%pol(e)%rhs)
+
+  !==================================================
+  ! Load rotation parameters (tangent plane at edge e)
+  !==================================================
+
+  cx = u%pol(e)%cx
+  cy = u%pol(e)%cy
+  sx = u%pol(e)%sx
+  sy = u%pol(e)%sy
+
+  !==================================================
+  ! Evaluate reconstructed field at target point p
+  !==================================================
+
+  ! Rotate target point to tangent plane
+  call aplyr(p(1), p(2), p(3), cx, sx, cy, sy, xp, yp, zp)
+
+  ! Polynomial evaluation (linear)
+  nr(1) = u%pol(e)%c(1) + u%pol(e)%c(3)*xp + u%pol(e)%c(5)*yp
+  nr(2) = u%pol(e)%c(2) + u%pol(e)%c(4)*xp + u%pol(e)%c(6)*yp
+  nr(3) = 0.0_r8
+
+  ! Rotate back to physical space and project onto sphere
+  call aplyrt(nr(1), nr(2), cx, sx, cy, sy, urecon)
+  vecrecon = proj_vec_sphere(urecon, p)
+
+end function vecrecon_lsq_ed
+
 
   subroutine reconstruct_velocity_quadrature(mesh, u)  
     !----------------------------------------------------------------------------------------------
@@ -4276,7 +4565,7 @@ subroutine map_edge_to_cell_local_index(mesh)
 
     !$omp parallel do &
     !$omp default(none) &
-    !$omp shared(mesh, u, nquad, gauss_quad) &
+    !$omp shared(mesh, u, nquad, gauss_quad, urecon_mtd) &
     !$omp private(i1, i2, p) &
     !$omp private(urecon) &
     !$omp schedule(static)
@@ -4285,12 +4574,18 @@ subroutine map_edge_to_cell_local_index(mesh)
           !Get neighbor Voronoi cells
           i1 = mesh%edhx(e)%sh(1)
           i2 = mesh%edhx(e)%sh(2)
-      
+
           ! Quadrature points
           p = gauss_quad%edge(e)%node(q)%p 
      
           ! Reconstruct the velocity field at quadrature points
-          !urecon = vecrecon_lsq_ed(p, u, mesh, e)
+          if (urecon_mtd == "hx") then
+             urecon = vecrecon_lsq_hxe_ed(p, u, mesh, e)
+
+          else if (urecon_mtd == "ed") then
+             urecon = vecrecon_lsq_ed (p, u, e)
+          endif
+
 
           !call cart2sph(p(1), p(2), p(3), lon, lat)
           !u0 = 2._r8*pi*erad/(12._r8*day2sec)
@@ -4301,8 +4596,8 @@ subroutine map_edge_to_cell_local_index(mesh)
           !error = max(error, maxval(abs(uexact-urecon))/maxval(abs(uexact)))
 
           ! Store the velocity
-          !gauss_quad%edge(e)%u(q)%v(1) = urecon
-          gauss_quad%edge(e)%u(q)%v(1) = u%f(e)
+          gauss_quad%edge(e)%u(q)%v = urecon
+          !gauss_quad%edge(e)%u(q)%v(1) = u%f(e)
        end do    
     end do
     !$omp end parallel do
@@ -4342,8 +4637,6 @@ subroutine map_edge_to_cell_local_index(mesh)
     !$omp end parallel do
 
     endif
-    !print*, error
-    !stop
 
   end subroutine reconstruct_velocity_quadrature
 
@@ -4431,9 +4724,17 @@ subroutine map_edge_to_cell_local_index(mesh)
  
     ! init velocity field reconstruction parameters
     if (useStagHTC) then
-    do i = 1, mesh%nv
-       call init_vecrecon_lsqfitpol_hxe (i, u, mesh)
-    end do
+       if (urecon_mtd=="hx") then
+         do i = 1, mesh%nv
+            call init_vecrecon_lsqfitpol_hxe (i, u, mesh)
+         end do
+
+       else if (urecon_mtd=="ed") then
+         do e = 1, mesh%ne
+            call init_vecrecon_lsqfitpol_ed(e, u, mesh)
+         end do
+
+       endif
     endif
    return  
    end subroutine init_lsq_rotation_og
