@@ -263,7 +263,8 @@ module moist_swm
     character (len=32):: time_integrator
     
     ! wind reconstruction
-    character (len=5):: urecon_mtd = "ed" ! edge centered LSQ reconstruction
+    character (len=5):: urecon_mtd = "ed1" ! edge centered linear LSQ reconstruction
+    !character (len=5):: urecon_mtd = "ed2" ! edge centered quadratic LSQ reconstruction
     !character (len=5):: urecon_mtd = "hx" ! hexagon centered LSQ reconstruction
 
 
@@ -3853,12 +3854,11 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
   type(grid_structure), intent(in) :: mesh
   type(scalar_field), intent(inout) :: u
 
-  !real (r8) :: urecon(1:3), p(1:3), coefs(1:6)
-
   !--------------------------------------------------
   ! Local variables
   !--------------------------------------------------
-  integer (i4) :: i, j, n, l, k, ed
+  integer (i4) :: i, j, n, l, m, k, ed
+  integer (i4) :: v1, v2
   integer (i4) :: n_edges
   integer (i4), allocatable :: ed_list(:)
 
@@ -3869,13 +3869,23 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
   real (r8) :: nx, ny, nz
   real (r8) :: nr(3)
 
-  integer (i4), parameter :: n_coefs = 6
-  real (r8), allocatable :: a(:,:), rhs(:)
+  integer (i4) :: n_coefs
+  real (r8), allocatable :: a(:,:)
 
   ! --- geometric weights
   real (r8) :: pref(3)
   real (r8) :: d, dsum, dmax
   real (r8) :: av, rmax, rinv, wt
+
+  ! Linear or quadratic least squares
+  if (urecon_mtd=='ed1') then
+     n_coefs = 6
+  else if (urecon_mtd=='ed2') then
+     n_coefs = 12
+  else
+    print*, 'ERROR on init_vecrecon_lsqfitpol_ed: invalid urecon_mtd, ', urecon_mtd
+    stop
+  endif
 
   !Alocate space if necessary
   if (.not. allocated(u%pol)) then
@@ -3886,21 +3896,91 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
   ! Build edge stencil (two cells sharing edge e)
   !==================================================
 
+  ! Primal edge endpoints
   i = mesh%edhx(e)%sh(1)
   j = mesh%edhx(e)%sh(2)
 
+
+  if (urecon_mtd=='ed2') then ! add more points for quadratic LSQ
+    !--------------------------------------------------
+    ! Dual edge endpoints (Voronoi vertices)
+    ! Correspond to circumcenters of the two
+    ! Delaunay triangles adjacent to edge e
+    !--------------------------------------------------
+    v1 = mesh%edhx(e)%v(1)
+    v2 = mesh%edhx(e)%v(2)
+
+    !--------------------------------------------------
+    ! For each adjacent triangle, find the vertex
+    ! opposite to primal edge (i,j)
+    !--------------------------------------------------
+    l = -1
+    do n = 1, 3
+       k = mesh%tr(v1)%v(n)
+       if (k /= i .and. k /= j) then
+          l = k
+          exit
+       end if
+    end do
+
+    m = -1
+    do n = 1, 3
+       k = mesh%tr(v2)%v(n)
+       if (k /= i .and. k /= j) then
+          m = k
+          exit
+       end if
+    end do
+
+    if (l<0 .or. m<0) then
+      print*, 'ERROR on init_vecrecon_lsqfitpol_ed: couldnt find opposite vertex'
+      stop
+    endif
+  endif
+
+  !--------------------------------------------------
+  ! Count stencil edges:
+  ! - edge e
+  ! - edges incident to vertices i and j
+  ! - edges incident to opposite vertices l and m
+  !   excluding those already counted via i or j
+  !--------------------------------------------------
+
   n_edges = 1
+
   do n = 1, mesh%v(i)%nnb
      if (mesh%v(i)%ed(n) /= e) n_edges = n_edges + 1
   end do
+
   do n = 1, mesh%v(j)%nnb
      if (mesh%v(j)%ed(n) /= e) n_edges = n_edges + 1
   end do
+
+  if (urecon_mtd=='ed2') then ! add more points for quadratic LSQ
+    do n = 1, mesh%v(l)%nnb
+       if ( .not. any(mesh%v(i)%ed(1:mesh%v(i)%nnb) == mesh%v(l)%ed(n)) .and. &
+            .not. any(mesh%v(j)%ed(1:mesh%v(j)%nnb) == mesh%v(l)%ed(n)) ) then
+          n_edges = n_edges + 1
+       end if
+    end do
+
+    do n = 1, mesh%v(m)%nnb
+       if ( .not. any(mesh%v(i)%ed(1:mesh%v(i)%nnb) == mesh%v(m)%ed(n)) .and. &
+            .not. any(mesh%v(j)%ed(1:mesh%v(j)%nnb) == mesh%v(m)%ed(n)) ) then
+          n_edges = n_edges + 1
+       end if
+    end do
+  endif
+
 
   allocate(ed_list(n_edges))
   ed_list(1) = e
 
   k = 1
+
+  !----------------------------------
+  ! Edges incident to vertex i
+  !----------------------------------
   do n = 1, mesh%v(i)%nnb
      ed = mesh%v(i)%ed(n)
      if (ed /= e) then
@@ -3909,6 +3989,10 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
      end if
   end do
 
+
+  !----------------------------------
+  ! Edges incident to vertex j
+  !----------------------------------
   do n = 1, mesh%v(j)%nnb
      ed = mesh%v(j)%ed(n)
      if (ed /= e) then
@@ -3916,6 +4000,32 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
         ed_list(k) = ed
      end if
   end do
+
+  if (urecon_mtd=='ed2') then ! add more points for quadratic LSQ
+    !----------------------------------
+    ! Edges incident to vertex l
+    !----------------------------------
+    do n = 1, mesh%v(l)%nnb
+       ed = mesh%v(l)%ed(n)
+       if (.not. any(ed_list(1:k) == ed)) then
+          k = k + 1
+          ed_list(k) = ed
+       end if
+    end do
+
+    !----------------------------------
+    ! Edges incident to vertex m
+    !----------------------------------
+    do n = 1, mesh%v(m)%nnb
+       ed = mesh%v(m)%ed(n)
+       if (.not. any(ed_list(1:k) == ed)) then
+          k = k + 1
+          ed_list(k) = ed
+       end if
+    end do
+  end if
+     
+
 
   !==================================================
   ! Allocate LSQ structures
@@ -3943,7 +4053,6 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
 
  
   allocate(a(n_edges, n_coefs))
-  allocate(rhs(n_edges))
 
   !==================================================
   ! Reference point = center of edge e
@@ -4015,22 +4124,46 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
      ny = ny / dsqrt(nx*nx + ny*ny)
 
      ! LSQ matrix
-     if (ed .ne. e) then
-        a(l,1) =  nx
-        a(l,2) =  ny
-        a(l,3) = (xp * nx)
-        a(l,4) = (xp * ny)
-        a(l,5) = (yp * nx)
-        a(l,6) = (yp * ny)
-     else
-        a(l,1) =  nx       ! * wt
-        a(l,2) =  ny       ! * wt
-        a(l,3) = (xp * nx) ! * wt / av
-        a(l,4) = (xp * ny) ! * wt / av
-        a(l,5) = (yp * nx) ! * wt / av
-        a(l,6) = (yp * ny) ! * wt / av
+     if (urecon_mtd=='ed1') then ! add more points for quadratic LSQ
+       if (ed .ne. e) then
+          a(l,1) =  nx
+          a(l,2) =  ny
+          a(l,3) = (xp * nx)
+          a(l,4) = (xp * ny)
+          a(l,5) = (yp * nx)
+          a(l,6) = (yp * ny)
+       else
+          a(l,1) =  nx       ! * wt
+          a(l,2) =  ny       ! * wt
+          a(l,3) = (xp * nx) ! * wt / av
+          a(l,4) = (xp * ny) ! * wt / av
+          a(l,5) = (yp * nx) ! * wt / av
+          a(l,6) = (yp * ny) ! * wt / av
+       endif
+
+     else if (urecon_mtd=='ed2') then ! add more points for quadratic LSQ
+       !----------------------------------
+       ! Quadratic LSQ matrix (12 DOFs)
+       !----------------------------------
+       a(l, 1)  =  nx
+       a(l, 2)  =  ny
+
+       a(l, 3)  =  xp * nx
+       a(l, 4)  =  xp * ny
+
+       a(l, 5)  =  yp * nx
+       a(l, 6)  =  yp * ny
+
+       a(l, 7)  =  xp*xp * nx
+       a(l, 8)  =  xp*xp * ny
+
+       a(l, 9)  =  xp*yp * nx
+       a(l,10)  =  xp*yp * ny
+
+       a(l,11)  =  yp*yp * nx
+       a(l,12)  =  yp*yp * ny
      endif
-     rhs(l) = u%f(ed) * u%pol(e)%wt(l)
+
 
   end do
 
@@ -4529,10 +4662,32 @@ function vecrecon_lsq_ed(p, u, e) result(vecrecon)
   ! Rotate target point to tangent plane
   call aplyr(p(1), p(2), p(3), cx, sx, cy, sy, xp, yp, zp)
 
-  ! Polynomial evaluation (linear)
-  nr(1) = u%pol(e)%c(1) + u%pol(e)%c(3)*xp + u%pol(e)%c(5)*yp
-  nr(2) = u%pol(e)%c(2) + u%pol(e)%c(4)*xp + u%pol(e)%c(6)*yp
-  nr(3) = 0.0_r8
+  if (urecon_mtd=='ed1') then
+    ! Polynomial evaluation (linear)
+    nr(1) = u%pol(e)%c(1) + u%pol(e)%c(3)*xp + u%pol(e)%c(5)*yp
+    nr(2) = u%pol(e)%c(2) + u%pol(e)%c(4)*xp + u%pol(e)%c(6)*yp
+    nr(3) = 0.0_r8
+
+  else if (urecon_mtd=='ed2') then
+    !----------------------------------
+    ! Quadratic polynomial evaluation
+    !----------------------------------
+    nr(1) = u%pol(e)%c(1)  &
+          + u%pol(e)%c(3)  * xp &
+          + u%pol(e)%c(5)  * yp &
+          + u%pol(e)%c(7)  * xp*xp &
+          + u%pol(e)%c(9)  * xp*yp &
+          + u%pol(e)%c(11) * yp*yp
+
+    nr(2) = u%pol(e)%c(2)  &
+          + u%pol(e)%c(4)  * xp &
+          + u%pol(e)%c(6)  * yp &
+          + u%pol(e)%c(8)  * xp*xp &
+          + u%pol(e)%c(10) * xp*yp &
+          + u%pol(e)%c(12) * yp*yp
+
+    nr(3) = 0.0_r8
+  endif
 
   ! Rotate back to physical space and project onto sphere
   call aplyrt(nr(1), nr(2), cx, sx, cy, sy, urecon)
@@ -4555,7 +4710,6 @@ end function vecrecon_lsq_ed
     integer(i4):: i, j, k, e, q, jj, jend, s
     integer(i4):: nquad
     integer(i4):: i1, i2
-    character (len=8) :: reconadvmtd = "lsqhxe"
 
     ! Number of quadrature points
     nquad = gauss_quad%n
@@ -4582,7 +4736,7 @@ end function vecrecon_lsq_ed
           if (urecon_mtd == "hx") then
              urecon = vecrecon_lsq_hxe_ed(p, u, mesh, e)
 
-          else if (urecon_mtd == "ed") then
+          else if (urecon_mtd == "ed1" .or. urecon_mtd == 'ed2') then
              urecon = vecrecon_lsq_ed (p, u, e)
           endif
 
@@ -4637,6 +4791,8 @@ end function vecrecon_lsq_ed
     !$omp end parallel do
 
     endif
+    !print*, error
+    !stop
 
   end subroutine reconstruct_velocity_quadrature
 
@@ -4729,7 +4885,7 @@ end function vecrecon_lsq_ed
             call init_vecrecon_lsqfitpol_hxe (i, u, mesh)
          end do
 
-       else if (urecon_mtd=="ed") then
+       else if (urecon_mtd=="ed1" .or. urecon_mtd=="ed2" ) then
          do e = 1, mesh%ne
             call init_vecrecon_lsqfitpol_ed(e, u, mesh)
          end do
