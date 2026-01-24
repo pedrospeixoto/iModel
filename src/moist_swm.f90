@@ -3877,6 +3877,7 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
   real (r8) :: d, dsum, dmax
   real (r8) :: av, rmax, rinv, wt
 
+  real(r8) :: sn, st, Ln, Lt, sn2sum, st2sum, dloc
   ! Linear or quadratic least squares
   if (urecon_mtd=='ed1') then
      n_coefs = 6
@@ -4059,6 +4060,7 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
   !==================================================
 
   pref = mesh%ed(e)%c%p
+  !pref = mesh%edhx(e)%c%p
 
   !--------------------------------------------------
   ! Compute angular distances
@@ -4071,28 +4073,51 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
      allocate(u%pol(e)%rhs(1:n_edges))
   endif
 
-  dsum = 0.0_r8
-  dmax = -1.0e30_r8
-
-  do l = 1, n_edges
-     ed = ed_list(l)
-     if (ed /= e) then
-        d = - dot_product(pref, mesh%ed(ed)%c%p)
-        dsum = dsum + (1.0_r8 - d*d)
-        dmax = max(dmax, d)
-     endif
-  end do
-
-  av   = dsqrt( dsum / real(n_edges, r8) )
-  rmax = dmax + 0.25_r8 * abs(dmax)
-  rinv = 1.0_r8 / (1.0_r8 + rmax)
-  u%pol(e)%av = av
-
   !==================================================
   ! Rotation to tangent plane at edge e
   !==================================================
-
   call constr(pref(1), pref(2), pref(3), cx, sx, cy, sy)
+
+  !==================================================
+  ! Compute anisotropic length scales in tangent plane
+  !==================================================
+
+  sn2sum = 0.0_r8
+  st2sum = 0.0_r8
+
+  do l = 1, n_edges
+
+     ed = ed_list(l)
+
+     ! Position in local tangent plane
+     call aplyr(mesh%ed(ed)%c%p(1), mesh%ed(ed)%c%p(2), &
+                mesh%ed(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
+
+     ! Edge normal (Voronoi normal) in tangent plane
+     nr = mesh%ed(ed)%tg
+     call aplyr(nr(1), nr(2), nr(3), cx, sx, cy, sy, nx, ny, nz)
+
+     dloc = dsqrt(nx*nx + ny*ny)
+     nx = nx / dloc
+     ny = ny / dloc
+
+     ! Normal and tangential coordinates
+     sn =  xp*nx + yp*ny
+     st = -xp*ny + yp*nx
+
+     if (ed /= e) then
+        sn2sum = sn2sum + sn*sn
+        st2sum = st2sum + st*st
+     end if
+
+  end do
+
+  Ln = dsqrt( sn2sum / real(max(1,n_edges-1), r8) )
+  Lt = dsqrt( st2sum / real(max(1,n_edges-1), r8) )
+
+  ! Avoid zero scales
+  Ln = max(Ln, 1.0e-12_r8)
+  Lt = max(Lt, 1.0e-12_r8)
 
   !==================================================
   ! Assemble weighted LSQ system
@@ -4102,68 +4127,71 @@ subroutine init_vecrecon_lsqfitpol_ed(e, u, mesh)
 
      ed = ed_list(l)
 
-     ! rotate edge center
+     !-----------------------------
+     ! Position in tangent plane
+     !-----------------------------
      call aplyr(mesh%ed(ed)%c%p(1), mesh%ed(ed)%c%p(2), &
                 mesh%ed(ed)%c%p(3), cx, sx, cy, sy, xp, yp, zp)
 
-     ! geometric weight
-     if (ed .ne. e) then
-        wt = 1.0_r8 / (1.0_r8 - zp) - rinv
-        wt = 1.0_r8
-     else
-        wt = 1.0_r8
-     end if
-     u%pol(e)%wt(l) = wt
-
-     ! rotate normal (Delaunay edge tangent = Voronoi normal)
+     !-----------------------------
+     ! Edge normal in tangent plane
+     !-----------------------------
      nr = mesh%ed(ed)%tg
      call aplyr(nr(1), nr(2), nr(3), cx, sx, cy, sy, nx, ny, nz)
 
-     ! project to tangent plane
-     nx = nx / dsqrt(nx*nx + ny*ny)
-     ny = ny / dsqrt(nx*nx + ny*ny)
+     dloc = dsqrt(nx*nx + ny*ny)
+     nx = nx / dloc
+     ny = ny / dloc
 
+     !-----------------------------
+     ! Normal / tangential coords
+     !-----------------------------
+     sn =  xp*nx + yp*ny
+     st = -xp*ny + yp*nx
+
+     !-----------------------------
+     ! Anisotropic geometric weight
+     !-----------------------------
+     wt = 1.0_r8 / (1.0_r8 + (sn/Ln)**2 + (st/Lt)**2)
+     u%pol(e)%wt(l) = wt
+
+     !-----------------------------
      ! LSQ matrix
-     if (urecon_mtd=='ed1') then ! add more points for quadratic LSQ
-       if (ed .ne. e) then
-          a(l,1) =  nx
-          a(l,2) =  ny
-          a(l,3) = (xp * nx)
-          a(l,4) = (xp * ny)
-          a(l,5) = (yp * nx)
-          a(l,6) = (yp * ny)
-       else
-          a(l,1) =  nx       ! * wt
-          a(l,2) =  ny       ! * wt
-          a(l,3) = (xp * nx) ! * wt / av
-          a(l,4) = (xp * ny) ! * wt / av
-          a(l,5) = (yp * nx) ! * wt / av
-          a(l,6) = (yp * ny) ! * wt / av
-       endif
+     !-----------------------------
+     if (urecon_mtd == 'ed1') then
+        ! Linear reconstruction (6 DOF)
 
-     else if (urecon_mtd=='ed2') then ! add more points for quadratic LSQ
-       !----------------------------------
-       ! Quadratic LSQ matrix (12 DOFs)
-       !----------------------------------
-       a(l, 1)  =  nx
-       a(l, 2)  =  ny
+        a(l,1) = wt * nx
+        a(l,2) = wt * ny
 
-       a(l, 3)  =  xp * nx
-       a(l, 4)  =  xp * ny
+        a(l,3) = wt * (xp * nx)
+        a(l,4) = wt * (xp * ny)
 
-       a(l, 5)  =  yp * nx
-       a(l, 6)  =  yp * ny
+        a(l,5) = wt * (yp * nx)
+        a(l,6) = wt * (yp * ny)
 
-       a(l, 7)  =  xp*xp * nx
-       a(l, 8)  =  xp*xp * ny
+     else if (urecon_mtd == 'ed2') then
+        ! Quadratic reconstruction (12 DOF)
 
-       a(l, 9)  =  xp*yp * nx
-       a(l,10)  =  xp*yp * ny
+        a(l, 1) = wt * nx
+        a(l, 2) = wt * ny
 
-       a(l,11)  =  yp*yp * nx
-       a(l,12)  =  yp*yp * ny
-     endif
+        a(l, 3) = wt * (xp * nx)
+        a(l, 4) = wt * (xp * ny)
 
+        a(l, 5) = wt * (yp * nx)
+        a(l, 6) = wt * (yp * ny)
+
+        a(l, 7) = wt * (xp*xp * nx)
+        a(l, 8) = wt * (xp*xp * ny)
+
+        a(l, 9) = wt * (xp*yp * nx)
+        a(l,10) = wt * (xp*yp * ny)
+
+        a(l,11) = wt * (yp*yp * nx)
+        a(l,12) = wt * (yp*yp * ny)
+
+     end if
 
   end do
 
@@ -4746,7 +4774,7 @@ end function vecrecon_lsq_ed
           !utmp = u0*dcos(lat)
           !vtmp = 0._r8
           !call convert_vec_sph2cart(utmp, vtmp, p, uexact)
-          !urecon=uexact 
+          !!urecon=uexact 
           !error = max(error, maxval(abs(uexact-urecon))/maxval(abs(uexact)))
 
           ! Store the velocity
