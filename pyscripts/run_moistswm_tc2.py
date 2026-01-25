@@ -18,13 +18,13 @@ from plot_scalar_field import plot
 # =========================
 
 program = "./imodel"
-run = False           # Run the model?
-#run = True           # Run the model?
+#run = False           # Run the model?
+run = True           # Run the model?
 nthreads = 14          # OMP threads
 
-glevels = (2, 3, 4, 5, 6, 7 )      # Grid levels
+#glevels = (2, 3, 4, 5, 6, 7 )      # Grid levels
 #glevels = (2, 3, 4, 5, 6 )      # Grid levels
-#glevels = (2, 3, 4, 5, )      # Grid levels
+glevels = (2, 3)      # Grid levels
 #glevels = (1, 2, 3, 4, 5, 6)      # Grid levels
 g0 = glevels[0]
 #g0 = 7
@@ -245,9 +245,23 @@ shape = (len(glevels), len(fvs), len(mono_values), len(field_errors))
 errors_linf = np.zeros(shape)
 errors_l2 = np.zeros(shape)
 
+# Set moist swm case in mesh.par
+replace_line(pardir + "mesh.par", "18", 15)
+
 # Define some moist swm parameters
 replace_line(pardir+'moist_swm.par', tc, 3)
 replace_line(pardir+'moist_swm.par', fd,  5)
+
+# Shallow-water solver parameters
+cell_vec_recon = 'trsk'
+coriolis = 'trsk'
+scalar_interp = 'trsk'
+grad = 'trsk'
+replace_line(pardir+'moist_swm.par', 'none', 11)            # Wrapper
+replace_line(pardir+'moist_swm.par', f'{cell_vec_recon} 1.0', 13)        # Cell vec reconstruction method (Kenergy) / Gassmann parameter
+replace_line(pardir+'moist_swm.par', coriolis, 15)          # Coriolis vec reconstruction method
+replace_line(pardir+'moist_swm.par', scalar_interp, 17)     # Scalar interpolations
+replace_line(pardir+'moist_swm.par', grad, 19)              # Gradient discrete method
 
 for g_idx, glevel in enumerate(glevels):
     dt = dt0 // 2**(glevel-1)
@@ -273,8 +287,9 @@ for g_idx, glevel in enumerate(glevels):
                 subprocess.run(f"cd .. ; export OMP_NUM_THREADS={nthreads}; {program}", shell=True)
 
             for fd_idx, (fd_error, fd) in enumerate(zip(field_errors, fields)):
-                filename = f"{datadir}moist_swm_tc{TC}_dt{dt}_{HT}_trsk10_areageo_{hyper_diff_coef_str}advmethod_{fv}_{rk}_mono{mono}_{fd}_t{tf}_{grid}{glevel}.dat"
-                filename_error = f"{datadir}moist_swm_tc{TC}_dt{dt}_{HT}_trsk10_areageo_{hyper_diff_coef_str}advmethod_{fv}_{rk}_mono{mono}_{fd_error}_t{tf}_{grid}{glevel}.dat"
+                swm_pars = f"vrec{coriolis}_crec{cell_vec_recon}_sint{scalar_interp}_grd{grad}"
+                filename = f"{datadir}moist_swm_tc{TC}_dt{dt}_{HT}_{swm_pars}_areageo_{hyper_diff_coef_str}advmethod_{fv}_{rk}_mono{mono}_{fd}_t{tf}_{grid}{glevel}.dat"
+                filename_error = f"{datadir}moist_swm_tc{TC}_dt{dt}_{HT}_{swm_pars}_areageo_{hyper_diff_coef_str}advmethod_{fv}_{rk}_mono{mono}_{fd_error}_t{tf}_{grid}{glevel}.dat"
 
                 error_val = read_field(filename_error)
 
