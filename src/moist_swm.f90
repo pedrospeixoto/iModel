@@ -655,7 +655,7 @@ subroutine highorder_adv_vars()
 
         call edges_voronoi(nodes)
 
-        call gaussedges(nodes,mesh)
+        call gaussedges(nodes)
 
         call upwind_voronoi(nodes,mesh)
 

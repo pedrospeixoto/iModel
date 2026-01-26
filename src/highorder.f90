@@ -503,7 +503,7 @@ contains
 
        call area_donald(nodes,mesh)
 
-       call gaussedges(nodes,mesh)  
+       call gaussedges(nodes)
 
        call upwind_donald(nodes,mesh)
 
@@ -513,7 +513,7 @@ contains
 
        call edges_voronoi(nodes)
 
-       call gaussedges(nodes,mesh)
+       call gaussedges(nodes)
 
        call upwind_voronoi(nodes,mesh)
 
@@ -527,11 +527,11 @@ contains
 
        call condition_initial_gas(nodes,mesh) 
 
-       call matrix_gas(nodes,mesh)
+       call matrix_gas(nodes)
 
-       call vector_gas(nodes,mesh)
+       call vector_gas(nodes)
 
-       call reconstruction_gas(nodes,mesh)
+       call reconstruction_gas(nodes)
 
 !       call interpolation(nodes,mesh) 
 
@@ -541,7 +541,7 @@ contains
        ! GASSMANN NO PLANO
        !call matrix_g(nodes,mesh) 
        !call vector_g(nodes,mesh)
-       !call reconstruction_g(nodes,mesh)
+       !call reconstruction_g(nodes)
        !call interpolation_g(mesh)
        !call flux_edges_g(nodes,mesh,0,0.0D0)  
 
@@ -576,8 +576,8 @@ contains
 
           if (time_integrator=='rk4') then
              do k=1,4
-                call vector_gas(nodes,mesh)
-                call reconstruction_gas(nodes,mesh)
+                call vector_gas(nodes)
+                call reconstruction_gas(nodes)
                 call flux_gas(nodes,mesh,k-1,time)
                 call rungekutta4(nodes,mesh,k) 
              enddo
@@ -656,7 +656,7 @@ contains
           if (time_integrator=='rk4') then
             do k=1,4
                call vector_olg2(nodes)
-               call reconstruction_olg(nodes,mesh) 
+               call reconstruction_olg(nodes)
                call flux_olg(nodes,mesh,k-1,time)
                call rungekutta4(nodes,mesh,k) 
             enddo
@@ -928,8 +928,8 @@ end subroutine
        !f=(dcos(latp))**3*(dsin(lonp))**2
     case(6) !One Gaussian  
        b0=5
-       !lon1=-70._r8*pi/180._r8
-       !lat1=-15._r8*pi/180._r8
+       lon1=-70._r8*pi/180._r8
+       lat1=-15._r8*pi/180._r8
 
 
        call sph2cart(lonp, latp, p(1), p(2), p(3))
@@ -1601,13 +1601,12 @@ end subroutine
     return
   end subroutine pseudoinversa
 
-  subroutine matrix_gas(nodes,mesh)  
+  subroutine matrix_gas(nodes)
     !----------------------------------------------------------------------------------------------
     !    Construcao do sistema A*X = B e determinando a Pseudoinversa
     !----------------------------------------------------------------------------------------------
     implicit none
     integer(i4),intent(in)    :: nodes
-    type(grid_structure),intent(in)      :: mesh
     integer(i4):: i
     integer(i4):: j
     real(r8):: x
@@ -1630,13 +1629,12 @@ end subroutine
     return
   end subroutine matrix_gas
 
-  subroutine vector_gas(nodes,mesh)  
+  subroutine vector_gas(nodes)
     !----------------------------------------------------------------------------------------------
     !    Construcao do sistema A*X = B e determinando a Pseudoinversa
     !----------------------------------------------------------------------------------------------
     implicit none
     integer(i4),intent(in):: nodes
-    type(grid_structure),intent(in):: mesh
     integer(i4):: i
     integer(i4):: j
     real(r8):: peso
@@ -1668,13 +1666,12 @@ end subroutine
  
   end subroutine vector_gas
 
-  subroutine reconstruction_gas(nodes,mesh)  
+  subroutine reconstruction_gas(nodes)
     !----------------------------------------------------------------------------------------------
     !    Reconstrucao da solucao
     !----------------------------------------------------------------------------------------------
     implicit none
     integer(i4),intent(in):: nodes
-    type(grid_structure),intent(in):: mesh
     integer(i4):: i
     integer(i4):: j
     integer(i4):: m
@@ -2040,13 +2037,12 @@ end subroutine
     return
   end subroutine vector_olg2
 
-  subroutine reconstruction_olg(nodes,mesh)  
+  subroutine reconstruction_olg(nodes)
     !----------------------------------------------------------------------------------------------
     !    Reconstrucao da solucao
     !----------------------------------------------------------------------------------------------
     implicit none
     integer(i4),intent(in):: nodes
-    type(grid_structure),intent(in):: mesh
     integer(i4):: i
     integer(i4):: m
     integer(i4):: n
@@ -2482,13 +2478,12 @@ end subroutine
     return
   end subroutine edges_voronoi
 
-  subroutine gaussedges(nodes,mesh)  
+  subroutine gaussedges(nodes)
     !----------------------------------------------------------------------------------------------
     !    Determinando as raizes e pesos de gauss para cada aresta do volume de controle de Donalds
     !----------------------------------------------------------------------------------------------
     implicit none
     integer,intent(in):: nodes
-    type(grid_structure),intent(in)      :: mesh       
     integer(i4):: i
     integer(i4):: VD
     integer(i4):: n
@@ -2907,10 +2902,9 @@ end subroutine
   !======================================================================================
   !    ROTINES OF TESTS
   !======================================================================================
-  subroutine interpolation(nodes,mesh)  
+  subroutine interpolation(mesh)  
     implicit none
     type(grid_structure),intent(in)      :: mesh
-    integer(i4),intent(in):: nodes
     integer(i4) :: ii
     integer(i4) :: jj
     integer (i4):: nlon !Total number of longitudes
@@ -3140,15 +3134,13 @@ end subroutine
     return  
   end subroutine flux_edges_olg
 
-  subroutine flux_edges_gas(nodes,mesh,z,time)  
+  subroutine flux_edges_gas(mesh,z)
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
     !----------------------------------------------------------------------------------------------
     implicit none 
-    integer,intent(in)    :: nodes
     type(grid_structure),intent(in)      :: mesh
     integer,intent(in),optional   :: z
-    real(r8),intent(in),optional  :: time
     integer(i4)   :: i,ii
     integer(i4)   :: j,jj
     integer(i4)   :: k
@@ -3554,7 +3546,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     return
   end subroutine time_step
 
-  subroutine flux_olg(nodes,mesh,z,time,uedges)  
+  subroutine flux_olg(nodes,mesh,z,time)
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
     !----------------------------------------------------------------------------------------------
@@ -3563,7 +3555,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     type(grid_structure),intent(inout):: mesh
     integer,intent(in),optional   :: z
     real(r8),intent(in),optional  :: time
-    type(scalar_field), intent(inout), optional :: uedges ! Only for moist shallow water model
     integer(i4):: i
     integer(i4):: j
     integer(i4):: k
@@ -3734,8 +3725,8 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 !    i1 = mesh%edhx(e)%sh(1)
                 !    i2 = mesh%edhx(e)%sh(2)
 
-                !    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                !    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
+                !    call monotonic_limiter(i1, minval_i1, maxval_i1)
+                !    call monotonic_limiter(i2, minval_i2, maxval_i2)
 
                 !    minval_i = min(minval_i1, minval_i2)
                 !    maxval_i = max(maxval_i1, maxval_i2)
@@ -3761,7 +3752,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
 
 
-    subroutine flux_gas(nodes,mesh,z,time, uedges)  
+    subroutine flux_gas(nodes,mesh,z,time)  
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
     !----------------------------------------------------------------------------------------------
@@ -3771,7 +3762,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     type(grid_structure),intent(inout)      :: mesh
     integer,intent(in),optional   :: z
     real(r8),intent(in),optional  :: time
-    type(scalar_field), intent(inout), optional :: uedges ! Only for moist shallow water model
     integer(i4)   :: i
     integer(i4)   :: j
     integer(i4)   :: k
@@ -4018,7 +4008,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       if(.not. monotonicfilter)then
         do k=1, 3
           call vector_olg2(nodes)
-          call reconstruction_olg(nodes,mesh) 
+          call reconstruction_olg(nodes)
           call flux_olg(nodes,mesh,k-1,time) 
           call rungekutta3(nodes,mesh,k) 
         enddo
@@ -4026,7 +4016,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       else
         do k=1, 2
           call vector_olg2(nodes)
-          call reconstruction_olg(nodes,mesh) 
+          call reconstruction_olg(nodes)
           call flux_olg(nodes,mesh,k-1,time) 
           call rungekutta3(nodes,mesh,k) 
         enddo
@@ -4042,16 +4032,16 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     else! Gassman scheme
       if(.not. monotonicfilter)then
         do k=1, 3
-          call vector_gas(nodes,mesh)
-          call reconstruction_gas(nodes,mesh)
+          call vector_gas(nodes)
+          call reconstruction_gas(nodes)
           call flux_gas(nodes,mesh,k-1,time)
           call rungekutta3(nodes,mesh,k) 
         enddo
 
       else
         do k=1, 2
-          call vector_gas(nodes,mesh)
-          call reconstruction_gas(nodes,mesh)
+          call vector_gas(nodes)
+          call reconstruction_gas(nodes)
           call flux_gas(nodes,mesh,k-1,time)
           call rungekutta3(nodes,mesh,k) 
         enddo
@@ -4099,29 +4089,17 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       call zero_vector(phif2)
       call zero_vector(phif3)
 
-      if(present(u))then
-        call tendency_advection(phi, phif0, mesh, time, radius, u)
-      else
-        call tendency_advection(phi, phif0, mesh, time, radius)
-      end if
+      call tendency_advection(phi, phif0, mesh, time, radius)
 
       !First RK step
       phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif0(1:phi%n) / 3.0_r8
 
-      if(present(u))then
-        call tendency_advection(phi_new, phif1, mesh, time, radius, u)
-      else
-        call tendency_advection(phi_new, phif1, mesh, time, radius)
-      end if
+      call tendency_advection(phi_new, phif1, mesh, time, radius)
 
       !Second RK step
       phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif1(1:phi%n) / 2.0_r8
 
-      if(present(u))then
-        call tendency_advection(phi_new, phif2, mesh, time, radius, u)
-      else
-        call tendency_advection(phi_new, phif2, mesh, time, radius)
-      end if
+      call tendency_advection(phi_new, phif2, mesh, time, radius)
 
       ! Third  RK step
       ! Last RK step applies a different approach if the monotonic limiter is active 
@@ -4129,17 +4107,13 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
         phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif2(1:phi%n)
 
       else if(monotonicfilter) then
-        if(present(u))then
-          call  monotonicfilter_rk3(mesh, phi, phi_new, dt, radius, time, u, u_new)
-        else
-          call  monotonicfilter_rk3(mesh, phi, phi_new, dt, radius, time)
-        end if
+        call  monotonicfilter_rk3(mesh, phi, phi_new, dt, radius, time, u, u_new)
       end if
 
       return
     end subroutine ode_rk3_advection
 
-  subroutine tendency_advection(phi, phif, mesh, time, radius, u)
+  subroutine tendency_advection(phi, phif, mesh, time, radius)
     !--------------------------------------
     !Calculates the Right Hand Side (spatial discret./tendency)
     !   of advection equation
@@ -4150,9 +4124,6 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
     !Tracer (defined on voronoi centers)
     type(scalar_field), intent(in):: phi  !General
-
-    !Velocities (defined on edges - only normal component)
-    type(scalar_field), optional, intent(inout):: u  !General
 
     !Time
     real(r8), intent(in):: time, radius
@@ -4167,11 +4138,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     !Calculate tracer phi tendency
     !===============================================================
     !Calculate divergence / tracer eq RHS
-    if(present(u)) then
-      call divhx(phi, div_uphi, mesh, radius, time, u)
-    else
-      call divhx(phi, div_uphi, mesh, radius, time)
-    end if
+    call divhx(phi, div_uphi, mesh, radius, time)
     phif = -div_uphi%f
 
   return
@@ -4382,13 +4349,12 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
 
 
-  subroutine reconstruction_g(nodes,mesh)  
+  subroutine reconstruction_g(nodes)  
     !----------------------------------------------------------------------------------------------
     !    Reconstrucao da solucao
     !----------------------------------------------------------------------------------------------
     implicit none
     integer(i4),intent(in):: nodes
-    type(grid_structure),intent(in):: mesh
     integer(i4):: i
     integer(i4):: j
     integer(i4):: m
@@ -4868,12 +4834,10 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     !stop
   end subroutine reconstruct_velocity_quadrature
 
-  subroutine monotonic_limiter(Pol,no,mesh,min_output, max_output)
+  subroutine monotonic_limiter(no,min_output, max_output)
       implicit none
       
-      type(grid_structure),intent(in)      :: mesh
       integer (i4), intent(in) :: no
-      real (r8), intent (in)   :: Pol
       real (r8), intent (out)  :: min_output, max_output
       real (r8), allocatable   :: limitador (:)
       integer   :: i,l,j,jend
@@ -4955,11 +4919,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
           !call system_clock(count=clock_start)
  
           !Calculate divergence and edges flux
-          if (present(u_step2))then
-            call divhx(phi_step2, div_uphi, mesh, radius, time, u_step2)
-          else
-            call divhx(phi_step2, div_uphi, mesh, radius, time)
-          end if
+          call divhx(phi_step2, div_uphi, mesh, radius, time)
 
           ! Store the flux
           !$omp parallel do &
@@ -5104,13 +5064,12 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       end if
   end subroutine monotonicfilter_rk3
 
-  subroutine divhx(q, div, mesh, radius, time, u)
+  subroutine divhx(q, div, mesh, radius, time)
     !---------------------------------------------------------------
     !Calculate divergence at voronoi cells (hexagons)
     !   based on edge normal velocities
     !---------------------------------------------------------------
     type(grid_structure), intent(inout) :: mesh
-    type(scalar_field), optional, intent(inout):: u ! velocity at cell edges
     type(scalar_field), intent(in):: q ! scalar at cell center
     type(scalar_field), intent(inout):: div !divergence - must be already allocated
     real(r8), intent(in) :: radius, time
@@ -5133,26 +5092,16 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       if (advmtd == 'og2' .or. advmtd=='og3'.or. advmtd=='og4')then ! Ollivier-Gooch method
         !---------------------------------------------------------
         call vector_olg2(mesh%nv)
-        call reconstruction_olg(mesh%nv, mesh) 
-
-        if (present(u))then
-          call flux_olg(mesh%nv, mesh, 0, time, u)
-        else
-          call flux_olg(mesh%nv, mesh, 0, time)
-        end if
+        call reconstruction_olg(mesh%nv)
+        call flux_olg(mesh%nv, mesh, 0, time)
         !---------------------------------------------------------
         !---------------------------------------------------------
       else ! Gassman method
 
         !---------------------------------------------------------
-        call vector_gas(mesh%nv, mesh)
-        call reconstruction_gas(mesh%nv, mesh) 
-
-        if (present(u))then
-          call flux_gas(mesh%nv, mesh, 0, time, u)
-        else
-          call flux_gas(mesh%nv, mesh, 0, time)
-        end if
+        call vector_gas(mesh%nv)
+        call reconstruction_gas(mesh%nv)
+        call flux_gas(mesh%nv, mesh, 0, time)
         !---------------------------------------------------------
 
       end if
@@ -5173,16 +5122,16 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
       end do
       !$omp end parallel do
 
-    else if(advmtd=='upw1') then
-        call div_hx_upw1(div, q, u, mesh, radius)
+    !else if(advmtd=='upw1') then
+    !    call div_hx_upw1(div, q, u, mesh, radius)
 
-    else if(advmtd=='trsk') then
+    !else if(advmtd=='trsk') then
         !Interpolate vapour to edges and calculate flux at edges
-        call scalar_hx2ed(q, phi_ed, mesh)      !hQv: cell->edge
-        call scalar_elem_product(u, phi_ed, uphi) !Flux uhQv at edges
+    !    call scalar_hx2ed(q, phi_ed, mesh)      !hQv: cell->edge
+    !    call scalar_elem_product(u, phi_ed, uphi) !Flux uhQv at edges
 
         !Calculate divergence / vapour eq RHS
-        call div_hx(uphi, div_uphi, mesh)
+    !    call div_hx(uphi, div_uphi, mesh)
     end if
 
     return
