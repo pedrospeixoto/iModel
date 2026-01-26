@@ -1417,16 +1417,21 @@ subroutine initialize_global_moist_swm_vars()
     real(r8) :: t0
 
     t0 = time
+ 
+     !===============================================================
+     ! Reconstruct velocity at quadrature points
+     !===============================================================
+     if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4') then
+         call compute_edge_velocity_lsq_poly(u, mesh)
+         call reconstruct_u_perp_at_edges_lsq(u, u_perp, mesh)
+         call reconstruct_velocity_quadrature(mesh, u)
+     end if
+
     !Compute the SWM tendency
     if(testcase>1) then
        call tendency(h, u, masseq, momeq)
     endif
-    !===============================================================
-    ! Reconstructs to normal velocity at quadrature points
-    !===============================================================
-    if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og4') then
-        call reconstruct_velocity_quadrature(mesh, u)
-    end if
+
 
     if(testcase>1) then
        !Initialize RHS of temperature and moist variables equations (in paralel)
@@ -4628,101 +4633,118 @@ end subroutine init_vecrecon_lsqfitpol_ed
 
   end function vecrecon_lsq_hxe_ed
 
-function vecrecon_lsq_ed(p, u, e) result(vecrecon)
-!-----------------------------------------------------------------------
-! Reconstruct vector field at point p using LSQ polynomial coefficients
-! precomputed at edge e (tangent-plane formulation).
-!-----------------------------------------------------------------------
+  function vecrecon_lsq_ed(p, u, e) result(vecrecon)
+  !-----------------------------------------------------------------------
+  ! Reconstruct vector field at point p using LSQ polynomial coefficients
+  ! precomputed at edge e (tangent-plane formulation).
+  !-----------------------------------------------------------------------
 
-  !-----------------------------
-  ! Input
-  !-----------------------------
-  real (r8), intent(in)            :: p(1:3)     ! Target point on sphere
-  integer (i4), intent(in)         :: e           ! Central edge
-  type(scalar_field), intent(inout):: u           ! Edge-based scalar field
+    !-----------------------------
+    ! Input
+    !-----------------------------
+    real (r8), intent(in)            :: p(1:3)     ! Target point on sphere
+    integer (i4), intent(in)         :: e           ! Central edge
+    type(scalar_field), intent(inout):: u           ! Edge-based scalar field
 
-  !-----------------------------
-  ! Output
-  !-----------------------------
-  real (r8) :: vecrecon(1:3)       ! Reconstructed vector at p
+    !-----------------------------
+    ! Output
+    !-----------------------------
+    real (r8) :: vecrecon(1:3)       ! Reconstructed vector at p
 
-  !-----------------------------
-  ! Local variables
-  !-----------------------------
-  real (r8) :: urecon(1:3)
-  real (r8) :: cx, sx, cy, sy      ! Rotation parameters
-  real (r8) :: xp, yp, zp          ! Rotated coordinates
-  real (r8) :: nx, ny, nz
-  real (r8) :: nr(3)
+    !-----------------------------
+    ! Local variables
+    !-----------------------------
+    real (r8) :: urecon(1:3)
+    real (r8) :: cx, sx, cy, sy      ! Rotation parameters
+    real (r8) :: xp, yp, zp          ! Rotated coordinates
+    real (r8) :: nx, ny, nz
+    real (r8) :: nr(3)
 
-  integer (i4) :: n_edges, l, ed
+    integer (i4) :: n_edges, l, ed
 
-  !==================================================
-  ! Assemble RHS using stored stencil and weights
-  !==================================================
+    !==================================================
+    ! Load rotation parameters (tangent plane at edge e)
+    !==================================================
 
-  n_edges = size(u%pol(e)%eds)
+    cx = u%pol(e)%cx
+    cy = u%pol(e)%cy
+    sx = u%pol(e)%sx
+    sy = u%pol(e)%sy
 
-  do l = 1, n_edges
-     ed = u%pol(e)%eds(l)
-     u%pol(e)%rhs(l) = u%f(ed) * u%pol(e)%wt(l)
-  end do
+    !==================================================
+    ! Evaluate reconstructed field at target point p
+    !==================================================
 
-  !==================================================
-  ! Solve LSQ system (coefficients already projected)
-  !==================================================
+    ! Rotate target point to tangent plane
+    call aplyr(p(1), p(2), p(3), cx, sx, cy, sy, xp, yp, zp)
 
-  u%pol(e)%c = matmul(u%pol(e)%lsq_matrix_pinv, u%pol(e)%rhs)
+    if (urecon_mtd=='ed1') then
+      ! Polynomial evaluation (linear)
+      nr(1) = u%pol(e)%c(1) + u%pol(e)%c(3)*xp + u%pol(e)%c(5)*yp
+      nr(2) = u%pol(e)%c(2) + u%pol(e)%c(4)*xp + u%pol(e)%c(6)*yp
+      nr(3) = 0.0_r8
 
-  !==================================================
-  ! Load rotation parameters (tangent plane at edge e)
-  !==================================================
+    else if (urecon_mtd=='ed2') then
+      !----------------------------------
+      ! Quadratic polynomial evaluation
+      !----------------------------------
+      nr(1) = u%pol(e)%c(1)  &
+            + u%pol(e)%c(3)  * xp &
+            + u%pol(e)%c(5)  * yp &
+            + u%pol(e)%c(7)  * xp*xp &
+            + u%pol(e)%c(9)  * xp*yp &
+            + u%pol(e)%c(11) * yp*yp
 
-  cx = u%pol(e)%cx
-  cy = u%pol(e)%cy
-  sx = u%pol(e)%sx
-  sy = u%pol(e)%sy
+      nr(2) = u%pol(e)%c(2)  &
+            + u%pol(e)%c(4)  * xp &
+            + u%pol(e)%c(6)  * yp &
+            + u%pol(e)%c(8)  * xp*xp &
+            + u%pol(e)%c(10) * xp*yp &
+            + u%pol(e)%c(12) * yp*yp
 
-  !==================================================
-  ! Evaluate reconstructed field at target point p
-  !==================================================
+      nr(3) = 0.0_r8
+    endif
+ 
+    ! Rotate back to physical space and project onto sphere
+    call aplyrt(nr(1), nr(2), cx, sx, cy, sy, urecon)
+    vecrecon = proj_vec_sphere(urecon, p)
+ 
+  end function vecrecon_lsq_ed
 
-  ! Rotate target point to tangent plane
-  call aplyr(p(1), p(2), p(3), cx, sx, cy, sy, xp, yp, zp)
+  subroutine compute_edge_velocity_lsq_poly(u, mesh)
+    !-----------------------------------------------------------------------
+    ! Compute LSQ reconstruction coefficients at each edge using
+    ! precomputed pseudoinverse and geometric weights (tangent-plane LSQ).
+    !-----------------------------------------------------------------------
+    type(grid_structure), intent(in)    :: mesh
+    type(scalar_field),  intent(inout) :: u   ! Edge-based normal fluxes
 
-  if (urecon_mtd=='ed1') then
-    ! Polynomial evaluation (linear)
-    nr(1) = u%pol(e)%c(1) + u%pol(e)%c(3)*xp + u%pol(e)%c(5)*yp
-    nr(2) = u%pol(e)%c(2) + u%pol(e)%c(4)*xp + u%pol(e)%c(6)*yp
-    nr(3) = 0.0_r8
+    integer (i4) :: e, l, ed
+    integer (i4) :: n_edges
 
-  else if (urecon_mtd=='ed2') then
-    !----------------------------------
-    ! Quadratic polynomial evaluation
-    !----------------------------------
-    nr(1) = u%pol(e)%c(1)  &
-          + u%pol(e)%c(3)  * xp &
-          + u%pol(e)%c(5)  * yp &
-          + u%pol(e)%c(7)  * xp*xp &
-          + u%pol(e)%c(9)  * xp*yp &
-          + u%pol(e)%c(11) * yp*yp
+    !$omp parallel do default(shared)  &
+    !$omp private(e, l, ed, n_edges) &
+    !$omp schedule(static)
+    do e = 1, mesh%ne
+       n_edges = size(u%pol(e)%eds)
 
-    nr(2) = u%pol(e)%c(2)  &
-          + u%pol(e)%c(4)  * xp &
-          + u%pol(e)%c(6)  * yp &
-          + u%pol(e)%c(8)  * xp*xp &
-          + u%pol(e)%c(10) * xp*yp &
-          + u%pol(e)%c(12) * yp*yp
+       !-----------------------------
+       ! Weighted RHS
+       !-----------------------------
+       do l = 1, n_edges
+          ed = u%pol(e)%eds(l)
+          u%pol(e)%rhs(l) = u%f(ed) * u%pol(e)%wt(l)
+       end do
 
-    nr(3) = 0.0_r8
-  endif
+       !-----------------------------
+       ! Solve LSQ system: c = A_pinv * rhs
+       !-----------------------------
+       u%pol(e)%c = matmul(u%pol(e)%lsq_matrix_pinv, u%pol(e)%rhs)
 
-  ! Rotate back to physical space and project onto sphere
-  call aplyrt(nr(1), nr(2), cx, sx, cy, sy, urecon)
-  vecrecon = proj_vec_sphere(urecon, p)
+    end do
+    !$omp end parallel do
 
-end function vecrecon_lsq_ed
-
+  end subroutine compute_edge_velocity_lsq_poly
 
   subroutine reconstruct_velocity_quadrature(mesh, u)  
     !----------------------------------------------------------------------------------------------

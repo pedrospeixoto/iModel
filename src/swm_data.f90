@@ -95,6 +95,8 @@ module swm_data
   ! pered  = Modified Perot
   ! hyb  = Hybrid Perod and Trisk
   ! gass = Gassmann's 2018 qj method
+  ! lsqed = Least-squares vector reconstruction at edges
+
   character (len=6)::  coriolis_reconmtd
   logical :: useCoriolisMtdPered=.false. !Modified Perot
   logical :: useCoriolisMtdTrisk=.false. !Trisk
@@ -191,6 +193,7 @@ module swm_data
   type(scalar_field):: uh_exact  !Velocity X thickness
   type(scalar_field):: uh_error  !Velocity X thickness
 
+  type(scalar_field):: u_perp  !Perpendicular component (tangent)
   type(scalar_field):: uhq_perp  !Perpendicular component (tangent)
   type(scalar_field):: uhq_perp_error  !Perpendicular component (tangent)
   type(scalar_field):: uhq_perp_exact  !Perpendicular component (tangent)
@@ -745,6 +748,12 @@ contains
     uhq_perp%n=mesh%ne
     uhq_perp%name="uhq_perp"
     uhq_perp%pos=edpos
+
+    u_perp%n=mesh%ne
+    u_perp%name="u_perp"
+    u_perp%pos=edpos
+    allocate(u_perp%f(1:u_perp%n), stat=ist)
+
     allocate(uhq_perp%f(1:uhq_perp%n), stat=ist)
     if(test_lterror==1)then
       allocate(uhq_perp_exact%f(1:u%n), stat=ist)
@@ -1117,7 +1126,7 @@ contains
 
     !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
     !$OMP SHARED(test_lterror, momeq, masseq, u, u_old, u_0) &
-    !$OMP SHARED(u_error, u_exact, uh, uhq_perp) &
+    !$OMP SHARED(u_error, u_exact, uh, uhq_perp, u_perp) &
     !$OMP SHARED(v_hx, v_ed, vhq_hx) &
     !$OMP SHARED(h, h_old, h_0, h_error, h_exact, h_ed, h_rhb) &
     !$OMP SHARED(h_tr, zeta, zeta_lapu, eta, eta_ed, q_tr, q_ed) &
@@ -1136,6 +1145,7 @@ contains
     u_exact=u
     uh=u
     uhq_perp%f=0._r8
+    u_perp%f=0._r8
     vhq_hx=v_hx
 
     !Mass-Thickness
@@ -1203,7 +1213,7 @@ contains
 
     if(test_lterror==1)then
       !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-      !$OMP SHARED(test_lterror, uhq_perp, uhq_perp_exact, uhq_perp_error) &
+      !$OMP SHARED(test_lterror, uhq_perp, u_perp, uhq_perp_exact, uhq_perp_error) &
       !$OMP SHARED(v_ed, v_ed_exact, h_ed, h_ed_exact, h_ed_error) &
       !$OMP SHARED(h_tr, h_tr_exact, h_tr_error) &
       !$OMP SHARED(h_rhb, h_rhb_exact, h_rhb_error) &
@@ -1227,6 +1237,7 @@ contains
       masseq_error=masseq
       uhq_perp_exact=uhq_perp
       uhq_perp_error=uhq_perp
+      u_perp=uhq_perp
       h_ed_exact=h_ed
       h_ed_error=h_ed
       h_tr_exact=h_tr

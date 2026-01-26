@@ -61,6 +61,10 @@ module swm_operators
     gethxedgeconnection, &
     alignind
 
+  !Use routines from the interpolation pack
+  use interpack, only: &
+    aplyrt
+
   implicit none
 
 contains
@@ -1422,6 +1426,74 @@ contains
     return
 
   end subroutine coriolis_ed
+
+  subroutine reconstruct_u_perp_at_edges_lsq(u, u_perp, mesh)
+    !-----------------------------------------------------------------------
+    ! Reconstruct tangential (perpendicular-to-normal) velocity component
+    ! at each edge center using precomputed LSQ polynomial coefficients.
+    ! Tangent-plane formulation, evaluated at xp = yp = 0.
+    !-----------------------------------------------------------------------
+
+    !-----------------------------
+    ! Input
+    !-----------------------------
+    type(scalar_field),   intent(in)  :: u
+    type(grid_structure), intent(in)  :: mesh
+
+    !-----------------------------
+    ! Output
+    !-----------------------------
+    type(scalar_field), intent(inout) :: u_perp
+
+    !-----------------------------
+    ! Local variables
+    !-----------------------------
+    integer (i4) :: e
+    real (r8)    :: cx, sx, cy, sy
+    real (r8)    :: nr(3), vec(3)
+
+    !==================================================
+    ! Parallel loop over edges
+    !==================================================
+
+    !$omp parallel do default(none) &
+    !$omp shared(u, mesh, u_perp) &
+    !$omp private(e, cx, cy, sx, sy, nr, vec) &
+    !$omp schedule(static)
+
+    do e = 1, mesh%ne
+
+       !--------------------------------
+       ! Tangent-plane rotation params
+       !--------------------------------
+       cx = u%pol(e)%cx
+       cy = u%pol(e)%cy
+       sx = u%pol(e)%sx
+       sy = u%pol(e)%sy
+
+       !--------------------------------
+       ! Polynomial at center (xp=yp=0)
+       !--------------------------------
+       nr(1) = u%pol(e)%c(1)
+       nr(2) = u%pol(e)%c(2)
+       nr(3) = 0.0_r8
+
+       !--------------------------------
+       ! Rotate back to physical space
+       !--------------------------------
+       call aplyrt(nr(1), nr(2), cx, sx, cy, sy, vec)
+
+       !--------------------------------
+       ! Project onto sphere
+       !--------------------------------
+       vec = proj_vec_sphere(vec, mesh%ed(e)%c%p)
+       u_perp%f(e) = dot_product(vec, mesh%ed(e)%nr)
+
+    end do
+
+    !$omp end parallel do
+
+  end subroutine reconstruct_u_perp_at_edges_lsq
 
 
   subroutine grad_tr2ed(ftr, fed, mesh)
