@@ -78,6 +78,8 @@ module highorder
   !Method order 
   integer (i4):: order
   integer (i4):: orderg
+
+  real(r8), allocatable :: flux_olg_rot(:,:)
   
   !Name for files and kind of staggering
   character (len=128)::  transpname
@@ -156,6 +158,9 @@ module highorder
      real(r8),allocatable:: lpg(:,:)
      real(r8),allocatable:: lwg(:)
      real(r8),allocatable:: lvn(:,:)
+     real(r8),allocatable:: sgflux_geom(:,:)
+     real(r8),allocatable:: ogflux_proj(:,:)
+     real(r8),allocatable:: ogflux_basis(:,:,:)
      type (vector), allocatable:: velocity_quadrature(:) ! Normal velocity at quadrature points - used in the moist swm
      integer(i4),allocatable:: upwind_donald(:)
   end type gauss_structure
@@ -453,6 +458,9 @@ contains
     !Numero de vizinhos e vizinhos de cada no
     integer(i4),allocatable   :: nbsv(:,:)   
 
+    integer :: clock_rate, clock_start, clock_end
+    real(r8) :: start_time, end_time, elapsed_time
+
     !Mesh
     type(grid_structure) :: mesh
 
@@ -504,8 +512,10 @@ contains
        call area_donald(nodes,mesh)
 
        call gaussedges(nodes)
+       call precompute_flux_gas_geometry(nodes,mesh)
 
        call upwind_donald(nodes,mesh)
+       call precompute_flux_olg_geometry(nodes,mesh)
 
     else
 
@@ -514,12 +524,15 @@ contains
        call edges_voronoi(nodes)
 
        call gaussedges(nodes)
+       call precompute_flux_gas_geometry(nodes,mesh)
 
        call upwind_voronoi(nodes,mesh)
+       call precompute_flux_olg_geometry(nodes,mesh)
 
     endif
 
     call time_step(nodes,mesh,0.5785D0) 
+    !call time_step(nodes,mesh,0.15D0) 
 
     !Method FV-GAS
     if(method=='G')then  
@@ -554,6 +567,11 @@ contains
 
        !Avanço temporal 
        time=0.0D0 
+       ! Get the clock rate (ticks per second)
+       call system_clock(count_rate=clock_rate)
+
+       ! Start the clock
+       call system_clock(count=clock_start)
        do j=0,node(0)%ntime
           !Atualizando a solucao
           do i=1,nodes
@@ -597,12 +615,16 @@ contains
               call compute_error_zonal_wind(mesh, time, j)
           end if
 
-          print*, "Time:",  time
+          print*, "Time:",  time, advmtd
           print '(a33, 3e16.8)','min, max, mass variation = ',&
           minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2), mass_var
           print*,''
        enddo
-
+    
+       ! Stop the clock
+       call system_clock(count=clock_end)
+       elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+       print*, 'SG: ',elapsed_time
        !Method FV-OLG
     else
        print*, 'Method FV-OLG'
@@ -632,6 +654,12 @@ contains
 
        !Avanço temporal 
        time=0.0D0
+
+       ! Get the clock rate (ticks per second)
+       call system_clock(count_rate=clock_rate)
+
+       ! Start the clock
+       call system_clock(count=clock_start)
 
        do j=0,node(0)%ntime
           !Atualizando a solucao
@@ -682,11 +710,16 @@ contains
               call compute_error_zonal_wind(mesh, time, j)
           end if
 
-          print*, "Time:",  time
+          print*, "Time:",  time, advmtd
           print '(a33, 3e16.8)','min, max, mass variation = ',&
           minval(node(1:nodes)%phi_new2), maxval(node(1:nodes)%phi_new2), mass_var
           print*,''
           enddo
+    
+         ! Stop the clock
+         call system_clock(count=clock_end)
+         elapsed_time = real(clock_end - clock_start) / real(clock_rate)
+         print*, 'OG: ',elapsed_time
     end if
 
     deallocate(node)
@@ -928,9 +961,8 @@ end subroutine
        !f=(dcos(latp))**3*(dsin(lonp))**2
     case(6) !One Gaussian  
        b0=5
-       lon1=-70._r8*pi/180._r8
-       lat1=-15._r8*pi/180._r8
-
+       !lon1=-70._r8*pi/180._r8
+       !lat1=-15._r8*pi/180._r8
 
        call sph2cart(lonp, latp, p(1), p(2), p(3))
        call sph2cart(lon1, lat1, p1(1), p1(2), p1(3))
@@ -1250,6 +1282,7 @@ end subroutine
           allocate(node(i)%G(1)%lpg(2*ngbr1,3))
           allocate(node(i)%G(1)%velocity_quadrature(2*ngbr1))
           allocate(node(i)%G(1)%lvn(2*ngbr1,3))
+          allocate(node(i)%G(1)%sgflux_geom(2*ngbr1,7))
           allocate(node(i)%G(1)%upwind_donald(2*ngbr1))
 
           allocate(node(i)%upwind_voronoi(1:ngbr1))
@@ -1264,6 +1297,7 @@ end subroutine
           allocate(node(i)%G(1)%lwg(2*ngbr1))
           allocate(node(i)%G(1)%lpg(2*ngbr1,3))
           allocate(node(i)%G(1)%lvn(2*ngbr1,3))
+          allocate(node(i)%G(1)%sgflux_geom(2*ngbr1,7))
           allocate(node(i)%G(1)%velocity_quadrature(2*ngbr1))
           allocate(node(i)%G(2)%velocity_quadrature(2*ngbr1))
           allocate(node(i)%G(1)%upwind_donald(2*ngbr1))
@@ -1666,56 +1700,55 @@ end subroutine
  
   end subroutine vector_gas
 
-  subroutine reconstruction_gas(nodes)
+
+subroutine reconstruction_gas(nodes)
     !----------------------------------------------------------------------------------------------
     !    Reconstrucao da solucao
     !----------------------------------------------------------------------------------------------
     implicit none
-    integer(i4),intent(in):: nodes
-    integer(i4):: i
-    integer(i4):: j
-    integer(i4):: m
-    integer(i4):: n
-    integer(i4):: l
-    integer(i4):: c
-    real(r8):: aux
-    integer :: clock_rate, clock_start, clock_end
-    real(r8) :: start_time, end_time, elapsed_time
 
+    integer(i4), intent(in) :: nodes
+    integer(i4) :: i, m, n, l, c
+    real(r8)    :: aux
 
-    !-------------------------------------------------------------------------
-    ! Get the clock rate (ticks per second)
-    !call system_clock(count_rate=clock_rate)
-    ! Start the clock
-    !call system_clock(count=clock_start)
+    if (advmtd == 'sg2') then
 
+        !$OMP PARALLEL DO &
+        !$OMP DEFAULT(NONE) &
+        !$OMP SHARED(nodes, node) &
+        !$OMP PRIVATE(i) &
+        !$OMP SCHEDULE(static)
+        do i = 1, nodes
+            node(i)%coef(1) = node(i)%phi_new2
+        end do
+        !$OMP END PARALLEL DO
 
-    !$OMP PARALLEL DO &
-    !$OMP DEFAULT(NONE) & 
-    !$OMP SHARED(nodes, node) &
-    !$OMP PRIVATE(i, l, c, m, aux) &
-    !$OMP SCHEDULE(static)
-    do i=1,nodes
-       l=ubound(node(i)%MRG,1)
-       c=ubound(node(i)%MRG,2)
-!       node(i)%coef(1)=node(i)%phi_new
-       node(i)%coef(1)=node(i)%phi_new2
-       do m=1,c
-          aux=0.0D0
-          do n=1,l
-             aux=aux+node(i)%MPG(m,n)*node(i)%VBG(n)
-          end do
-          node(i)%coef(m+1)=aux
-       end do
-    end do
-    !$OMP END PARALLEL DO
-    ! Stop the clock
-    !call system_clock(count=clock_end)
-    ! Calculate the elapsed time using clock ticks
-    !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-    !print '("Recon = ",f9.6," seconds.")', elapsed_time
-    return 
-  end subroutine reconstruction_gas
+    else
+
+        !$OMP PARALLEL DO &
+        !$OMP DEFAULT(NONE) &
+        !$OMP SHARED(nodes, node) &
+        !$OMP PRIVATE(i, l, c, m, n, aux) &
+        !$OMP SCHEDULE(static)
+        do i = 1, nodes
+            l = ubound(node(i)%MRG, 1)
+            c = ubound(node(i)%MRG, 2)
+
+            node(i)%coef(1) = node(i)%phi_new2
+
+            do m = 1, c
+                aux = 0.0D0
+                do n = 1, l
+                    aux = aux + node(i)%MPG(m, n) * node(i)%VBG(n)
+                end do
+                node(i)%coef(m + 1) = aux
+            end do
+        end do
+        !$OMP END PARALLEL DO
+
+    end if
+
+end subroutine reconstruction_gas
 
   subroutine matrix_olg(nodes,mesh)  
     !----------------------------------------------------------------------------------------------
@@ -2531,6 +2564,78 @@ end subroutine
     deallocate(x,w,p1,p2,p3,paux)
     return
   end subroutine gaussedges
+
+  subroutine precompute_flux_gas_geometry(nodes,mesh)
+    !----------------------------------------------------------------------------------------------
+    !    Precompute geometry used by the SG gas flux
+    !----------------------------------------------------------------------------------------------
+    implicit none
+    integer,intent(in):: nodes
+    type(grid_structure),intent(in):: mesh
+    integer(i4):: i
+    integer(i4):: j
+    integer(i4):: jj
+    integer(i4):: jend
+    integer(i4):: k
+    real(r8):: xx
+    real(r8):: yy
+    real(r8):: zz
+    real(r8):: cx
+    real(r8):: cy
+    real(r8):: sx
+    real(r8):: sy
+    real(r8):: dist
+    real(r8):: normal_vector(1:3)
+    real(r8):: dir_i(1:3)
+    real(r8):: dir_k(1:3)
+    real(r8):: rot_dir_i(1:3)
+    real(r8):: rot_dir_k(1:3)
+
+    do i=1,nodes
+       jend=mesh%v(i)%nnb
+       do j=1,jend
+          if (j .ne. jend)then
+             jj = min(j+1,jend)
+          else
+             jj = 1
+          end if
+
+          k = mesh%v(i)%nb(jj)
+          dist = mesh%v(i)%nbdg(jj)
+          normal_vector = node(i)%G(1)%lvn(j,1:3)
+
+          xx = mesh%v(i)%p(1)
+          yy = mesh%v(i)%p(2)
+          zz = mesh%v(i)%p(3)
+          call constr(xx,yy,zz,cx,sx,cy,sy)
+
+          dir_i = normal_vector
+          dir_i = proj_vec_sphere(dir_i, mesh%v(i)%p)
+          call aplyr(dir_i(1),dir_i(2),dir_i(3),cx,sx,cy,sy,rot_dir_i(1),rot_dir_i(2),rot_dir_i(3))
+          rot_dir_i = rot_dir_i/norm(rot_dir_i)
+
+          xx = mesh%v(k)%p(1)
+          yy = mesh%v(k)%p(2)
+          zz = mesh%v(k)%p(3)
+          call constr(xx,yy,zz,cx,sx,cy,sy)
+
+          dir_k = -normal_vector
+          dir_k = proj_vec_sphere(dir_k, mesh%v(k)%p)
+          call aplyr(dir_k(1),dir_k(2),dir_k(3),cx,sx,cy,sy,rot_dir_k(1),rot_dir_k(2),rot_dir_k(3))
+          rot_dir_k = rot_dir_k/norm(rot_dir_k)
+
+          node(i)%G(1)%sgflux_geom(j,1) = (1.0D0/12.0D0)*(dist**2)
+          node(i)%G(1)%sgflux_geom(j,2) = rot_dir_i(1)*rot_dir_i(1)
+          node(i)%G(1)%sgflux_geom(j,3) = rot_dir_i(1)*rot_dir_i(2)
+          node(i)%G(1)%sgflux_geom(j,4) = rot_dir_i(2)*rot_dir_i(2)
+          node(i)%G(1)%sgflux_geom(j,5) = rot_dir_k(1)*rot_dir_k(1)
+          node(i)%G(1)%sgflux_geom(j,6) = rot_dir_k(1)*rot_dir_k(2)
+          node(i)%G(1)%sgflux_geom(j,7) = rot_dir_k(2)*rot_dir_k(2)
+       end do
+    end do
+
+    return
+  end subroutine precompute_flux_gas_geometry
 
 
   subroutine condition_initial_gas(nodes,mesh)  
@@ -3546,7 +3651,135 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     return
   end subroutine time_step
 
-  subroutine flux_olg(nodes,mesh,z,time)
+
+
+  subroutine precompute_flux_olg_geometry(nodes,mesh)
+    implicit none
+    integer(i4),intent(in):: nodes
+    type(grid_structure),intent(in):: mesh
+    integer(i4):: i
+    integer(i4):: n
+    integer(i4):: s
+    integer(i4):: diml
+    integer(i4):: jend
+    integer(i4):: cc
+    integer(i4):: src
+    real(r8):: xx
+    real(r8):: yy
+    real(r8):: zz
+    real(r8):: cx
+    real(r8):: cy
+    real(r8):: sx
+    real(r8):: sy
+    real(r8):: xp
+    real(r8):: yp
+    real(r8):: zp
+    real(r8):: xp2
+    real(r8):: yp2
+    real(r8):: xpyp
+    real(r8):: xp3
+    real(r8):: yp3
+    real(r8):: xp2yp
+    real(r8):: xpyp2
+
+    if (.not. allocated(flux_olg_rot)) then
+       allocate(flux_olg_rot(nodes,4))
+    endif
+
+    do i=1,nodes
+       xx=mesh%v(i)%p(1)
+       yy=mesh%v(i)%p(2)
+       zz=mesh%v(i)%p(3)
+       call constr(xx,yy,zz,cx,sx,cy,sy)
+       flux_olg_rot(i,1)=cx
+       flux_olg_rot(i,2)=sx
+       flux_olg_rot(i,3)=cy
+       flux_olg_rot(i,4)=sy
+    enddo
+
+    do i=1,nodes
+       jend=node(i)%ngbr(1)%numberngbr
+       diml=nint((order)/2.0D0)
+       if(controlvolume=="D")then
+          cc=2
+       else
+          cc=1
+       endif
+
+       do s=1,diml
+          if (.not. allocated(node(i)%G(s)%ogflux_proj)) then
+             allocate(node(i)%G(s)%ogflux_proj(cc*jend,2))
+          endif
+          if (.not. allocated(node(i)%G(s)%ogflux_basis)) then
+             allocate(node(i)%G(s)%ogflux_basis(cc*jend,2,9))
+          endif
+
+          do n=1,cc*jend
+             cx = flux_olg_rot(i,1)
+             sx = flux_olg_rot(i,2)
+             cy = flux_olg_rot(i,3)
+             sy = flux_olg_rot(i,4)
+             call aplyr(node(i)%G(s)%lpg(n,1),node(i)%G(s)%lpg(n,2),node(i)%G(s)%lpg(n,3), &
+                        cx,sx,cy,sy,xp,yp,zp)
+
+             xp2 = xp*xp
+             yp2 = yp*yp
+             xpyp = xp*yp
+             xp3 = xp2*xp
+             yp3 = yp2*yp
+             xp2yp = xp2*yp
+             xpyp2 = xp*yp2
+
+             node(i)%G(s)%ogflux_proj(n,1)=xp
+             node(i)%G(s)%ogflux_proj(n,2)=yp
+             node(i)%G(s)%ogflux_basis(n,1,1)=xp
+             node(i)%G(s)%ogflux_basis(n,1,2)=yp
+             node(i)%G(s)%ogflux_basis(n,1,3)=xp2
+             node(i)%G(s)%ogflux_basis(n,1,4)=xpyp
+             node(i)%G(s)%ogflux_basis(n,1,5)=yp2
+             node(i)%G(s)%ogflux_basis(n,1,6)=xp3
+             node(i)%G(s)%ogflux_basis(n,1,7)=xp2yp
+             node(i)%G(s)%ogflux_basis(n,1,8)=xpyp2
+             node(i)%G(s)%ogflux_basis(n,1,9)=yp3
+
+             if(controlvolume=="D")then
+                src = node(i)%G(s)%upwind_donald(n)
+             else
+                src = node(i)%upwind_voronoi(n)
+             endif
+
+             cx = flux_olg_rot(src,1)
+             sx = flux_olg_rot(src,2)
+             cy = flux_olg_rot(src,3)
+             sy = flux_olg_rot(src,4)
+             call aplyr(node(i)%G(s)%lpg(n,1),node(i)%G(s)%lpg(n,2),node(i)%G(s)%lpg(n,3), &
+                        cx,sx,cy,sy,xp,yp,zp)
+
+             xp2 = xp*xp
+             yp2 = yp*yp
+             xpyp = xp*yp
+             xp3 = xp2*xp
+             yp3 = yp2*yp
+             xp2yp = xp2*yp
+             xpyp2 = xp*yp2
+
+             node(i)%G(s)%ogflux_basis(n,2,1)=xp
+             node(i)%G(s)%ogflux_basis(n,2,2)=yp
+             node(i)%G(s)%ogflux_basis(n,2,3)=xp2
+             node(i)%G(s)%ogflux_basis(n,2,4)=xpyp
+             node(i)%G(s)%ogflux_basis(n,2,5)=yp2
+             node(i)%G(s)%ogflux_basis(n,2,6)=xp3
+             node(i)%G(s)%ogflux_basis(n,2,7)=xp2yp
+             node(i)%G(s)%ogflux_basis(n,2,8)=xpyp2
+             node(i)%G(s)%ogflux_basis(n,2,9)=yp3
+          enddo
+       enddo
+    enddo
+
+    return
+  end subroutine precompute_flux_olg_geometry
+
+subroutine flux_olg(nodes,mesh,z,time)
     !----------------------------------------------------------------------------------------------
     !    Calculando o fluxo nas arestas
     !----------------------------------------------------------------------------------------------
@@ -3556,22 +3789,14 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     integer,intent(in),optional   :: z
     real(r8),intent(in),optional  :: time
     integer(i4):: i
-    integer(i4):: j
-    integer(i4):: k
-    integer(i4):: w
-    integer(i4):: l
     integer(i4):: n
-    integer(i4):: e
-    integer(i4):: i1
-    integer(i4):: i2
     integer(i4):: s
     integer(i4):: cc
     integer(i4):: diml
     integer(i4):: jend
+    integer(i4):: src
+    integer(i4):: ibasis
     real(r8):: dot
-    real(r8):: xx
-    real(r8):: yy
-    real(r8):: zz
     real(r8):: xp
     real(r8):: yp
     real(r8):: zp
@@ -3584,7 +3809,14 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     real(r8):: minval_i1, maxval_i1
     real(r8):: minval_i2, maxval_i2
     real(r8):: FEPS
-    real(r8),allocatable:: p1(:),p2(:),p3(:)
+    real(r8):: flux_val
+    real(r8):: xp2
+    real(r8):: yp2
+    real(r8):: xpyp
+    real(r8):: xp3
+    real(r8):: yp3
+    real(r8):: xp2yp
+    real(r8):: xpyp2
     !integer :: clock_rate, clock_start, clock_end
     !real(r8) :: start_time, end_time, elapsed_time
 
@@ -3594,161 +3826,103 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     ! Start the clock
     !call system_clock(count=clock_start)
 
-    allocate(p1(3),p2(3),p3(3))
     FEPS = 1.0D-8
 
     !$OMP PARALLEL DO &
-    !$OMP DEFAULT(NONE) & 
+    !$OMP DEFAULT(NONE) &
     !$OMP SHARED(node, mesh, z, edges_indexes, orderg) &
-    !$OMP SHARED(nodes, time, moistswm, time_integrator, monotonicfilter) & 
-    !$OMP SHARED(order, controlvolume, feps) &
-    !$OMP PRIVATE(i, j, dot,  w, n, e, jend, k, i1, i2, p1, p2, p3) &
-    !$OMP PRIVATE(cc, diml) &
-    !$OMP PRIVATE(xx, yy, zz, cx, sx, cy, sy, xp, yp, zp) &
+    !$OMP SHARED(nodes, time, moistswm, time_integrator, monotonicfilter) &
+    !$OMP SHARED(order, controlvolume, feps, flux_olg_rot) &
+    !$OMP PRIVATE(i, n, s, src, ibasis, dot) &
+    !$OMP PRIVATE(cc, diml, jend, flux_val) &
+    !$OMP PRIVATE(cx, sx, cy, sy, xp, yp, zp) &
     !$OMP PRIVATE(maxval_i1, maxval_i2, maxval_i, pol_filtered) &
     !$OMP PRIVATE(minval_i1, minval_i2, minval_i, pol) &
+    !$OMP PRIVATE(xp2, yp2, xpyp, xp3, yp3, xp2yp, xpyp2) &
     !$OMP SCHEDULE(static)
     do i=1,nodes
-        node(i)%S(z)%flux=0.0D0
-        jend=node(i)%ngbr(1)%numberngbr
-        diml=nint((order)/2.0D0)
+        node(i)%S(z)%flux = 0.0D0
+        jend = node(i)%ngbr(1)%numberngbr
+        diml = nint((order)/2.0D0)
+
         !Percorrendo todas as faces do volume de controle i
         if(controlvolume=="D")then
-            cc=2
+            cc = 2
         else
-            cc=1
+            cc = 1
         endif
 
         ! Flux at edges
         node(i)%edge_flux(:) = 0._r8
 
         do n=1,cc*jend
-            p1=node(i)%edge(n)%xyz2(1,:) 
-            p2=node(i)%edge(n)%xyz2(2,:) 
             do s=1,diml
                 ! Compute the dot product of the normal vector with the velocity vector
                 if (.not. moistswm)then
-                    dot=dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time), node(i)%G(s)%lvn(n,1:3))
+                    dot = dot_product(velocity(node(i)%G(s)%lpg(n,1:3), time), node(i)%G(s)%lvn(n,1:3))
                 else
-                    dot=dot_product(node(i)%G(s)%velocity_quadrature(n)%v, node(i)%G(s)%lvn(n,1:3))
+                    dot = dot_product(node(i)%G(s)%velocity_quadrature(n)%v, node(i)%G(s)%lvn(n,1:3))
                 end if
 
-             !Determinando os coeficientes da matriz de rotação para o node i 
-             xx=mesh%v(i)%p(1)
-             yy=mesh%v(i)%p(2)
-             zz=mesh%v(i)%p(3)
-             call constr(xx,yy,zz,cx,sx,cy,sy)
-             !Determinando as coordenadas dos pontos de gauss da esfera para o plano 
-             p3(1)=node(i)%G(s)%lpg(n,1)
-             p3(2)=node(i)%G(s)%lpg(n,2)
-             p3(3)=node(i)%G(s)%lpg(n,3)
-             call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp)
-             if(dot<FEPS.and.dot>-1.0*FEPS)then
-              node(i)%S(z)%flux=node(i)%S(z)%flux+0.0D0
-              elseif(dot>0)then
-                if(order==2)then
-                   ! Polynomial evaluated at quadrature point
-                   pol = node(i)%coef(1) + node(i)%coef(2)*xp + & 
-                         node(i)%coef(3)*yp
+                if(dot<FEPS.and.dot>-1.0D0*FEPS) cycle
 
-                else if(order==3)then
-                   ! Polynomial evaluated at quadrature point
-                   pol = node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
-                        node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp
-
-                else if(order==4) then     
-                   ! Polynomial evaluated at quadrature point
-                   pol = node(i)%coef(1) + node(i)%coef(2)*xp + node(i)%coef(3)*yp + &
-                        node(i)%coef(4)*xp*xp + node(i)%coef(5)*xp*yp + node(i)%coef(6)*yp*yp + &                     
-                        node(i)%coef(7)*xp*xp*xp + node(i)%coef(8)*xp*xp*yp + &
-                        node(i)%coef(9)*xp*yp*yp + node(i)%coef(10)*yp*yp*yp
-                end if
-
-                ! Correct the value if monotonic limiter is applied
-                !if (monotonicfilter .and. time_integrator=='rk4')then
-                !    e = edges_indexes(i,n,1)
-                !    i1 = mesh%edhx(e)%sh(1)
-                !    i2 = mesh%edhx(e)%sh(2)
-
-                !    call monotonic_limiter(pol, i1, mesh, minval_i1, maxval_i1)
-                !    call monotonic_limiter(pol, i2, mesh, minval_i2, maxval_i2)
-
-                !    minval_i = min(minval_i1, minval_i2)
-                !    maxval_i = max(maxval_i1, maxval_i2)    
-
-                !    pol_filtered = max(pol,minval_i)
-                !    pol_filtered = min(pol_filtered,maxval_i)
-                !    pol = pol_filtered
-                !end if
-
-                ! Flux update
-                node(i)%S(z)%flux = node(i)%S(z)%flux + pol*node(i)%G(s)%lwg(n)*dot
-
-                ! Store flux at edge
-                node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
-
-             else
-                if(controlvolume=="D")then
-                  w=node(i)%G(s)%upwind_donald(n)
+                if(dot>0.0D0)then
+                    src = i
+                    ibasis = 1
                 else
-                  w=node(i)%upwind_voronoi(n)
+                    if(controlvolume=="D")then
+                        src = node(i)%G(s)%upwind_donald(n)
+                    else
+                        src = node(i)%upwind_voronoi(n)
+                    endif
+                    ibasis = 2
                 endif
 
-                !Determinando o valor do fluxo - UPWIND    
-                xx=mesh%v(w)%p(1)
-                yy=mesh%v(w)%p(2)
-                zz=mesh%v(w)%p(3)
-                call constr(xx,yy,zz,cx,sx,cy,sy)
-                call aplyr(p3(1),p3(2),p3(3),cx,sx,cy,sy,xp,yp,zp) 
+                xp    = node(i)%G(s)%ogflux_basis(n,ibasis,1)
+                yp    = node(i)%G(s)%ogflux_basis(n,ibasis,2)
 
                 if(order==2)then
                    ! Polynomial evaluated at quadrature point
-                   pol = node(w)%coef(1) + node(w)%coef(2)*xp + & 
-                         node(w)%coef(3)*yp
+                   pol = node(src)%coef(1) + node(src)%coef(2)*xp + &
+                         node(src)%coef(3)*yp
 
                 else if(order==3)then
-                   ! Polynomial evaluated at quadrature point
-                   pol = node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
-                        node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp
+                   xp2   = node(i)%G(s)%ogflux_basis(n,ibasis,3)
+                   xpyp  = node(i)%G(s)%ogflux_basis(n,ibasis,4)
+                   yp2   = node(i)%G(s)%ogflux_basis(n,ibasis,5)
 
-                else if(order==4)then
                    ! Polynomial evaluated at quadrature point
-                   pol = node(w)%coef(1) + node(w)%coef(2)*xp + node(w)%coef(3)*yp + &
-                        node(w)%coef(4)*xp*xp + node(w)%coef(5)*xp*yp + node(w)%coef(6)*yp*yp + &                     
-                        node(w)%coef(7)*xp*xp*xp + node(w)%coef(8)*xp*xp*yp + node(w)%coef(9)*xp*yp*yp + &
-                        node(w)%coef(10)*yp*yp*yp
+                   pol = node(src)%coef(1) + node(src)%coef(2)*xp + node(src)%coef(3)*yp + &
+                         node(src)%coef(4)*xp2 + node(src)%coef(5)*xpyp + node(src)%coef(6)*yp2
+
+                else if(order==4) then
+                   xp2   = node(i)%G(s)%ogflux_basis(n,ibasis,3)
+                   xpyp  = node(i)%G(s)%ogflux_basis(n,ibasis,4)
+                   yp2   = node(i)%G(s)%ogflux_basis(n,ibasis,5)
+                   xp3   = node(i)%G(s)%ogflux_basis(n,ibasis,6)
+                   xp2yp = node(i)%G(s)%ogflux_basis(n,ibasis,7)
+                   xpyp2 = node(i)%G(s)%ogflux_basis(n,ibasis,8)
+                   yp3   = node(i)%G(s)%ogflux_basis(n,ibasis,9)
+
+                   ! Polynomial evaluated at quadrature point
+                   pol = node(src)%coef(1) + node(src)%coef(2)*xp + node(src)%coef(3)*yp + &
+                         node(src)%coef(4)*xp2 + node(src)%coef(5)*xpyp + node(src)%coef(6)*yp2 + &
+                         node(src)%coef(7)*xp3 + node(src)%coef(8)*xp2yp + &
+                         node(src)%coef(9)*xpyp2 + node(src)%coef(10)*yp3
                 end if
 
-                ! Correct the value if monotonic limiter is applied
-                !if (monotonicfilter .and. time_integrator=='rk4')then
-                !    e = edges_indexes(i,n,1)
-                !    i1 = mesh%edhx(e)%sh(1)
-                !    i2 = mesh%edhx(e)%sh(2)
-
-                !    call monotonic_limiter(i1, minval_i1, maxval_i1)
-                !    call monotonic_limiter(i2, minval_i2, maxval_i2)
-
-                !    minval_i = min(minval_i1, minval_i2)
-                !    maxval_i = max(maxval_i1, maxval_i2)
-
-                !    pol_filtered = max(pol,minval_i)
-                !    pol_filtered = min(pol_filtered,maxval_i)
-                !    pol = pol_filtered
-                !end if
-
                 ! Flux update
-                node(i)%S(z)%flux = node(i)%S(z)%flux  + pol*node(i)%G(s)%lwg(n)*dot 
+                flux_val = pol*node(i)%G(s)%lwg(n)*dot
+                node(i)%S(z)%flux = node(i)%S(z)%flux + flux_val
 
                 ! Store flux at edge
-                node(i)%edge_flux(n) = node(i)%edge_flux(n) + pol*node(i)%G(s)%lwg(n)*dot
-             endif
-          enddo
-       enddo
+                node(i)%edge_flux(n) = node(i)%edge_flux(n) + flux_val
+            enddo
+        enddo
     enddo
     !$OMP END PARALLEL DO
-    deallocate(p1,p2,p3)
-    return  
-  end subroutine flux_olg
+    return
+end subroutine flux_olg
 
 
 
@@ -3818,7 +3992,8 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     temp = 0.0D0
     aaxx = 0.0D0
     erro_Linf = 0.0D0
-    beta = 1d0
+    beta = 0.25d0
+    beta = 1.d0
 
     do i = 1, nodes
         node(i)%S(z)%flux = 0.0D0
@@ -3831,7 +4006,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
 
     !$OMP PARALLEL DO &
     !$OMP DEFAULT(NONE) & 
-    !$OMP SHARED(node, mesh, z, orderg) &
+    !$OMP SHARED(node, mesh, z, orderg, advmtd) &
     !$OMP SHARED(nodes, time, moistswm, beta) & 
     !$OMP PRIVATE(i, j, jj, jend, e, k, p, dot, sinal) &
     !$OMP PRIVATE(phi_i, phi_k, normal_vector, aux1, aux2, aux3) &
@@ -3872,71 +4047,48 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
                 sinal = -1.d0
             endif
 
+
+            if (advmtd=='sg2') then
+            !------------------------------------------------------------------------
+            ! Compute the flux
+            phi_i = node(i)%coef(1)
+            phi_k = node(k)%coef(1)
+            aux1 = (1.0D0/2.0D0)*(phi_i + phi_k)
+
+            ! Store flux at edge
+            node(i)%edge_flux(j) = aux1*node(i)%G(1)%lwg(j)*dot
+            node(i)%S(z)%flux = node(i)%S(z)%flux + node(i)%edge_flux(j)
+
+            else
             !Distance between the vertice i and its neighbor
             dist=mesh%v(i)%nbdg(jj)
 
-            !------------------------------------------------------------------------
-            !node i rotation values and derivatives
-            xx = mesh%v(i)%p(1)
-            yy = mesh%v(i)%p(2)
-            zz = mesh%v(i)%p(3)
-            call constr(xx,yy,zz,cx,sx,cy,sy)
-
-            xx = mesh%v(k)%p(1)
-            yy = mesh%v(k)%p(2)
-            zz = mesh%v(k)%p(3)
-            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-
             phi_i = node(i)%coef(1)
-
-            ! Compute the second derivative in normal direction
-            dir_i = normal_vector
-            dir_i = proj_vec_sphere(dir_i, mesh%v(i)%p)
-            call aplyr(dir_i(1),dir_i(2),dir_i(3),cx,sx,cy,sy,rot_dir_i(1),rot_dir_i(2),rot_dir_i(3))
-            rot_dir_i = rot_dir_i/norm(rot_dir_i)
-            derivada_i = 2.d0*node(i)%coef(4)*rot_dir_i(1)*rot_dir_i(1) + &
-                         2.d0*node(i)%coef(5)*rot_dir_i(1)*rot_dir_i(2) + &
-                         2.d0*node(i)%coef(6)*rot_dir_i(2)*rot_dir_i(2)
-
-            !------------------------------------------------------------------------
-            !node k rotation values and derivatives
-            xx = mesh%v(k)%p(1)
-            yy = mesh%v(k)%p(2)
-            zz = mesh%v(k)%p(3)
-            call constr(xx,yy,zz,cx,sx,cy,sy)
-
-            xx = mesh%v(i)%p(1)
-            yy = mesh%v(i)%p(2)
-            zz = mesh%v(i)%p(3)
-            call aplyr(xx,yy,zz,cx,sx,cy,sy,xp,yp,zp) 
-
             phi_k = node(k)%coef(1)
 
-            ! Compute the second derivative in normal direction
-            dir_k = -dir_i
-            dir_k = proj_vec_sphere(dir_k, mesh%v(k)%p)
-            call aplyr(dir_k(1),dir_k(2),dir_k(3),cx,sx,cy,sy,rot_dir_k(1),rot_dir_k(2),rot_dir_k(3))
-            rot_dir_k = rot_dir_k/norm(rot_dir_k)
-            derivada_k = 2.d0*node(k)%coef(4)*rot_dir_k(1)*rot_dir_k(1) + &
-                         2.d0*node(k)%coef(5)*rot_dir_k(1)*rot_dir_k(2) + &
-                         2.d0*node(k)%coef(6)*rot_dir_k(2)*rot_dir_k(2)
-   
+            derivada_i = 2.d0*node(i)%coef(4)*node(i)%G(1)%sgflux_geom(j,2) + &
+                         2.d0*node(i)%coef(5)*node(i)%G(1)%sgflux_geom(j,3) + &
+                         2.d0*node(i)%coef(6)*node(i)%G(1)%sgflux_geom(j,4)
+
+            derivada_k = 2.d0*node(k)%coef(4)*node(i)%G(1)%sgflux_geom(j,5) + &
+                         2.d0*node(k)%coef(5)*node(i)%G(1)%sgflux_geom(j,6) + &
+                         2.d0*node(k)%coef(6)*node(i)%G(1)%sgflux_geom(j,7)
+
             !------------------------------------------------------------------------
             ! Compute the flux
             aux1 = (1.0D0/2.0D0)*(phi_i + phi_k)
-            aux2 = (1.0D0/12.0D0)*((dist)**2)*(derivada_k + derivada_i)
-            aux3 = beta*sinal*(1.0D0/12.0D0)*((dist)**2)*(derivada_k - derivada_i)
+            aux2 = node(i)%G(1)%sgflux_geom(j,1)*(derivada_k + derivada_i)
+            if (advmtd=='sg3') then
+                aux3 = beta*sinal*node(i)%G(1)%sgflux_geom(j,1)*(derivada_k - derivada_i)
+                node(i)%edge_flux(j) = (aux1-aux2+aux3)*node(i)%G(1)%lwg(j)*dot
 
-            if (orderg==2) then
-                aux2 = 0.0D0 
-                aux3 = 0.0D0
-            else if (orderg==4) then
-                aux3 = 0.0D0
+            elseif (advmtd=='sg4') then
+                node(i)%edge_flux(j) = (aux1-aux2)*node(i)%G(1)%lwg(j)*dot
             endif  
 
             ! Store flux at edge
-            node(i)%edge_flux(j) = (aux1-aux2+aux3)*node(i)%G(1)%lwg(j)*dot
             node(i)%S(z)%flux = node(i)%S(z)%flux + node(i)%edge_flux(j)
+            end if
         end do
     end do
     !$OMP END PARALLEL DO
