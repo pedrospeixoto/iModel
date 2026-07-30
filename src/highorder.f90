@@ -558,6 +558,9 @@ contains
        !call interpolation_g(mesh)
        !call flux_edges_g(nodes,mesh,0,0.0D0)  
 
+       !call build_matrix(nodes,mesh)
+       !stop
+
        do i=1,nodes
           node(i)%phi_exa=node(i)%phi_new2
        enddo
@@ -631,6 +634,9 @@ contains
        call matrix_olg(nodes,mesh)
 
        call  init_quadrature_edges(mesh)
+
+       !call build_matrix(nodes,mesh)
+       !stop
        !call reconstruction_olg(nodes,mesh)  
 
        !call interpolation(nodes,mesh) 
@@ -5478,4 +5484,114 @@ end subroutine flux_olg
     return
 
   end subroutine flux_hx
+
+  subroutine build_matrix(nodes, mesh)
+    !-------------------------------------------------------------------------------
+    ! Builds the matrix representation of the semi-discrete advection operator.
+    ! Each column is obtained by applying the operator to a canonical basis vector,
+    ! and the resulting dense matrix is written to the data directory.
+    !-------------------------------------------------------------------------------
+    implicit none
+    integer(i4),intent(in) :: nodes
+    type(grid_structure),intent(inout) :: mesh
+    integer(i4) :: i, j, iunit, istat, printstep
+    real(r8),allocatable :: A(:,:), e(:), Ae(:)
+    character(len=512) :: filename
+
+    if(nodes>=12000)then
+       print*,'The spatial matrix is only generated for mesh levels <= 5.'
+       print*,'Current mesh level: ',nodes
+       stop
+    endif
+
+    if(monotonicfilter)then
+       print*,'The spatial matrix cannot be generated with the monotonic limiter active.'
+       stop
+    endif
+
+    allocate(A(nodes,nodes), e(nodes), Ae(nodes), stat=istat)
+    if(istat/=0)then
+       print*,'Error allocating the spatial matrix. Matrix size: ',nodes,' x ',nodes
+       stop
+    endif
+
+    A = 0.0_r8
+    printstep = max(1, nodes/20)
+
+    print*
+    print*,'Building spatial matrix for ',trim(advmtd)
+    print*,'Mesh: ',trim(mesh%name)
+    print*,'Number of cells: ',nodes
+
+    do j=1, nodes
+       e = 0.0_r8
+       e(j) = 1.0_r8
+       call apply_operator(nodes, mesh, e, Ae)
+       A(:,j) = Ae
+
+       if(mod(j,printstep)==0 .or. j==nodes) print*,'Column ',j,' of ',nodes
+    enddo
+
+    filename = trim(datadir)//trim(mesh%name)//'_spatial_matrix_'//trim(advmtd)//'.dat'
+    call getunit(iunit)
+    open(iunit,file=filename,status='replace',action='write',iostat=istat)
+
+    if(istat /= 0)then
+       print*,'Could not open matrix file: ',trim(filename)
+       stop
+    endif
+
+    do i = 1, nodes
+       write(iunit,'(*(ES25.16E3,1X))') A(i,:)
+    enddo
+
+    close(iunit)
+    print*,'Spatial matrix saved in: ',trim(filename)
+    deallocate(A,e,Ae)
+
+
+    return
+  end subroutine build_matrix
+
+
+  subroutine apply_operator(nodes, mesh, q, Lq)
+    !-------------------------------------------------------------------------------
+    ! Applies the semi-discrete advection operator to the state vector q.
+    ! It reconstructs the tracer field, computes the numerical fluxes using
+    ! the selected SG or OG scheme, and returns the spatial tendency Lq.
+    !-------------------------------------------------------------------------------
+    implicit none
+    integer(i4),intent(in) :: nodes
+    type(grid_structure),intent(inout) :: mesh
+    real(r8),intent(in) :: q(nodes)
+    real(r8),intent(out) :: Lq(nodes)
+    integer(i4) :: i
+    real(r8) :: area
+
+    node(1:nodes)%phi_new2=q(1:nodes)
+
+    if(method=='G')then
+       call vector_gas(nodes)
+       call reconstruction_gas(nodes)
+       call flux_gas(nodes,mesh,0,0.0_r8)
+    elseif(method=='O')then
+       call vector_olg2(nodes)
+       call reconstruction_olg(nodes)
+       call flux_olg(nodes,mesh,0,0.0_r8)
+    else
+       print*,'Invalid method in apply_operator: ',trim(method)
+       stop
+    endif
+
+    do i=1,nodes
+       if(controlvolume=='D')then
+          area=node(i)%area
+       else
+          area=mesh%hx(i)%areag
+       endif
+       Lq(i)=-node(i)%S(0)%flux/area
+    enddo
+
+    return
+  end subroutine apply_operator
 end module highorder
