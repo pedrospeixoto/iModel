@@ -381,6 +381,11 @@ contains
         orderg=3
         method='O'
 
+    case('og3c')
+        order=3
+        orderg=3
+        method='O'
+
     case('og4')
         order=4
         orderg=4
@@ -486,7 +491,7 @@ contains
     do i = 1,nodes
        allocate(node(i)%ngbr(1:order-1))
        ngbr = mesh%v(i)%nnb
-       if((advmtd=='og3a' .or. advmtd=='og3b') .and. ngbr<5)then
+       if((advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c') .and. ngbr<5)then
           print*,trim(advmtd),' requires at least five first neighbors. Cell: ',i,' neighbors: ',ngbr
           stop
        endif
@@ -499,7 +504,7 @@ contains
        node(i)%ngbr(1)%lvd(1:ngbr+1) = (/0.0D0,mesh%v(i)%nbdg(1:ngbr)/)
     end do
 
-    if (order > 2 .and. advmtd/='og3a' .and. advmtd/='og3b') then
+    if (order > 2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c') then
        nlines=maxval(mesh%v(:)%nnb)
        ncolumns=maxval(mesh%v(:)%nnb)+1  
        allocate(nbsv(15,nodes))
@@ -1263,7 +1268,7 @@ end subroutine
     do i=1,nodes
        ngbr1=node(i)%ngbr(1)%numberngbr
        ngbr2=0
-       if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')ngbr2=node(i)%ngbr(2)%numberngbr
+       if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')ngbr2=node(i)%ngbr(2)%numberngbr
        allocate(node(i)%S(0:3))
        do k=0,3
           allocate(node(i)%S(k)%flux)
@@ -1443,7 +1448,7 @@ end subroutine
     real(r8):: yp
     real(r8):: zp
 
-    if(order==2 .or. advmtd=='og3a' .or. advmtd=='og3b')then
+    if(order==2 .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c')then
        do i=1,nodes
           x=mesh%v(i)%p(1)
           y=mesh%v(i)%p(2)
@@ -1560,6 +1565,7 @@ end subroutine
     do i=1,nodes
        jend=node(i)%ngbr(1)%numberngbr
        diml=nint((order)/2.0D0)
+       if(advmtd=='og3c') diml=1
        !Percorrendo todas as faces do volume de controle i
        do n=1,2*jend
           do s=1,diml   
@@ -2228,7 +2234,7 @@ end subroutine reconstruction_gas
        call constr(x,y,z,cx,sx,cy,sy)
        call aplyr(x,y,z,cx,sx,cy,sy,xp,yp,zp)
        jend=node(i)%ngbr(1)%numberngbr
-       if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+       if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
        allocate(node(i)%Pbar(1:jend+1))
        allocate(node(i)%Pmid(1:jend+1))
        !Percorrrendo os primeiros vizinhos dos primeiros vizinhos node i, incluindo o node i 
@@ -2282,7 +2288,7 @@ end subroutine reconstruction_gas
        call constr(x,y,z,cx,sx,cy,sy)
        call aplyr(x,y,z,cx,sx,cy,sy,xp,yp,zp)
        jend=node(i)%ngbr(1)%numberngbr
-       if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+       if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
        allocate(node(i)%Pcirc(1:jend+1))
        !Percorrrendo os primeiros vizinhos dos primeiros vizinhos node i, incluindo o node i 
        do j=1,jend+1
@@ -2560,7 +2566,7 @@ end subroutine reconstruction_gas
     else
        VD=1
     endif
-    if(method=='G') diml=1
+    if(method=='G' .or. advmtd=='og3c') diml=1
     allocate(x(diml),w(diml))
     call gaussrootsweights(diml, x, w)
     do i=1,nodes
@@ -2760,7 +2766,7 @@ end subroutine reconstruction_gas
     !Calculando as constantes da matriz de rotacao
     call constr(x,y,z,cx,sx,cy,sy)
     jend=node(i)%ngbr(1)%numberngbr
-    if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+    if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
     do jj = 1,jend+1
        !Percorrrendo dos vizinhos do node i (incluindo o node i) e calculando a media da solucao exata
        ii = node(i)%stencil(jj-1) 
@@ -2881,7 +2887,7 @@ end subroutine reconstruction_gas
     zz = mesh%v(i)%p(3)
     call constr(xx,yy,zz,cx,sx,cy,sy)
     jend = node(i)%ngbr(1)%numberngbr
-    if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+    if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
     do jj = 1,jend+1
        ii = node(i)%stencil(jj-1) 
        jend = node(ii)%ngbr(1)%numberngbr
@@ -2989,7 +2995,7 @@ end subroutine reconstruction_gas
     xx = xp
     yy = yp
     jend = node(i)%ngbr(1)%numberngbr
-    if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+    if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
     do j = 1,jend
        col = 0
        do l = 0,order-1
@@ -3212,7 +3218,7 @@ end subroutine reconstruction_gas
        else
           cc=1
        endif
-       if(method=='G') diml=1
+       if(method=='G' .or. advmtd=='og3c') diml=1
        do n = 1,cc*jend     
           node(i)%S(z)%flux = 0.0D0
           ! Percorrendo todas as faces do volume de controle i
@@ -3337,7 +3343,7 @@ end subroutine reconstruction_gas
 !           print*, i,lon,lat
 !           read(*,*)
 
-        if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+        if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
         do jj = 1,jend
            ii = node(i)%stencil(jj)          
            p3 =mesh%v(ii)%p 
@@ -3565,7 +3571,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
        else
           cc=1
        endif
-       if(method=='G') diml=1
+       if(method=='G' .or. advmtd=='og3c') diml=1
        do n = 1,cc*jend     
 
           ! Percorrendo todas as faces do volume de controle i
@@ -3725,6 +3731,7 @@ print*, dabs(flux_numerico-flux_exato), 'ERRO'
     do i=1,nodes
        jend=node(i)%ngbr(1)%numberngbr
        diml=nint((order)/2.0D0)
+       if(advmtd=='og3c') diml=1
        if(controlvolume=="D")then
           cc=2
        else
@@ -3857,7 +3864,7 @@ subroutine flux_olg(nodes,mesh,z,time)
     !$OMP DEFAULT(NONE) &
     !$OMP SHARED(node, mesh, z, edges_indexes, orderg) &
     !$OMP SHARED(nodes, time, moistswm, time_integrator, monotonicfilter) &
-    !$OMP SHARED(order, controlvolume, feps, flux_olg_rot) &
+    !$OMP SHARED(order, controlvolume, feps, flux_olg_rot, advmtd) &
     !$OMP PRIVATE(i, n, s, src, ibasis, dot) &
     !$OMP PRIVATE(cc, diml, jend, flux_val) &
     !$OMP PRIVATE(cx, sx, cy, sy, xp, yp, zp) &
@@ -3869,6 +3876,7 @@ subroutine flux_olg(nodes,mesh,z,time)
         node(i)%S(z)%flux = 0.0D0
         jend = node(i)%ngbr(1)%numberngbr
         diml = nint((order)/2.0D0)
+        if(advmtd=='og3c') diml=1
 
         !Percorrendo todas as faces do volume de controle i
         if(controlvolume=="D")then
@@ -4181,7 +4189,7 @@ end subroutine flux_olg
     integer,intent(in):: nodes
     type(grid_structure),intent(inout):: mesh
 
-    if(advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og4')then
+    if(advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c' .or. advmtd=='og4')then
       if(.not. monotonicfilter)then
         do k=1, 3
           call vector_olg2(nodes)
@@ -4831,7 +4839,7 @@ end subroutine flux_olg
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
 
-    if (method=='G') then
+    if (method=='G' .or. advmtd=='og3c') then
       nquad = 1
     end if
 
@@ -4896,6 +4904,7 @@ end subroutine flux_olg
 
     ! Number of quadrature points
     nquad = nint((order)/2.0D0)
+    if(advmtd=='og3c') nquad=1
     error = 0.d0
     !Alocate space if necessary
     if(.not.allocated(uedges%pol))then
@@ -5023,7 +5032,7 @@ end subroutine flux_olg
       i = no
        
       jend=node(i)%ngbr(1)%numberngbr
-      if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b')jend=jend+node(i)%ngbr(2)%numberngbr
+      if(order>2 .and. advmtd/='og3a' .and. advmtd/='og3b' .and. advmtd/='og3c')jend=jend+node(i)%ngbr(2)%numberngbr
       allocate(limitador(1:jend+1))
   
       limitador(1) = node(i)%coef(1)    
@@ -5084,7 +5093,7 @@ end subroutine flux_olg
         !-----------------------------------------------------------------------------------
         ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
         if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' &
-             .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og4')then
+             .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c' .or. advmtd=='og4')then
           !print*, 'mono...'
           !-------------------------------------------------------------------------
           ! Get the clock rate (ticks per second)
@@ -5280,7 +5289,8 @@ end subroutine flux_olg
     end if
 
     if (.not. (advmtd == 'sg2' .or. advmtd == 'sg3'  .or. advmtd == 'sg4' .or. &
-               advmtd == 'og2' .or. advmtd == 'og3'  .or. advmtd == 'og3a' .or. advmtd == 'og3b' .or. advmtd == 'og4')) then
+               advmtd == 'og2' .or. advmtd == 'og3' .or. advmtd == 'og3a' .or. advmtd == 'og3b' .or. &
+               advmtd == 'og3c' .or. advmtd == 'og4')) then
 
       print*, 'ERROR in monotonicfilter_rk3: only SG and OG methods are supported: ', &
               trim(advmtd)
@@ -5699,7 +5709,7 @@ end subroutine flux_olg
     integer(i4) :: i
 
     if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' &
-   .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og4') then
+   .or. advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c' .or. advmtd=='og4') then
       !$omp parallel do &
       !$omp default(none) &
       !$omp shared(mesh, q, node) &
@@ -5710,7 +5720,8 @@ end subroutine flux_olg
       end do
       !$omp end parallel do
 
-      if (advmtd == 'og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og4')then ! Ollivier-Gooch method
+      if (advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. &
+          advmtd=='og3c' .or. advmtd=='og4')then ! Ollivier-Gooch method
         !---------------------------------------------------------
         call vector_olg2(mesh%nv)
         call reconstruction_olg(mesh%nv)
