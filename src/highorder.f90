@@ -762,6 +762,7 @@ subroutine compute_error_zonal_wind(mesh, time, step)
     integer :: i, iunit
     character(len=256) :: filename
     logical :: ifile
+    !character(len=8) :: astep
 
     T = 5._r8
     u0 = 2._r8*pi/T
@@ -791,7 +792,15 @@ subroutine compute_error_zonal_wind(mesh, time, step)
         phi_exact = f(lon, lat) 
         error = abs(node(i)%phi_new2 - phi_exact)
         max_error = max(max_error, error)
+
+        !phi%f(i) = phi_exact - node(i)%phi_new2
     end do
+
+    !if (step < 10 .or. step == node(0)%ntime-1) then
+    !    write(astep,'(I4.4)') step+1
+    !    phi%name = trim(transpname)//"_error_step_"//trim(astep)
+    !    call plot_scalarfield(phi,mesh)
+    !end if
 
     ! --- Prepare filename for error logging ---
     filename = trim(datadir)//trim(transpname)//"_"//trim(mesh%name)//"_errors_evol.txt"
@@ -820,6 +829,7 @@ subroutine compute_error_zonal_wind(mesh, time, step)
 
     ! --- Close the file ---
     close(iunit)
+    !print*, time, max_error
 
 end subroutine
 
@@ -3860,6 +3870,10 @@ subroutine flux_olg(nodes,mesh,z,time)
 
     FEPS = 1.0D-8
 
+    !if (present(z) .and. present(time)) then
+    !   print *, "RK stage =", z, " time used in velocity =", time
+    !endif
+
     !$OMP PARALLEL DO &
     !$OMP DEFAULT(NONE) &
     !$OMP SHARED(node, mesh, z, edges_indexes, orderg) &
@@ -4241,7 +4255,6 @@ end subroutine flux_olg
    end if
 
   end subroutine ode_rk3_adv
-
 
     subroutine ode_rk3_advection (mesh, phi_new, phi, time, dt, radius, u, u_new)
       !----------------------------------------------------------------------------------
@@ -5047,208 +5060,32 @@ end subroutine flux_olg
       deallocate (limitador)
       return
   end subroutine monotonic_limiter
-    
+
+  function streamfunction_zonal(lat, period, radius) result(psi)
+    real(r8), intent(in) :: lat, period, radius
+    real(r8) :: psi
+
+    psi = -2._r8*pi*radius*sin(lat)/period
+
+  end function streamfunction_zonal
+
+  function streamfunction_case4(lon, lat, time, period) result(psi)
+    real(r8), intent(in) :: lon, lat, time, period
+    real(r8) :: psi, lonp
+    real(r8), parameter :: kappa = 2._r8
+
+    lonp = lon - 2._r8*pi*time/period
+    psi = kappa*sin(lonp)**2*cos(lat)**2*cos(pi*time/period) - 2._r8*pi*sin(lat)/period
+
+  end function streamfunction_case4
+
   !-----------------------------------------------------------------------------------
   ! Implementation of the flux correction method from the paper Wang et al 2009 -
   ! "Evaluation of Scalar Advection Schemes in the Advanced Research WRF
   ! Model Using Large-Eddy Simulations of Aerosol–Cloud Interactions"
   ! This routine is applied in the last stage of the RK3 scheme
   !-----------------------------------------------------------------------------------
-  subroutine monotonicfilter_rk3(mesh, phi_step0, phi_step2,  dt, radius, time, u_step0, u_step2, hSphi)
-      type(grid_structure), intent(inout) :: mesh
-      type(scalar_field), intent(inout):: phi_step0 ! scalar field at time t
-      type(scalar_field), intent(inout):: phi_step2 ! Scalar field from second step in RK3 (time t+dt/2)
-      type(scalar_field), optional, intent(inout):: u_step0 ! velocity at time t
-      type(scalar_field), optional, intent(inout):: u_step2 ! velocity at time t+dt/
-      type(scalar_field), optional, intent(inout):: hSphi ! Source - optional
-      real(r8), intent(in) :: dt, radius, time ! time-step and sphere radius 
-      integer(i4) :: i, j, k, jj
-      !integer :: clock_rate, clock_start, clock_end
-      !real(r8) :: start_time, end_time, elapsed_time
-
-
-
-      !-----------------------------------------------------------------------------------
-      ! Flux for phi_star using 1st order upwind scheme at time t
-      if (present(hSphi))then ! check if source was given
-        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-        !$OMP SHARED(phi_star, phi_step0, dt, hSphi)
-        phi_star%f = phi_step0%f + dt*hSphi%f ! equation 3b from Wang et al 2009
-        !$OMP END PARALLEL WORKSHARE
-      else
-        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-        !$OMP SHARED(phi_star, phi_step0)
-        phi_star%f = phi_step0%f ! equation 3b from Wang et al 2009
-        !$OMP END PARALLEL WORKSHARE
-      end if
-
-      ! Compute upwind flux
-      if(present(u_step0))then
-        call flux_hx_upw1(phi_star, F_star, mesh, time, u_step0)
-      else
-        call flux_hx_upw1(phi_star, F_star, mesh, time)
-      end if
-
-      if(controlvolume=='V')then
-        !-----------------------------------------------------------------------------------
-        ! Flux for phi from the previous RK step using highorder scheme at time t+dt/2
-        if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' &
-             .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c' .or. advmtd=='og4')then
-          !print*, 'mono...'
-          !-------------------------------------------------------------------------
-          ! Get the clock rate (ticks per second)
-          !call system_clock(count_rate=clock_rate)
-          ! Start the clock
-          !call system_clock(count=clock_start)
- 
-          !Calculate divergence and edges flux
-          call divhx(phi_step2, div_uphi, mesh, radius, time)
-
-          ! Store the flux
-          !$omp parallel do &
-          !$omp default(none) &
-          !$omp shared(mesh, node, F_step2) &
-          !$omp schedule(static)
-          do i = 1, mesh%nv
-            F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
-            F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
-          end do
-          !$omp end parallel do
-
-        else if (advmtd=='upw1')then
-          if (present(u_step2))then
-            call flux_hx_upw1(phi_step2,F_step2, mesh, time, u_step2)
-          else
-            print*,'monotonicfilter_rk3 error in 1st order upwind: need u_step2'
-            stop
-          end if
-
-        else if (advmtd=='trsk')then
-          if (present(u_step2))then
-            !Interpolate vapour to edges and calculate flux at edges
-            call scalar_hx2ed(phi_step2, phi_ed, mesh)      !hQv: cell->edge
-            call scalar_elem_product(u_step2, phi_ed, uphi) !Flux uhQv at edges
-            call flux_hx(uphi, F_step2, mesh)
-          else
-            print*,'monotonicfilter_rk3 error in trsk: u_step2 missing'
-            stop
-          end if
-
-        else
-          print*, 'ERROR in monotonicfilter_rk3: invalid advmth:  ', advmtd
-          stop
-        end if
-        !-----------------------------------------------------------------------------------
-
-
-       !-----------------------------------------------------------------------------------
-        ! Flux for phi corrected (equation 4 from wang et al 2009)
-        !$OMP PARALLEL WORKSHARE DEFAULT(NONE) &
-        !$OMP SHARED(F_cor, F_step2, F_star)      
-        F_cor(:,:) = F_step2(:,:) - F_star(:,:) 
-        !$OMP END PARALLEL WORKSHARE
-        !-----------------------------------------------------------------------------------
-
-        ! Equation 5 from Wang et al 2009 - 1st order upwind solution
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, phi_tilda, phi_star, F_star, dt, radius) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_tilda%f(i) = phi_star%f(i) - dt*sum(F_star(i,:))/mesh%hx(i)%areag/radius
-        end do
-        !$omp end parallel do
-
-        ! Compute negative and positive flux updates
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, phi_tilda, phi_tilda_min, phi_tilda_max, F_cor, dt, radius) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_tilda_min%f(i) = phi_tilda%f(i)
-          phi_tilda_max%f(i) = phi_tilda%f(i)
-          do j = 1, mesh%v(i)%nnb
-            if(F_cor(i,j)>0._r8)then
-              ! Equation 6a from Wang et al 2009
-              phi_tilda_min%f(i) = phi_tilda_min%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
-
-            else
-              ! Equation 6b from Wang et al 2009
-              phi_tilda_max%f(i) = phi_tilda_max%f(i) - dt*F_cor(i,j)/mesh%hx(i)%areag/radius
-            end if
-          end do
-        end do
-        !$omp end parallel do
-
-        ! Min/max in neighborhood at time t
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, phi_step0, phi_min, phi_max) &
-        !$omp private(j, k) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_min%f(i) = phi_step0%f(i)
-          phi_max%f(i) = phi_step0%f(i)
-          do j = 1, mesh%v(i)%nnb
-            k = mesh%v(i)%nb(j)
-            if(phi_step0%f(k) < phi_min%f(i))then
-              phi_min%f(i) = phi_step0%f(k)
-            else if(phi_step0%f(k) > phi_max%f(i))then
-              phi_max%f(i) = phi_step0%f(k)
-            end if
-         end do
-        end do
-        !$omp end parallel do
-
-        ! Flux correction
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, F_cor, phi_tilda, phi_tilda_min, phi_tilda_max, phi_min, phi_max) &
-        !$omp private(j, k) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          do j = 1, mesh%v(i)%nnb
-            k = mesh%v(i)%nb(j)
-            if(F_cor(i,j)>0._r8) then
-              if(abs(phi_tilda%f(i)-phi_tilda_min%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_max%f(k))>eps2) then
-              F_cor(i,j) = min(1._r8,  (phi_tilda%f(i)-phi_min%f(i))/(phi_tilda%f(i)-phi_tilda_min%f(i)),&
-                                       (phi_tilda%f(k)-phi_max%f(k))/(phi_tilda%f(k)-phi_tilda_max%f(k)))*F_cor(i,j)
-              end if
-            else
-              if(abs(phi_tilda%f(i)-phi_tilda_max%f(i))>eps2 .and.  abs(phi_tilda%f(k)-phi_tilda_min%f(k))>eps2) then
-                F_cor(i,j) =  min(1._r8,  (phi_tilda%f(i)-phi_max%f(i))/(phi_tilda%f(i)-phi_tilda_max%f(i)),&
-                                          (phi_tilda%f(k)-phi_min%f(k))/(phi_tilda%f(k)-phi_tilda_min%f(k)))*F_cor(i,j)
-              end if
-            end if
-          end do
-        end do
-        !$omp end parallel do
-
-        ! Final solution
-        !$omp parallel do &
-        !$omp default(none) &
-        !$omp shared(mesh, phi_step2, phi_tilda, F_cor, radius, dt) &
-        !$omp schedule(static)
-        do i = 1, mesh%nv
-          phi_step2%f(i) = phi_tilda%f(i) - dt*(sum(F_cor(i,:)))/mesh%hx(i)%areag/radius
-        end do
-        !$omp end parallel do
-        ! Stop the clock
-        !call system_clock(count=clock_end)
-        ! Calculate the elapsed time using clock ticks
-        !elapsed_time = real(clock_end - clock_start) / real(clock_rate)
-        !print '("Mono  = ",f9.6," seconds.")',elapsed_time
-        !print*
- 
-      !======================================================================================
-      else ! Donald Diagram
-        print*, 'ERROR in monotonicfilter_rk3: filter has not been implemented for Donald diagrams.'
-        stop
-      end if
-  end subroutine monotonicfilter_rk3
-
-
-  subroutine monotonicfilter_rk3_v2(mesh, phi_step0, phi_step2, dt, radius, time, u_step0, u_step2, hSphi)
+  subroutine monotonicfilter_rk3(mesh, phi_step0, phi_step2, dt, radius, time, u_step0, u_step2, hSphi)
     implicit none
 
     type(grid_structure), intent(inout) :: mesh
@@ -5259,120 +5096,83 @@ end subroutine flux_olg
     type(scalar_field), optional, intent(inout) :: hSphi
     real(r8), intent(in) :: dt, radius, time
 
-    integer(i4) :: i, j, k, e
-    integer(i4) :: c1, c2, s1, s2, slot
-    real(r8) :: u_edge, edge_transport
-    real(r8) :: sigma, local_corr, scale_factor
-    real(r8) :: inv_area, dt_over_radius
-    real(r8), parameter :: eps = 1.0e-20_r8
+    integer(i4) :: i, j, k, e, c1, c2, s1, s2, slot, t1, t2
+    real(r8) :: u_edge, sigma, local_corr, scale_factor, inv_area, dt_over_radius
+    real(r8) :: psi1, psi2, align, div_i, max_div, cfl_i, max_cfl
+    real(r8) :: low_under, low_over, final_under, final_over
+    real(r8), parameter :: limiter_eps = 1.0e-20_r8
+    real(r8), parameter :: check_tol = 1.0e-11_r8
+    logical :: use_streamfunction
 
-    integer(i4), allocatable :: edge_cell1(:)
-    integer(i4), allocatable :: edge_cell2(:)
-    integer(i4), allocatable :: edge_slot1(:)
-
-    real(r8), allocatable :: flux_upwind(:)
-    real(r8), allocatable :: flux_high(:)
-    real(r8), allocatable :: flux_corr(:)
-    real(r8), allocatable :: flux_limited(:)
-
-    real(r8), allocatable :: scale_in(:)
-    real(r8), allocatable :: scale_out(:)
-    real(r8), allocatable :: r_in(:)
-    real(r8), allocatable :: r_out(:)
-
-    ! u_step2 is retained for compatibility with the existing interface.
-    ! The high-order SG/OG flux is obtained through divhx.
+    integer(i4), allocatable :: edge_cell1(:), edge_cell2(:), edge_slot1(:)
+    real(r8), allocatable :: edge_transport(:), flux_upwind(:), flux_high(:), flux_corr(:), flux_limited(:)
+    real(r8), allocatable :: scale_in(:), scale_out(:), r_in(:), r_out(:)
 
     if (controlvolume /= 'V') then
       print*, 'ERROR in monotonicfilter_rk3: only Voronoi cells are supported.'
       stop
     end if
 
-    if (.not. (advmtd == 'sg2' .or. advmtd == 'sg3'  .or. advmtd == 'sg4' .or. &
-               advmtd == 'og2' .or. advmtd == 'og3' .or. advmtd == 'og3a' .or. advmtd == 'og3b' .or. &
-               advmtd == 'og3c' .or. advmtd == 'og4')) then
-
-      print*, 'ERROR in monotonicfilter_rk3: only SG and OG methods are supported: ', &
-              trim(advmtd)
+    if (dt <= 0._r8 .or. radius <= 0._r8) then
+      print*, 'ERROR in monotonicfilter_rk3: dt and radius must be positive.'
       stop
+    end if
+
+    use_streamfunction = (.not. present(u_step0) .and. (testcase == 4 .or. testcase == 5 .or. testcase == 7))
+
+    if (use_streamfunction) then
+      if (T <= 0._r8) then
+        print*, 'ERROR in monotonicfilter_rk3: invalid period T.'
+        stop
+      end if
+
+      if (testcase == 4 .and. abs(radius-1._r8) > 1.0e-12_r8) then
+        print*, 'ERROR in monotonicfilter_rk3: Case 4 streamfunction requires the unit sphere.'
+        stop
+      end if
     end if
 
     dt_over_radius = dt/radius
 
-    allocate(edge_cell1(mesh%ne))
-    allocate(edge_cell2(mesh%ne))
-    allocate(edge_slot1(mesh%ne))
-
-    allocate(flux_upwind(mesh%ne))
-    allocate(flux_high(mesh%ne))
-    allocate(flux_corr(mesh%ne))
-    allocate(flux_limited(mesh%ne))
-
-    allocate(scale_in(mesh%nv))
-    allocate(scale_out(mesh%nv))
-    allocate(r_in(mesh%nv))
-    allocate(r_out(mesh%nv))
+    allocate(edge_cell1(mesh%ne), edge_cell2(mesh%ne), edge_slot1(mesh%ne))
+    allocate(edge_transport(mesh%ne), flux_upwind(mesh%ne), flux_high(mesh%ne), flux_corr(mesh%ne), flux_limited(mesh%ne))
+    allocate(scale_in(mesh%nv), scale_out(mesh%nv), r_in(mesh%nv), r_out(mesh%nv))
 
     edge_cell1 = 0
     edge_cell2 = 0
     edge_slot1 = 0
+    edge_transport = 0._r8
+    flux_upwind = 0._r8
+    flux_high = 0._r8
+    flux_corr = 0._r8
+    flux_limited = 0._r8
+    scale_in = 0._r8
+    scale_out = 0._r8
+    r_in = 1._r8
+    r_out = 1._r8
 
-    flux_upwind = 0.0_r8
-    flux_high = 0.0_r8
-    flux_corr = 0.0_r8
-    flux_limited = 0.0_r8
-
-    scale_in = 0.0_r8
-    scale_out = 0.0_r8
-    r_in = 1.0_r8
-    r_out = 1.0_r8
-
-    !---------------------------------------------------------------------------
-    ! Source update.
-    !
-    ! This is the state used by the first-order upwind update and by the
-    ! calculation of the local minimum and maximum.
-    !---------------------------------------------------------------------------
+    ! Source update used as the state entering the final transport stage.
     if (present(hSphi)) then
-
-      !$omp parallel do default(none) &
-      !$omp shared(mesh,phi_star,phi_step0,hSphi,dt) &
-      !$omp private(i) schedule(static)
+      !$omp parallel do default(none) shared(mesh,phi_star,phi_step0,hSphi,dt) private(i) schedule(static)
       do i = 1, mesh%nv
         phi_star%f(i) = phi_step0%f(i) + dt*hSphi%f(i)
       end do
       !$omp end parallel do
-
     else
-
-      !$omp parallel do default(none) &
-      !$omp shared(mesh,phi_star,phi_step0) &
-      !$omp private(i) schedule(static)
+      !$omp parallel do default(none) shared(mesh,phi_star,phi_step0) private(i) schedule(static)
       do i = 1, mesh%nv
         phi_star%f(i) = phi_step0%f(i)
       end do
       !$omp end parallel do
-
     end if
 
-    !---------------------------------------------------------------------------
-    ! Define a unique orientation for every global edge.
-    !
-    ! edge_cell1(e):
-    !   cell from which mesh%ed(e)%tg points outward.
-    !
-    ! edge_cell2(e):
-    !   cell toward which mesh%ed(e)%tg points.
-    !
-    ! Therefore, all global edge fluxes below are oriented from edge_cell1
-    ! toward edge_cell2.
-    !---------------------------------------------------------------------------
+    ! Define one orientation per physical edge
+    ! The global orientation follows mesh%ed(e)%tg, as in the existing velocity representation
     do e = 1, mesh%ne
-
       c1 = mesh%edhx(e)%sh(1)
       c2 = mesh%edhx(e)%sh(2)
-
       s1 = 0
+      s2 = 0
 
       do j = 1, mesh%v(c1)%nnb
         if (mesh%v(c1)%ed(j) == e) then
@@ -5381,319 +5181,294 @@ end subroutine flux_olg
         end if
       end do
 
-      if (s1 == 0) then
-        print*, 'ERROR in monotonicfilter_rk3: edge not found in cell: ', &
-                e, c1
+      do j = 1, mesh%v(c2)%nnb
+        if (mesh%v(c2)%ed(j) == e) then
+          s2 = j
+          exit
+        end if
+      end do
+
+      if (s1 == 0 .or. s2 == 0) then
+        print*, 'ERROR in monotonicfilter_rk3: edge not found in adjacent cell: ', e
         stop
       end if
 
       if (mesh%hx(c1)%ttgout(s1) > 0) then
-
         edge_cell1(e) = c1
         edge_cell2(e) = c2
         edge_slot1(e) = s1
-
-      else
-
-        s2 = 0
-
-        do j = 1, mesh%v(c2)%nnb
-          if (mesh%v(c2)%ed(j) == e) then
-            s2 = j
-            exit
-          end if
-        end do
-
-        if (s2 == 0) then
-          print*, 'ERROR in monotonicfilter_rk3: edge not found in cell: ', &
-                  e, c2
-          stop
-        end if
-
+      else if (mesh%hx(c2)%ttgout(s2) > 0) then
         edge_cell1(e) = c2
         edge_cell2(e) = c1
         edge_slot1(e) = s2
-
+      else
+        print*, 'ERROR in monotonicfilter_rk3: inconsistent edge orientation: ', e
+        stop
       end if
-
     end do
 
-    !---------------------------------------------------------------------------
-    ! High-order SG/OG flux evaluated using the second RK-stage scalar.
-    !
-    ! divhx performs the existing SG/OG reconstruction and stores the outward
-    ! fluxes in node(i)%edge_flux.
-    !---------------------------------------------------------------------------
-    call divhx(phi_step2, div_uphi, mesh, radius, time)
+    ! High-order flux from the existing SG, OG, upwind or TRSK implementation
+    if (advmtd=='sg2' .or. advmtd=='sg3' .or. advmtd=='sg4' .or. advmtd=='og2' .or. advmtd=='og3' .or. &
+        advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c' .or. advmtd=='og4') then
+      call divhx(phi_step2, div_uphi, mesh, radius, time)
 
-    !---------------------------------------------------------------------------
-    ! Convert node(i)%edge_flux to the local mesh-edge ordering.
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,node,F_step2) &
-    !$omp private(i) schedule(static)
-    do i = 1, mesh%nv
+      !$omp parallel do default(none) shared(mesh,node,F_step2) private(i) schedule(static)
+      do i = 1, mesh%nv
+        F_step2(i,:) = 0._r8
+        F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
+        F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
+      end do
+      !$omp end parallel do
 
-      F_step2(i,:) = 0.0_r8
+    else if (advmtd == 'upw1') then
+      if (.not. present(u_step2)) then
+        print*, 'ERROR in monotonicfilter_rk3: upw1 requires u_step2.'
+        stop
+      end if
+      call flux_hx_upw1(phi_step2, F_step2, mesh, time, u_step2)
 
-      F_step2(i,1) = node(i)%edge_flux(mesh%v(i)%nnb)
+    else if (advmtd == 'trsk') then
+      if (.not. present(u_step2)) then
+        print*, 'ERROR in monotonicfilter_rk3: trsk requires u_step2.'
+        stop
+      end if
+      call scalar_hx2ed(phi_step2, phi_ed, mesh)
+      call scalar_elem_product(u_step2, phi_ed, uphi)
+      call flux_hx(uphi, F_step2, mesh)
 
-      F_step2(i,2:mesh%v(i)%nnb) = node(i)%edge_flux(1:mesh%v(i)%nnb-1)
+    else
+      print*, 'ERROR in monotonicfilter_rk3: invalid advection method: ', trim(advmtd)
+      stop
+    end if
 
+    ! Build one velocity transport per physical edge
+    if (present(u_step0)) then
+      !$omp parallel do default(none) shared(mesh,u_step0,edge_transport) private(e) schedule(static)
+      do e = 1, mesh%ne
+        edge_transport(e) = u_step0%f(e)*mesh%edhx(e)%leng
+      end do
+      !$omp end parallel do
+
+    else if (use_streamfunction) then
+      do e = 1, mesh%ne
+        align = dot_product(mesh%ed(e)%tg, mesh%edhx(e)%nr)
+        if (abs(abs(align)-1._r8) > 1.0e-8_r8) then
+          print*, 'ERROR in monotonicfilter_rk3: primal tangent and dual normal are not aligned: ', e, align
+          stop
+        end if
+      end do
+
+      !$omp parallel do default(none) &
+      !$omp shared(mesh,edge_transport,time,T,radius,testcase) &
+      !$omp private(e,t1,t2,psi1,psi2,align) schedule(static)
+      do e = 1, mesh%ne
+        t1 = mesh%edhx(e)%v(1)
+        t2 = mesh%edhx(e)%v(2)
+
+        select case (testcase)
+           case (4)
+             psi1 = streamfunction_case4(mesh%tr(t1)%c%lon, mesh%tr(t1)%c%lat, time, T)
+             psi2 = streamfunction_case4(mesh%tr(t2)%c%lon, mesh%tr(t2)%c%lat, time, T)
+
+           case (5, 7)
+             psi1 = streamfunction_zonal(mesh%tr(t1)%c%lat, T, radius)
+             psi2 = streamfunction_zonal(mesh%tr(t2)%c%lat, T, radius)
+        end select
+
+        align = dot_product(mesh%ed(e)%tg, mesh%edhx(e)%nr)
+        edge_transport(e) = sign(1._r8,align)*(psi2-psi1)
+      end do
+      !$omp end parallel do
+    end if
+
+    if (use_streamfunction) then
+      max_div = 0._r8
+      max_cfl = 0._r8
+
+      do i = 1, mesh%nv
+        div_i = 0._r8
+        cfl_i = 0._r8
+
+        do j = 1, mesh%v(i)%nnb
+          e = mesh%v(i)%ed(j)
+          if (i == edge_cell1(e)) then
+            sigma = 1._r8
+          else
+            sigma = -1._r8
+          end if
+          div_i = div_i + sigma*edge_transport(e)
+          cfl_i = cfl_i + max(0._r8,sigma*edge_transport(e))
+        end do
+
+        max_div = max(max_div,abs(div_i))
+        max_cfl = max(max_cfl,dt_over_radius*cfl_i/mesh%hx(i)%areag)
+      end do
+
+      if (max_div > check_tol) then
+        print*, 'ERROR in monotonicfilter_rk3: streamfunction flux is not discretely divergence-free.'
+        print*, 'Maximum cell flux divergence = ', max_div
+        stop
+      end if
+
+      if (max_cfl > 1._r8 + check_tol) then
+        print*, 'ERROR in monotonicfilter_rk3: first-order upwind CFL exceeds one.'
+        print*, 'Maximum low-order CFL = ', max_cfl
+        stop
+      end if
+    end if
+
+    ! Build high-order, low-order and antidiffusive edge fluxes
+    ! All three are oriented from edge_cell1 to edge_cell2 and already include dt/radius
+    !$omp parallel do default(none) shared(mesh,edge_cell1,edge_cell2,edge_slot1,F_step2,phi_star,edge_transport) &
+    !$omp shared(flux_high,flux_upwind,flux_corr,dt_over_radius) private(e,c1,c2,slot) schedule(static)
+    do e = 1, mesh%ne
+      c1 = edge_cell1(e)
+      c2 = edge_cell2(e)
+      slot = edge_slot1(e)
+      flux_high(e) = dt_over_radius*F_step2(c1,slot)
+      flux_upwind(e) = dt_over_radius*(max(0._r8,edge_transport(e))*phi_star%f(c1) + min(0._r8,edge_transport(e))*phi_star%f(c2))
+      flux_corr(e) = flux_high(e) - flux_upwind(e)
     end do
     !$omp end parallel do
 
-    !---------------------------------------------------------------------------
-    ! Compute one high-order flux and one first-order upwind flux per edge.
-    !
-    ! This is the MPAS form:
-    !
-    ! F_upwind =
-    !   max(0,U_e)*phi_cell1 + min(0,U_e)*phi_cell2.
-    !
-    ! The arrays below already contain the factor dt/radius.
-    !---------------------------------------------------------------------------
-    if (present(u_step0)) then
-
-      !$omp parallel do default(none) &
-      !$omp shared(mesh,edge_cell1,edge_cell2,edge_slot1) &
-      !$omp shared(phi_star,F_step2,flux_high,flux_upwind,flux_corr) &
-      !$omp shared(u_step0,dt_over_radius) &
-      !$omp private(e,c1,c2,slot,u_edge,edge_transport) &
-      !$omp schedule(static)
-      do e = 1, mesh%ne
-
-        c1 = edge_cell1(e)
-        c2 = edge_cell2(e)
-        slot = edge_slot1(e)
-
-        flux_high(e) = dt_over_radius*F_step2(c1,slot)
-
-        u_edge = u_step0%f(e)
-
-        edge_transport = u_edge*mesh%edhx(e)%leng
-
-        flux_upwind(e) = dt_over_radius*(max(0.0_r8,edge_transport)*phi_star%f(c1) + min(0.0_r8,edge_transport)*phi_star%f(c2))
-
-        flux_corr(e) = flux_high(e) - flux_upwind(e)
-
-      end do
-      !$omp end parallel do
-
-    else
-
-      !$omp parallel do default(none) &
-      !$omp shared(mesh,edge_cell1,edge_cell2,edge_slot1) &
-      !$omp shared(phi_star,F_step2,flux_high,flux_upwind,flux_corr) &
-      !$omp shared(time,dt_over_radius) &
-      !$omp private(e,c1,c2,slot,u_edge,edge_transport) &
-      !$omp schedule(static)
-      do e = 1, mesh%ne
-
-        c1 = edge_cell1(e)
-        c2 = edge_cell2(e)
-        slot = edge_slot1(e)
-
-        flux_high(e) = dt_over_radius*F_step2(c1,slot)
-
-        u_edge = dot_product( &
-            velocity(mesh%ed(e)%c%p,time), &
-            mesh%ed(e)%tg)
-
-        edge_transport = u_edge*mesh%edhx(e)%leng
-
-        flux_upwind(e) = dt_over_radius*(max(0.0_r8,edge_transport)*phi_star%f(c1) + min(0.0_r8,edge_transport)*phi_star%f(c2))
-
-        flux_corr(e) = flux_high(e) - flux_upwind(e)
-
-      end do
-      !$omp end parallel do
-
-    end if
-
-    !---------------------------------------------------------------------------
-    ! First-order upwind solution.
-    !
-    ! The same global edge flux is used by both adjacent cells with opposite
-    ! signs.
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,phi_star,phi_tilda,edge_cell1,flux_upwind) &
+    ! First-order upwind solution
+    !$omp parallel do default(none) shared(mesh,phi_star,phi_tilda,edge_cell1,flux_upwind) &
     !$omp private(i,j,e,sigma,inv_area) schedule(static)
     do i = 1, mesh%nv
-
-      inv_area = 1.0_r8/mesh%hx(i)%areag
-
+      inv_area = 1._r8/mesh%hx(i)%areag
       phi_tilda%f(i) = phi_star%f(i)
 
       do j = 1, mesh%v(i)%nnb
-
         e = mesh%v(i)%ed(j)
-
         if (i == edge_cell1(e)) then
-          sigma = 1.0_r8
+          sigma = 1._r8
         else
-          sigma = -1.0_r8
+          sigma = -1._r8
         end if
-
         phi_tilda%f(i) = phi_tilda%f(i) - sigma*flux_upwind(e)*inv_area
-
       end do
-
     end do
     !$omp end parallel do
 
-    !---------------------------------------------------------------------------
-    ! Local minimum and maximum.
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,phi_star,phi_min,phi_max) &
-    !$omp private(i,j,k) schedule(static)
+    ! Local admissible bounds
+    !$omp parallel do default(none) shared(mesh,phi_star,phi_min,phi_max) private(i,j,k) schedule(static)
     do i = 1, mesh%nv
-
       phi_min%f(i) = phi_star%f(i)
       phi_max%f(i) = phi_star%f(i)
-
       do j = 1, mesh%v(i)%nnb
-
         k = mesh%v(i)%nb(j)
-
         phi_min%f(i) = min(phi_min%f(i),phi_star%f(k))
         phi_max%f(i) = max(phi_max%f(i),phi_star%f(k))
-
       end do
-
     end do
     !$omp end parallel do
 
-    !---------------------------------------------------------------------------
-    ! Accumulate the incoming and outgoing antidiffusive contributions.
-    !
-    ! scale_in  >= 0
-    ! scale_out <= 0
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,edge_cell1,flux_corr,scale_in,scale_out) &
+    ! The streamfunction low-order update must already satisfy the local bounds
+    ! If it does not, the limiter must not continue silently
+    if (use_streamfunction) then
+      low_under = 0._r8
+      low_over = 0._r8
+      do i = 1, mesh%nv
+        low_under = max(low_under,phi_min%f(i)-phi_tilda%f(i))
+        low_over = max(low_over,phi_tilda%f(i)-phi_max%f(i))
+      end do
+
+      if (low_under > check_tol .or. low_over > check_tol) then
+        print*, 'ERROR in monotonicfilter_rk3: streamfunction upwind solution is not monotone.'
+        print*, 'Low-order undershoot = ', low_under
+        print*, 'Low-order overshoot  = ', low_over
+        print*, 'min(phi_tilda)       = ', minval(phi_tilda%f)
+        print*, 'max(phi_tilda)       = ', maxval(phi_tilda%f)
+        stop
+      end if
+    end if
+
+    ! Sum the incoming and outgoing antidiffusive changes for each cell
+    !$omp parallel do default(none) shared(mesh,edge_cell1,flux_corr,scale_in,scale_out) &
     !$omp private(i,j,e,sigma,local_corr,inv_area) schedule(static)
     do i = 1, mesh%nv
-
-      inv_area = 1.0_r8/mesh%hx(i)%areag
-
-      scale_in(i) = 0.0_r8
-      scale_out(i) = 0.0_r8
+      inv_area = 1._r8/mesh%hx(i)%areag
+      scale_in(i) = 0._r8
+      scale_out(i) = 0._r8
 
       do j = 1, mesh%v(i)%nnb
-
         e = mesh%v(i)%ed(j)
-
         if (i == edge_cell1(e)) then
-          sigma = 1.0_r8
+          sigma = 1._r8
         else
-          sigma = -1.0_r8
+          sigma = -1._r8
         end if
-
         local_corr = sigma*flux_corr(e)
-
-        scale_out(i) = scale_out(i) - max(0.0_r8,local_corr)*inv_area
-
-        scale_in(i)  = scale_in(i)  - min(0.0_r8,local_corr)*inv_area
-
+        scale_out(i) = scale_out(i) - max(0._r8,local_corr)*inv_area
+        scale_in(i) = scale_in(i) - min(0._r8,local_corr)*inv_area
       end do
-
     end do
     !$omp end parallel do
 
-    !---------------------------------------------------------------------------
-    ! Cell-based incoming and outgoing limiting factors.
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,phi_tilda,phi_min,phi_max) &
-    !$omp shared(scale_in,scale_out,r_in,r_out) &
+    ! Cell factors for incoming and outgoing correction
+    !$omp parallel do default(none) shared(mesh,phi_tilda,phi_min,phi_max,scale_in,scale_out,r_in,r_out) &
     !$omp private(i,scale_factor) schedule(static)
     do i = 1, mesh%nv
-
-      scale_factor = (phi_max%f(i)-phi_tilda%f(i))/(scale_in(i)+eps)
-
-      r_in(i) = min(1.0_r8,max(0.0_r8,scale_factor))
-
-      scale_factor = (phi_min%f(i)-phi_tilda%f(i))/(scale_out(i)-eps)
-
-      r_out(i) = min(1.0_r8,max(0.0_r8,scale_factor))
-
+      scale_factor = (phi_max%f(i)-phi_tilda%f(i))/(scale_in(i)+limiter_eps)
+      r_in(i) = min(1._r8,max(0._r8,scale_factor))
+      scale_factor = (phi_min%f(i)-phi_tilda%f(i))/(scale_out(i)-limiter_eps)
+      r_out(i) = min(1._r8,max(0._r8,scale_factor))
     end do
     !$omp end parallel do
 
-    !---------------------------------------------------------------------------
-    ! Limit each edge correction using the factors from both adjacent cells.
-    !
-    ! Positive flux_corr:
-    !   correction leaves cell1 and enters cell2.
-    !
-    ! Negative flux_corr:
-    !   correction leaves cell2 and enters cell1.
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,edge_cell1,edge_cell2,flux_corr,flux_limited) &
-    !$omp shared(r_in,r_out) &
+    ! One limiter coefficient per physical edge
+    !$omp parallel do default(none) shared(mesh,edge_cell1,edge_cell2,flux_corr,flux_limited,r_in,r_out) &
     !$omp private(e,c1,c2) schedule(static)
     do e = 1, mesh%ne
-
       c1 = edge_cell1(e)
       c2 = edge_cell2(e)
-
-      flux_limited(e) = max(0.0_r8,flux_corr(e))*min(r_out(c1),r_in(c2)) + &
-                        min(0.0_r8,flux_corr(e))*min(r_in(c1),r_out(c2))
-
+      flux_limited(e) = max(0._r8,flux_corr(e))*min(r_out(c1),r_in(c2)) + min(0._r8,flux_corr(e))*min(r_in(c1),r_out(c2))
     end do
     !$omp end parallel do
 
-    !---------------------------------------------------------------------------
-    ! Final conservative update.
-    !
-    ! No pointwise max(0,phi) operation is applied, since such clipping would
-    ! alter the total tracer mass.
-    !---------------------------------------------------------------------------
-    !$omp parallel do default(none) &
-    !$omp shared(mesh,phi_step2,phi_tilda,edge_cell1,flux_limited) &
+    ! Final conservative update
+    !$omp parallel do default(none) shared(mesh,phi_step2,phi_tilda,edge_cell1,flux_limited) &
     !$omp private(i,j,e,sigma,inv_area) schedule(static)
     do i = 1, mesh%nv
-
-      inv_area = 1.0_r8/mesh%hx(i)%areag
-
+      inv_area = 1._r8/mesh%hx(i)%areag
       phi_step2%f(i) = phi_tilda%f(i)
 
       do j = 1, mesh%v(i)%nnb
-
         e = mesh%v(i)%ed(j)
-
         if (i == edge_cell1(e)) then
-          sigma = 1.0_r8
+          sigma = 1._r8
         else
-          sigma = -1.0_r8
+          sigma = -1._r8
         end if
-
         phi_step2%f(i) = phi_step2%f(i) - sigma*flux_limited(e)*inv_area
-
       end do
-
     end do
     !$omp end parallel do
 
-    deallocate(edge_cell1)
-    deallocate(edge_cell2)
-    deallocate(edge_slot1)
+    if (use_streamfunction) then
+      final_under = 0._r8
+      final_over = 0._r8
+      do i = 1, mesh%nv
+        final_under = max(final_under,phi_min%f(i)-phi_step2%f(i))
+        final_over = max(final_over,phi_step2%f(i)-phi_max%f(i))
+      end do
 
-    deallocate(flux_upwind)
-    deallocate(flux_high)
-    deallocate(flux_corr)
-    deallocate(flux_limited)
+      if (final_under > check_tol .or. final_over > check_tol) then
+        print*, 'ERROR in monotonicfilter_rk3: final limited solution is not monotone.'
+        print*, 'Final undershoot = ', final_under
+        print*, 'Final overshoot  = ', final_over
+        print*, 'min(phi)         = ', minval(phi_step2%f)
+        print*, 'max(phi)         = ', maxval(phi_step2%f)
+        stop
+      end if
+    end if
 
-    deallocate(scale_in)
-    deallocate(scale_out)
-    deallocate(r_in)
-    deallocate(r_out)
+    deallocate(edge_cell1, edge_cell2, edge_slot1)
+    deallocate(edge_transport, flux_upwind, flux_high, flux_corr, flux_limited)
+    deallocate(scale_in, scale_out, r_in, r_out)
 
-  end subroutine monotonicfilter_rk3_v2
+  end subroutine monotonicfilter_rk3
+
 
   subroutine divhx(q, div, mesh, radius, time)
     !---------------------------------------------------------------
