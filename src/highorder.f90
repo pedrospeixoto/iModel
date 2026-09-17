@@ -4197,64 +4197,137 @@ end subroutine flux_olg
       return
     end subroutine rungekutta3   
 
-  subroutine ode_rk3_adv(nodes, mesh, time)
-    integer(i4) :: k
-    real(r8) :: time
-    integer,intent(in):: nodes
-    type(grid_structure),intent(inout):: mesh
 
-    if(advmtd=='og2' .or. advmtd=='og3' .or. advmtd=='og3a' .or. advmtd=='og3b' .or. advmtd=='og3c' .or. advmtd=='og4')then
-      if(.not. monotonicfilter)then
-        do k=1, 3
-          call vector_olg2(nodes)
-          call reconstruction_olg(nodes)
-          call flux_olg(nodes,mesh,k-1,time) 
-          call rungekutta3(nodes,mesh,k) 
-        enddo
+   subroutine ode_rk3_adv(nodes, mesh, time)
+     implicit none
+     integer(i4), intent(in) :: nodes
+     type(grid_structure), intent(inout) :: mesh
+     real(r8), intent(in) :: time
+     integer(i4) :: k
+     real(r8) :: stage_time
 
-      else
-        do k=1, 2
-          call vector_olg2(nodes)
-          call reconstruction_olg(nodes)
-          call flux_olg(nodes,mesh,k-1,time) 
-          call rungekutta3(nodes,mesh,k) 
-        enddo
+     ! ================================================================
+     ! Ollivier-Gooch schemes
+     ! ================================================================
+     if (advmtd=='og2'  .or. advmtd=='og3'  .or. &
+         advmtd=='og3a' .or. advmtd=='og3b' .or. &
+         advmtd=='og3c' .or. advmtd=='og4') then
 
-        ! Applies monotonic filter
-        phi_RKS0%f(:) = node(1:nodes)%phi_old ! phi at time t
-        phi_RKS2%f(:) = node(1:nodes)%phi_new2 ! phi at time t+dt/2 (second RK stage)
-        call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, time)
-        node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
+       if (.not. monotonicfilter) then
+         do k = 1, 3
+           select case(k)
+              case(1)
+                ! First RK stage:
+                ! state at t_n
+                stage_time = time
 
-      end if
+              case(2)
+                ! Second RK stage:
+                ! state produced at t_n + dt/3
+                stage_time = time + node(0)%dt/3.0_r8
 
-    else! Gassman scheme
-      if(.not. monotonicfilter)then
-        do k=1, 3
-          call vector_gas(nodes)
-          call reconstruction_gas(nodes)
-          call flux_gas(nodes,mesh,k-1,time)
-          call rungekutta3(nodes,mesh,k) 
-        enddo
+              case(3)
+                ! Third RK stage:
+                ! state produced at t_n + dt/2
+                stage_time = time + node(0)%dt/2.0_r8
+           end select
 
-      else
-        do k=1, 2
-          call vector_gas(nodes)
-          call reconstruction_gas(nodes)
-          call flux_gas(nodes,mesh,k-1,time)
-          call rungekutta3(nodes,mesh,k) 
-        enddo
+           call vector_olg2(nodes)
+           call reconstruction_olg(nodes)
+           call flux_olg(nodes, mesh, k-1, stage_time)
+           call rungekutta3(nodes, mesh, k)
+         end do
 
-        ! Applies monotonic filter
-        phi_RKS0%f(:) = node(1:nodes)%phi_old ! phi at time t
-        phi_RKS2%f(:) = node(1:nodes)%phi_new2 ! phi at time t+dt/2 (second RK stage)
-        call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, time)
-        node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
-      end if
+       else
+         ! First two RK stages
+         do k = 1, 2
+           select case(k)
+              case(1)
+                stage_time = time
 
-   end if
+              case(2)
+                stage_time = time + node(0)%dt/3.0_r8
+           end select
 
-  end subroutine ode_rk3_adv
+           call vector_olg2(nodes)
+           call reconstruction_olg(nodes)
+           call flux_olg(nodes, mesh, k-1, stage_time)
+           call rungekutta3(nodes, mesh, k)
+
+         end do
+
+         ! State at t_n
+         phi_RKS0%f(:) = node(1:nodes)%phi_old
+
+         ! Second RK state at t_n + dt/2
+         phi_RKS2%f(:) = node(1:nodes)%phi_new2
+
+         ! Final RK stage uses the tendency at t_n + dt/2
+         stage_time = time + node(0)%dt/2.0_r8
+
+         call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, stage_time)
+
+         node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
+
+       end if
+
+
+     ! ================================================================
+     ! Gassmann schemes
+     ! ================================================================
+     else
+       if (.not. monotonicfilter) then
+         do k = 1, 3
+           select case(k)
+              case(1)
+                stage_time = time
+
+              case(2)
+                stage_time = time + node(0)%dt/3.0_r8
+
+              case(3)
+                stage_time = time + node(0)%dt/2.0_r8
+           end select
+
+           call vector_gas(nodes)
+           call reconstruction_gas(nodes)
+           call flux_gas(nodes, mesh, k-1, stage_time)
+           call rungekutta3(nodes, mesh, k)
+         end do
+
+       else
+         ! First two RK stages
+         do k = 1, 2
+           select case(k)
+              case(1)
+                stage_time = time
+
+              case(2)
+                stage_time = time + node(0)%dt/3.0_r8
+           end select
+
+           call vector_gas(nodes)
+           call reconstruction_gas(nodes)
+           call flux_gas(nodes, mesh, k-1, stage_time)
+           call rungekutta3(nodes, mesh, k)
+         end do
+
+         ! State at t_n
+         phi_RKS0%f(:) = node(1:nodes)%phi_old
+
+         ! Second RK state at t_n + dt/2
+         phi_RKS2%f(:) = node(1:nodes)%phi_new2
+
+         ! Final RK stage uses the tendency at t_n + dt/2
+         stage_time = time + node(0)%dt/2.0_r8
+
+         call monotonicfilter_rk3(mesh, phi_RKS0, phi_RKS2, node(0)%dt, radius, stage_time)
+
+         node(1:nodes)%phi_new2 = phi_RKS2%f(1:nodes)
+       end if
+     end if
+
+   end subroutine ode_rk3_adv
 
     subroutine ode_rk3_advection (mesh, phi_new, phi, time, dt, radius, u, u_new)
       !----------------------------------------------------------------------------------
