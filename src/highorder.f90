@@ -623,7 +623,6 @@ contains
              enddo
           elseif (time_integrator=='rk3') then
             call ode_rk3_adv(nodes, mesh, time)
-            !call ode_rk3_advection (mesh, phi_new, phi, time, node(0)%dt, radius)
             !node(1:nodes)%phi_new2=phi_new%f
           endif
 
@@ -715,7 +714,6 @@ contains
             enddo
           elseif (time_integrator=='rk3') then
             call ode_rk3_adv(nodes, mesh, time)
-            !call ode_rk3_advection (mesh, phi_new, phi, time, node(0)%dt, radius)
             !node(1:nodes)%phi_new2=phi_new%f
           endif
 
@@ -4328,61 +4326,6 @@ end subroutine flux_olg
      end if
 
    end subroutine ode_rk3_adv
-
-    subroutine ode_rk3_advection (mesh, phi_new, phi, time, dt, radius, u, u_new)
-      !----------------------------------------------------------------------------------
-      !! ode_rk3 takes one Runge-Kutta step for a vector ODE.
-      !    t - time that will be calculated (t0+dt)
-      !    h - scalar_field for thickness at current time
-      !    u - scalar_field for velocities at current time
-      !    dt - time step
-      !    h_new and u_new - fields at t+dt
-      !----------------------------------------------------------------------------------
-
-      !Grid
-      type(grid_structure), intent(inout) :: mesh
-
-      !Scalar field (defined on voronoi centers)
-      type(scalar_field), intent(inout):: phi  !General
-
-      !Velocities (defined on edges - only normal component)
-      type(scalar_field), optional, intent(inout):: u, u_new  !General
-
-      !Time, time-step and sphere radius 
-      real(r8):: time, dt, radius
-
-      !Updated fields
-      ! Scalar field (defined on voronoi centers)
-      type(scalar_field), intent(inout):: phi_new  !General
-
-      call zero_vector(phif0)
-      call zero_vector(phif1)
-      call zero_vector(phif2)
-      call zero_vector(phif3)
-
-      call tendency_advection(phi, phif0, mesh, time, radius)
-
-      !First RK step
-      phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif0(1:phi%n) / 3.0_r8
-
-      call tendency_advection(phi_new, phif1, mesh, time, radius)
-
-      !Second RK step
-      phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif1(1:phi%n) / 2.0_r8
-
-      call tendency_advection(phi_new, phif2, mesh, time, radius)
-
-      ! Third  RK step
-      ! Last RK step applies a different approach if the monotonic limiter is active 
-      if(.not. monotonicfilter) then
-        phi_new%f(1:phi%n)   = phi%f(1:phi%n)    + dt * phif2(1:phi%n)
-
-      else if(monotonicfilter) then
-        call  monotonicfilter_rk3(mesh, phi, phi_new, dt, radius, time, u, u_new)
-      end if
-
-      return
-    end subroutine ode_rk3_advection
 
   subroutine tendency_advection(phi, phif, mesh, time, radius)
     !--------------------------------------
